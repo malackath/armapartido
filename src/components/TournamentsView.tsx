@@ -176,7 +176,7 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
                   {trn.pairs.length === 0 ? (
                     <p className="mt-2 text-xs text-slate-500">Todavía no hay parejas anotadas.</p>
                   ) : (
-                    <div className="mt-2 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="mt-2 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                       {trn.pairs.map((pair) => (
                         <div key={pair.id} className="flex items-center gap-3 rounded-2xl border border-line bg-white p-2.5">
                           <PairAvatar a={{ name: pair.player1Name, photoUrl: photoOf(pair.player1Uid) }} b={{ name: pair.player2Name, photoUrl: photoOf(pair.player2Uid) }} size={44} />
@@ -211,7 +211,7 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
                       <BrandIcon name="resultado" size={18} className="text-brand" />
                       Cuadro y próximos partidos
                     </p>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                       {trn.matches.map((m) => {
                         const side = (pairId: string, label: string) => {
                           const p = trn.pairs.find((x) => x.id === pairId);
@@ -227,8 +227,13 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
                               )}
                               <span className={`ml-1.5 truncate text-sm ${won ? 'font-bold text-ink' : 'font-medium text-ink'}`}>{p ? `${p.player1Name} / ${p.player2Name}` : label}</span>
                               {p && <CategoryBadge category={p.category} size={20} />}
-                              {won && <StatusChip kind="ok" icon="resultado" className="ml-auto">Ganó</StatusChip>}
-                              {won && <span className="shrink-0 text-sm font-bold tabular-nums">{m.score}</span>}
+                              {won && (
+                                <span className="ml-auto flex shrink-0 items-center gap-2">
+                                  {/* En el celular alcanza con el fondo verde: el aviso "Ganó" le quitaba lugar al nombre. */}
+                                  <StatusChip kind="ok" icon="resultado" className="max-sm:hidden">Ganó</StatusChip>
+                                  <span className="text-sm font-bold tabular-nums">{m.score}</span>
+                                </span>
+                              )}
                             </div>
                           );
                         };
@@ -237,9 +242,9 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
                             <div className="flex items-center gap-2 px-1 text-xs">
                               <BrandIcon name="torneos" size={15} className="text-brand" />
                               <span className="font-semibold text-brand">{m.round}</span>
-                              <span className="ml-auto flex items-center gap-1 text-muted tabular-nums">
-                                <BrandIcon name="cancha" size={14} />
-                                {m.courtName} · {formatDateFriendly(m.date)} {formatMinutes(m.startMinute)}
+                              <span className="ml-auto flex min-w-0 items-center gap-1 text-muted tabular-nums">
+                                <BrandIcon name="cancha" size={14} className="shrink-0" />
+                                <span className="truncate">{m.courtName} · {formatDateFriendly(m.date)} {formatMinutes(m.startMinute)}</span>
                               </span>
                             </div>
                             <div className="mt-2 space-y-1">

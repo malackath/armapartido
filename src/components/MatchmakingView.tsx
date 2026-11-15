@@ -102,6 +102,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
 }) => {
   const today = getTodayISO();
   const [photoBusy, setPhotoBusy] = useState(false);
+  const photoByUid = useMemo(() => new Map(memberships.map((m) => [m.uid, m.photoUrl])), [memberships]);
   const [reqType, setReqType] = useState<'priority' | 'weekly'>('priority');
   const [dateISO, setDateISO] = useState(today);
   const [dayOfWeek, setDayOfWeek] = useState<number>(getDayOfWeekFromISO(today));
@@ -396,7 +397,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
       </PhotoHeader>
 
       {/* Top Row: Global Category + Modality + Weekly Schedule */}
-      <div className="grid gap-6 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         <div className="overflow-hidden rounded-3xl bg-[#ecfcfc] shadow-[0_0_0_2px_#05e2f2] lg:col-span-5">
           {/* Tu ficha: bloque destacado con foto grande (pedido de Ber, 15/11/2026). */}
           <div className="flex items-center gap-5 bg-brand p-5 text-white sm:p-6">
@@ -829,7 +830,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
             Aún no hay propuestas activas. Publicá un pedido puntual para hoy de 18:00 a 22:00 en modalidad Mixto (categorías 4ta–6ta) para probar el cruce inmediato con los jugadores en espera.
           </div>
         ) : (
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             {activeProposed.map((match) => {
               const acceptedCount = match.slots.filter((s) => s.status === 'accepted').length;
               const mySlot = match.slots.find((s) => s.uid === userProfile.uid);
@@ -891,7 +892,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                     {match.slots.map((slot) => (
                       <div key={slot.uid} className="flex items-center justify-between gap-3 py-2.5">
                         <div className="flex min-w-0 items-center gap-3">
-                          <PlayerAvatar name={slot.displayName} photoUrl={slot.uid === userProfile.uid ? userProfile.photoUrl : undefined} size={44} />
+                          <PlayerAvatar name={slot.displayName} photoUrl={slot.uid === userProfile.uid ? userProfile.photoUrl : photoByUid.get(slot.uid)} size={44} />
                           <div className="min-w-0">
                             <p className="truncate text-[15px] font-semibold text-slate-900">
                               {slot.displayName}
