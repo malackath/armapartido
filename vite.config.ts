@@ -11,13 +11,13 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
+        includeAssets: ['icon.svg', 'favicon.ico', 'brand/logo-horizontal-color.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
         manifest: {
           id: '/',
           name: 'Armá Partido',
           short_name: 'ArmáPartido',
           description: 'Reservas instantáneas, armado de partidos parejos y torneos para clubes de pádel en Uruguay.',
-          theme_color: '#00696b',
+          theme_color: '#172123',
           background_color: '#F8FAFC',
           display: 'standalone',
           start_url: '/',

@@ -71,7 +71,11 @@ export const TopBar: React.FC<TopBarProps> = ({
             className="font-display text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0 cursor-pointer"
             style={{ color: perspectiveRole === 'platform_owner' ? '#0F172A' : activeClub?.primaryColor || '#00696b' }}
           >
-            {brandTitle}
+            {brandTitle === 'Armá Partido' ? (
+              <img src="/brand/logo-horizontal-color.svg" alt="Armá Partido" className="h-8 w-auto" />
+            ) : (
+              brandTitle
+            )}
           </button>
 
           {/* Zone 2: 4-5 single-line nav links */}

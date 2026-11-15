@@ -24,9 +24,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="mx-auto flex max-w-6xl items-center justify-between gap-8 border-b border-slate-200 px-6 py-4">
-        <span className="font-display text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0">
-          Armá Partido
-        </span>
+        <img src="/brand/logo-horizontal-color.svg" alt="Armá Partido" className="h-9 w-auto shrink-0" />
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
           <a href="#reservas" className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0">
             Reservas
