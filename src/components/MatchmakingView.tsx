@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import PhotoHeader from './PhotoHeader';
 import {
   AlertTriangle,
   CalendarClock,
@@ -35,8 +36,7 @@ import {
   getDayOfWeekFromISO,
   getLevelTierLabel,
   getTodayISO,
-  type PlayerLevelSummary,
-} from '../lib/padelUtils';
+  type PlayerLevelSummary, formatDateFriendly} from '../lib/padelUtils';
 import {
   acceptMatchPartnerInvite,
   createMatchRequestAndTryMatch,
@@ -274,7 +274,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
         playerLevels: numericLevelsMap,
       });
       if (match) {
-        onToast(`¡Cuarto encontrado! Cancha ${match.courtName} retenida para el ${match.date}.`);
+        onToast(`¡Cuarto encontrado! Cancha ${match.courtName} retenida para ${formatDateFriendly(match.date).toLowerCase()}.`);
       } else {
         onToast('Todavía no hay 4 jugadores compatibles con franja y cancha libre.');
       }
@@ -353,31 +353,27 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-medium text-emerald-700">
-            Motor de emparejamiento · Tolerancia ±1 categoría · Confirmación 4/4
-          </p>
-          <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 sm:text-3xl">
-            Armado de partidos parejos
-          </h1>
-        </div>
+      <PhotoHeader
+        image="/img/armar-partido.webp"
+        title="Armá tu partido"
+        subtitle="Decinos cuándo podés jugar y te juntamos con tres jugadores de tu categoría. El partido se confirma cuando aceptan los cuatro."
+      >
         <button
           type="button"
           disabled={busy}
           onClick={handleRunSweep}
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 cursor-pointer"
+          className="mt-2 inline-flex min-h-[44px] w-fit items-center gap-2 rounded-xl bg-[#0bfbff] px-4 py-2 text-sm font-semibold text-[#172123] hover:brightness-95 cursor-pointer disabled:opacity-60"
         >
-          <RefreshCw className="h-4 w-4 text-emerald-600" />
-          Buscar cruces ahora
+          <RefreshCw className="h-4 w-4" />
+          Buscar partido ahora
         </button>
-      </div>
+      </PhotoHeader>
 
       {/* Top Row: Global Category + Modality + Weekly Schedule */}
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:col-span-5">
           <h2 className="font-display text-lg font-bold text-slate-900">
-            Tu ficha global de jugador
+            Tu ficha de jugador
           </h2>
           <p className="mt-1 text-xs text-slate-500">
             Es una sola en toda la plataforma y se aplica automáticamente en todos los clubes.
@@ -450,7 +446,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                 >
                   <span className="font-medium text-slate-800">
                     {getDayName(w.dayOfWeek)} ·{' '}
-                    <span className="font-mono tabular-nums">
+                    <span className=" tabular-nums">
                       {formatMinutes(w.startMinute)}–{formatMinutes(w.endMinute)}
                     </span>
                   </span>
@@ -492,7 +488,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                 max={22}
                 value={newWinStart}
                 onChange={(e) => setNewWinStart(Number(e.target.value))}
-                className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-xs tabular-nums"
+                className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-xs tabular-nums"
               />
               <span className="text-xs text-slate-400">a</span>
               <input
@@ -501,7 +497,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                 max={23}
                 value={newWinEnd}
                 onChange={(e) => setNewWinEnd(Number(e.target.value))}
-                className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 font-mono text-xs tabular-nums"
+                className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-xs tabular-nums"
               />
               <button
                 type="button"
@@ -619,7 +615,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
               <select
                 value={startHour}
                 onChange={(e) => setStartHour(Number(e.target.value))}
-                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm text-slate-900 tabular-nums"
+                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 tabular-nums"
               >
                 {Array.from({ length: 15 }, (_, i) => i + 8).map((h) => (
                   <option key={h} value={h}>
@@ -634,7 +630,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
               <select
                 value={endHour}
                 onChange={(e) => setEndHour(Number(e.target.value))}
-                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm text-slate-900 tabular-nums"
+                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 tabular-nums"
               >
                 {Array.from({ length: 15 }, (_, i) => i + 9).map((h) => (
                   <option key={h} value={h}>
@@ -715,7 +711,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                       <CalendarClock className="h-3.5 w-3.5 text-emerald-700" />
                       Disponibilidad de {selectedPartner.displayName}:
                     </p>
-                    <span className="font-mono text-[11px] font-semibold text-emerald-800">
+                    <span className=" text-[11px] font-semibold text-emerald-800">
                       {levelDiff === 0
                         ? 'Misma categoría'
                         : levelDiff === 1
@@ -770,7 +766,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
           <h2 className="font-display text-xl font-bold text-slate-900">
             Partidos propuestos y confirmados
           </h2>
-          <span className="font-mono text-xs text-slate-500 tabular-nums">
+          <span className=" text-xs text-slate-500 tabular-nums">
             {activeProposed.length} en curso
           </span>
         </div>
@@ -799,7 +795,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                       <p className="text-xs font-medium text-slate-500">
                         {match.modality.toUpperCase()} · {formatCategory(match.minCategory)}–{formatCategory(match.maxCategory)}
                         <span className="mx-1.5" aria-hidden="true">·</span>
-                        <span className="font-mono tabular-nums text-slate-700">
+                        <span className=" tabular-nums text-slate-700">
                           {levelSpread === 0 ? 'Equilibrio: Exacto' : `Equilibrio: ±${levelSpread} nv.`}
                         </span>
                         <span className="mx-1.5" aria-hidden="true">·</span>
@@ -812,13 +808,13 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                       <h3 className="mt-1 font-display text-lg font-bold text-slate-900">
                         {match.courtName}
                       </h3>
-                      <p className="mt-0.5 flex items-center gap-1.5 font-mono text-xs text-slate-600 tabular-nums">
+                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-600 tabular-nums">
                         <Clock className="h-3.5 w-3.5" />
-                        {match.date} · {formatMinutes(match.startMinute)}–{formatMinutes(match.endMinute)} hs
+                        {formatDateFriendly(match.date)} · {formatMinutes(match.startMinute)}–{formatMinutes(match.endMinute)} hs
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-mono text-lg font-bold text-slate-900 tabular-nums">
+                      <p className=" text-lg font-bold text-slate-900 tabular-nums">
                         {formatUYU(match.pricePerPlayer)}
                       </p>
                       <p className="text-[11px] text-slate-500">por jugador (1/4)</p>
@@ -827,7 +823,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
 
                   {match.status === 'pending' && (
                     <p className="mt-3 text-xs text-amber-800">
-                      Plazo límite de aceptación: <span className="font-mono font-semibold tabular-nums">{expiresTime} hs</span>. Si alguien rechaza o no contesta, la cancha se libera y se busca reemplazo.
+                      Plazo límite de aceptación: <span className=" font-semibold tabular-nums">{expiresTime} hs</span>. Si alguien rechaza o no contesta, la cancha se libera y se busca reemplazo.
                     </p>
                   )}
 
@@ -929,7 +925,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
               Jugadores esperando cruce en {club.name}
             </h2>
           </div>
-          <span className="font-mono text-xs text-slate-500 tabular-nums">
+          <span className=" text-xs text-slate-500 tabular-nums">
             {waitingRequests.length} pedidos en espera
           </span>
         </div>
@@ -959,9 +955,9 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                       )}
                     </p>
                   <p className="text-xs text-slate-500">
-                    {r.requestType === 'priority' ? `Puntual ${r.date}` : `Semanal (${getDayName(r.dayOfWeek)})`}
+                    {r.requestType === 'priority' ? `Puntual ${formatDateFriendly(r.date)}` : `Semanal (${getDayName(r.dayOfWeek)})`}
                     <span className="mx-1.5" aria-hidden="true">·</span>
-                    <span className="font-mono tabular-nums">
+                    <span className=" tabular-nums">
                       {formatMinutes(r.startMinute)}–{formatMinutes(r.endMinute)} hs
                     </span>
                     {r.isSameDay && (
@@ -1057,7 +1053,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
         title={payTarget ? `Tu 1/4 en ${payTarget.courtName}` : ''}
         subtitle={
           payTarget
-            ? `${payTarget.date} · ${formatMinutes(payTarget.startMinute)} hs`
+            ? `${formatDateFriendly(payTarget.date)} · ${formatMinutes(payTarget.startMinute)} hs`
             : ''
         }
         amount={payTarget?.pricePerPlayer || 0}

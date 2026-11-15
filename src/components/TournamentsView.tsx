@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
+import PhotoHeader from './PhotoHeader';
 import { Check, CreditCard, Trophy, Users } from 'lucide-react';
 import type { Club, ClubMembership, Tournament, UserProfile } from '../types/padel';
-import { formatCategory, formatMinutes, formatUYU } from '../lib/padelUtils';
+import { formatCategory, formatMinutes, formatUYU, formatDateFriendly} from '../lib/padelUtils';
 import { acceptTournamentPair, registerPairInTournament } from '../services/firestoreService';
 import { MercadoPagoModal } from './MercadoPagoModal';
 
@@ -69,14 +70,11 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
 
   return (
     <div className="space-y-8">
-      <div>
-        <p className="text-xs font-medium text-emerald-700">
-          Competencia en parejas · Cuadro y bloqueo automático de canchas
-        </p>
-        <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 sm:text-3xl">
-          Torneos en {club.name}
-        </h1>
-      </div>
+      <PhotoHeader
+        image="/img/torneo-noche.webp"
+        title="Torneos"
+        subtitle={`Anotate con tu pareja y seguí el cuadro en ${club.name}.`}
+      />
 
       {tournaments.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
@@ -85,7 +83,7 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
             No hay torneos publicados en este club todavía
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            El administrador del club puede crear un torneo nuevo desde Admin Club.
+            Cuando el club abra la inscripción de un torneo, lo vas a ver acá.
           </p>
         </div>
       ) : (
@@ -109,8 +107,8 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
                       <span className="mx-1.5" aria-hidden="true">·</span>
                       Categorías {trn.categories.map(formatCategory).join(', ')}
                       <span className="mx-1.5" aria-hidden="true">·</span>
-                      <span className="font-mono tabular-nums">
-                        {trn.startDate} al {trn.endDate}
+                      <span className=" tabular-nums">
+                        del {formatDateFriendly(trn.startDate, false)} al {formatDateFriendly(trn.endDate, false)}
                       </span>
                     </p>
                     <h2 className="mt-1 font-display text-xl font-bold text-slate-900">{trn.name}</h2>
@@ -127,12 +125,12 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
                       </strong>
                       <span className="mx-1.5" aria-hidden="true">·</span>
                       Cupo:{' '}
-                      <span className="font-mono tabular-nums">
+                      <span className=" tabular-nums">
                         {trn.pairs.length}/{trn.maxPairs} parejas
                       </span>
                       <span className="mx-1.5" aria-hidden="true">·</span>
                       Inscripción:{' '}
-                      <span className="font-mono font-semibold text-slate-900 tabular-nums">
+                      <span className=" font-semibold text-slate-900 tabular-nums">
                         {formatUYU(trn.entryFee)}
                       </span>
                     </p>
@@ -211,8 +209,8 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
                         >
                           <div className="flex items-center justify-between text-[11px] text-slate-500">
                             <span className="font-semibold text-emerald-700">{m.round}</span>
-                            <span className="font-mono tabular-nums">
-                              {m.courtName} · {m.date} {formatMinutes(m.startMinute)}
+                            <span className=" tabular-nums">
+                              {m.courtName} · {formatDateFriendly(m.date)} {formatMinutes(m.startMinute)}
                             </span>
                           </div>
                           <div className="mt-2 space-y-1 text-sm">
@@ -236,7 +234,7 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
                             </p>
                           </div>
                           {m.status === 'completed' && (
-                            <p className="mt-2 font-mono text-xs font-semibold text-slate-700 tabular-nums">
+                            <p className="mt-2 text-xs font-semibold text-slate-700 tabular-nums">
                               Resultado: {m.score}
                             </p>
                           )}
@@ -260,7 +258,7 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
             </h3>
             <p className="mt-1 text-xs text-slate-500">
               Tu compañero recibirá una notificación para aceptar su lugar. Inscripción:{' '}
-              <span className="font-mono font-semibold text-slate-900 tabular-nums">
+              <span className=" font-semibold text-slate-900 tabular-nums">
                 {formatUYU(selectedTournament.entryFee)}
               </span>
             </p>

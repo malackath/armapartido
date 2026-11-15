@@ -66,6 +66,23 @@ export function getDayOfWeekFromISO(dateISO: string): number {
   return new Date(y, m - 1, d).getDay();
 }
 
+const MONTH_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'set', 'oct', 'nov', 'dic'];
+
+/** "Hoy", "Mañana" o "Sáb 14 nov" a partir de YYYY-MM-DD. */
+export function formatDateFriendly(dateISO: string, relative = true): string {
+  if (!dateISO || !/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) return dateISO || '';
+  if (!relative) {
+    const [, mm, dd] = dateISO.split('-').map(Number);
+    return `${DAY_SHORT[getDayOfWeekFromISO(dateISO)]} ${dd} ${MONTH_SHORT[mm - 1]}`;
+  }
+  const today = getTodayISO();
+  if (dateISO === today) return 'Hoy';
+  if (dateISO === addDaysISO(today, 1)) return 'Mañana';
+  if (dateISO === addDaysISO(today, -1)) return 'Ayer';
+  const [, m, d] = dateISO.split('-').map(Number);
+  return `${DAY_SHORT[getDayOfWeekFromISO(dateISO)]} ${d} ${MONTH_SHORT[m - 1]}`;
+}
+
 export function getDayName(dayOfWeek: number): string {
   return DAY_NAMES[dayOfWeek] ?? 'Día';
 }

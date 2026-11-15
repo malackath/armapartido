@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import PhotoHeader from './PhotoHeader';
 import {
   BellRing,
   CalendarCheck2,
@@ -36,8 +37,7 @@ import {
   getDayOfWeekFromISO,
   getTodayISO,
   getUpcomingDays,
-  type PlayerLevelSummary,
-} from '../lib/padelUtils';
+  type PlayerLevelSummary, formatDateFriendly} from '../lib/padelUtils';
 import {
   cancelBooking,
   createDirectBooking,
@@ -263,29 +263,22 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
 
   return (
     <div className="space-y-8">
-      {/* Header & Club Info */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-medium text-slate-500">
-            <span className="inline-flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5" />
-              {club.address}, {club.city}
-            </span>
-            <span className="mx-2" aria-hidden="true">·</span>
-            <span>Cancelación gratis hasta {club.cancellationHours}h antes</span>
-          </p>
-          <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 sm:text-3xl">
-            Reservar cancha en {club.name}
-          </h1>
+      <PhotoHeader
+        image="/img/cancha-techada.webp"
+        title="Reservá tu cancha"
+        subtitle={
+          <span className="inline-flex items-center gap-1">
+            <MapPin className="h-3.5 w-3.5" />
+            {club.name} · cancelás gratis hasta {club.cancellationHours} h antes
+          </span>
+        }
+      >
+        <div className="mt-1 flex flex-wrap gap-2 text-xs tabular-nums">
+          <span className="rounded-full bg-white/15 px-3 py-1 text-white">Día {formatUYU(club.basePrice)}</span>
+          <span className="rounded-full bg-white/15 px-3 py-1 text-white">Noche desde las {club.nightFromHour} {formatUYU(club.nightPrice)}</span>
+          <span className="rounded-full bg-white/15 px-3 py-1 text-white">Fin de semana {formatUYU(club.weekendPrice)}</span>
         </div>
-        <div className="flex items-center gap-4 text-xs text-slate-600 tabular-nums">
-          <span>Día: <strong className="font-mono text-slate-900">{formatUYU(club.basePrice)}</strong></span>
-          <span aria-hidden="true">·</span>
-          <span>Noche ({club.nightFromHour}h+): <strong className="font-mono text-slate-900">{formatUYU(club.nightPrice)}</strong></span>
-          <span aria-hidden="true">·</span>
-          <span>Fin de semana: <strong className="font-mono text-slate-900">{formatUYU(club.weekendPrice)}</strong></span>
-        </div>
-      </div>
+      </PhotoHeader>
 
       {isBlocked && (
         <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
@@ -315,7 +308,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
               }`}
             >
               <span className="text-[11px] font-medium opacity-80">{d.dayShort}</span>
-              <span className="font-mono text-base font-semibold tabular-nums">{d.dayNum}</span>
+              <span className=" text-base font-semibold tabular-nums">{d.dayNum}</span>
             </button>
           );
         })}
@@ -415,10 +408,10 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                               : 'border-slate-200 bg-white text-slate-900 hover:border-emerald-600 hover:bg-emerald-50/60 cursor-pointer'
                       }`}
                     >
-                      <span className="font-mono text-sm font-semibold tabular-nums">
+                      <span className=" text-sm font-semibold tabular-nums">
                         {formatMinutes(slot.startMinute)}
                       </span>
-                      <span className="mt-0.5 font-mono text-[11px] tabular-nums opacity-85">
+                      <span className="mt-0.5 text-[11px] tabular-nums opacity-85">
                         {isOwnBooking
                           ? 'Tu turno'
                           : occupied
@@ -460,7 +453,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                 Exportar confirmadas (.ics)
               </button>
             )}
-            <span className="font-mono text-sm font-semibold text-slate-700 tabular-nums whitespace-nowrap">
+            <span className=" text-sm font-semibold text-slate-700 tabular-nums whitespace-nowrap">
               {myBookings.length} activas
             </span>
           </div>
@@ -482,9 +475,9 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                       <CalendarCheck2 className="h-4 w-4 text-emerald-600 shrink-0" />
                       <span>{bk.courtName}</span>
                       <span className="text-slate-400" aria-hidden="true">·</span>
-                      <span className="font-mono tabular-nums">{bk.date}</span>
+                      <span className="tabular-nums">{formatDateFriendly(bk.date)}</span>
                       <span className="text-slate-400" aria-hidden="true">·</span>
-                      <span className="font-mono tabular-nums">
+                      <span className=" tabular-nums">
                         {formatMinutes(bk.startMinute)}–{formatMinutes(bk.endMinute)}
                       </span>
                     </div>
@@ -493,7 +486,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                         {bk.status === 'held' ? 'Cancha retenida (partido pendiente)' : bk.status === 'no_show' ? 'Ausencia registrada' : 'Confirmada'}
                       </strong>
                       <span className="mx-1.5" aria-hidden="true">·</span>
-                      Total: <span className="font-mono tabular-nums">{formatUYU(bk.totalPrice)}</span>
+                      Total: <span className=" tabular-nums">{formatUYU(bk.totalPrice)}</span>
                       <span className="mx-1.5" aria-hidden="true">·</span>
                       {bk.paymentStatus === 'paid'
                         ? 'Pagada'
@@ -584,7 +577,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
               Tocá cualquier horario ocupado arriba para anotarte. Si la reserva se cancela, recibirás una notificación push al instante.
             </p>
           </div>
-          <span className="font-mono text-sm font-semibold text-slate-700 tabular-nums whitespace-nowrap">
+          <span className=" text-sm font-semibold text-slate-700 tabular-nums whitespace-nowrap">
             {myWaitlistEntries.length} horarios
           </span>
         </div>
@@ -607,9 +600,9 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                       <BellRing className={`h-4 w-4 shrink-0 ${isOpenNow ? 'text-emerald-600' : 'text-sky-600'}`} />
                       <span>{entry.courtName}</span>
                       <span className="text-slate-400" aria-hidden="true">·</span>
-                      <span className="font-mono tabular-nums">{entry.date}</span>
+                      <span className="tabular-nums">{formatDateFriendly(entry.date)}</span>
                       <span className="text-slate-400" aria-hidden="true">·</span>
-                      <span className="font-mono tabular-nums">
+                      <span className=" tabular-nums">
                         {formatMinutes(entry.startMinute)}–{formatMinutes(entry.endMinute)}
                       </span>
                     </div>
@@ -661,13 +654,13 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
             <p className="mt-0.5 text-xs text-slate-500">
               {club.address}, {club.city}
               <span className="mx-1.5" aria-hidden="true">·</span>
-              Horario <span className="font-mono tabular-nums">{String(club.openHour).padStart(2, '0')}:00–{String(club.closeHour).padStart(2, '0')}:00</span> hs
+              Horario <span className=" tabular-nums">{String(club.openHour).padStart(2, '0')}:00–{String(club.closeHour).padStart(2, '0')}:00</span> hs
               <span className="mx-1.5" aria-hidden="true">·</span>
-              <span className="font-mono tabular-nums">{activeCourts.length}</span> canchas activas
+              <span className=" tabular-nums">{activeCourts.length}</span> canchas activas
             </p>
           </div>
           <div className="text-xs text-slate-600 tabular-nums">
-            Cancelación sin cargo: <strong className="font-mono text-slate-900">{club.cancellationHours}h antes</strong>
+            Cancelación sin cargo: <strong className=" text-slate-900">{club.cancellationHours}h antes</strong>
           </div>
         </div>
 
@@ -698,7 +691,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                 </h3>
                 <p className="mt-1 flex items-center gap-2 text-xs text-slate-500">
                   <Clock className="h-3.5 w-3.5" />
-                  <span className="font-mono tabular-nums">
+                  <span className=" tabular-nums">
                     {selectedDate} · {formatMinutes(selectedSlot.startMinute)}–{formatMinutes(selectedSlot.endMinute)} hs
                   </span>
                 </p>
@@ -716,7 +709,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
             <div className="mt-4 rounded-xl bg-slate-50 p-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-600">Valor del turno ({club.slotDurationMinutes} min)</span>
-                <span className="font-mono text-lg font-bold text-slate-900 tabular-nums">
+                <span className=" text-lg font-bold text-slate-900 tabular-nums">
                   {formatUYU(selectedSlot.price)}
                 </span>
               </div>
@@ -776,7 +769,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                   </h3>
                   <p className="mt-1 flex items-center gap-2 text-xs text-slate-500">
                     <Clock className="h-3.5 w-3.5" />
-                    <span className="font-mono tabular-nums">
+                    <span className=" tabular-nums">
                       {selectedDate} · {formatMinutes(waitlistTarget.startMinute)}–{formatMinutes(waitlistTarget.endMinute)} hs
                     </span>
                   </p>
@@ -800,7 +793,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm">
                   <span className="text-slate-600">Jugadores en espera</span>
-                  <span className="font-mono font-bold text-slate-900 tabular-nums">
+                  <span className=" font-bold text-slate-900 tabular-nums">
                     {slotWaiting.length}
                   </span>
                 </div>

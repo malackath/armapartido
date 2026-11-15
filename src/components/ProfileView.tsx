@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import PhotoHeader from './PhotoHeader';
 import {
   Activity,
   BarChart3,
@@ -41,8 +42,7 @@ import {
   formatCategory,
   getDayOfWeekFromISO,
   getTodayISO,
-  type PlayerLevelSummary,
-} from '../lib/padelUtils';
+  type PlayerLevelSummary, formatDateFriendly} from '../lib/padelUtils';
 import {
   deletePlayerMatchResult,
   getUserPrivateInfo,
@@ -427,14 +427,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   return (
     <div className="space-y-8">
-      <div>
-        <p className="text-xs font-medium text-emerald-700">
-          Cuenta única global · Válida en todos los clubes de la red
-        </p>
-        <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 sm:text-3xl">
-          Tu perfil de jugador
-        </h1>
-      </div>
+      <PhotoHeader
+        image="/img/perfil-jugador.webp"
+        title={userProfile.displayName}
+        subtitle={`${formatCategory(userProfile.category)} categoría · tu cuenta sirve en todos los clubes de Armá Partido`}
+      />
 
       {/* Player Performance Analytics Section (Recharts) */}
       <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6">
@@ -495,7 +492,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   value={resultDate}
                   onChange={(e) => setResultDate(e.target.value)}
                   required
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-900"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900"
                 />
               </div>
 
@@ -548,7 +545,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   onChange={(e) => setResultScore(e.target.value)}
                   maxLength={40}
                   placeholder="Ej. 6-4 / 7-5"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-900"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900"
                 />
               </div>
             </div>
@@ -596,7 +593,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           {resolvedLevel.recentForm.length > 0 && (
             <p className="text-[11px] text-slate-600">
               Racha reciente:{' '}
-              <span className="font-mono font-bold tracking-wider">
+              <span className=" font-bold tracking-wider">
                 {resolvedLevel.recentForm.map((f, idx) => (
                   <span key={idx} className={f === 'W' ? 'text-emerald-700' : 'text-red-600'}>
                     {f === 'W' ? 'G' : 'P'}
@@ -612,17 +609,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
             <p className="text-[11px] font-semibold text-slate-500">Partidos con resultado</p>
-            <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-slate-900">
+            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
               {winLossStats.total}
             </p>
-            <p className="mt-0.5 font-mono text-[11px] tabular-nums text-slate-600">
+            <p className="mt-0.5 text-[11px] tabular-nums text-slate-600">
               {winLossStats.wins} ganados · {winLossStats.losses} perdidos
             </p>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
             <p className="text-[11px] font-semibold text-slate-500">Efectividad</p>
-            <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-emerald-700">
+            <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700">
               {winLossStats.total > 0 ? `${winLossStats.winRate}%` : '—'}
             </p>
             <p className="mt-0.5 text-[11px] text-slate-600">
@@ -632,7 +629,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
             <p className="text-[11px] font-semibold text-slate-500">Turnos y partidos</p>
-            <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-slate-900">
+            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
               {frequencyAnalytics.totalSessions}
             </p>
             <p className="mt-0.5 text-[11px] text-slate-600">Reservas, torneos y cargas</p>
@@ -640,7 +637,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
             <p className="text-[11px] font-semibold text-slate-500">Frecuencia semanal</p>
-            <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-slate-900">
+            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
               {frequencyAnalytics.weeklyAverage}
             </p>
             <p className="mt-0.5 text-[11px] text-slate-600">Promedio últimas 6 semanas</p>
@@ -710,7 +707,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="font-mono text-2xl font-bold tabular-nums text-slate-900">
+                    <span className=" text-2xl font-bold tabular-nums text-slate-900">
                       {winLossStats.winRate}%
                     </span>
                     <span className="text-[11px] font-medium text-slate-500">Efectividad</span>
@@ -723,7 +720,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       <span className="h-2.5 w-2.5 rounded-sm bg-emerald-600" />
                       Ganados
                     </span>
-                    <span className="font-mono font-bold tabular-nums text-emerald-700">
+                    <span className=" font-bold tabular-nums text-emerald-700">
                       {winLossStats.wins}
                     </span>
                   </div>
@@ -732,7 +729,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       <span className="h-2.5 w-2.5 rounded-sm bg-red-600" />
                       Perdidos
                     </span>
-                    <span className="font-mono font-bold tabular-nums text-red-700">
+                    <span className=" font-bold tabular-nums text-red-700">
                       {winLossStats.losses}
                     </span>
                   </div>
@@ -841,11 +838,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold text-slate-900">{item.title}</p>
                     <p className="mt-0.5 text-[11px] text-slate-500">
-                      <span className="font-mono tabular-nums">{item.date}</span>
+                      <span className="tabular-nums">{formatDateFriendly(item.date)}</span>
                       <span className="mx-1.5" aria-hidden="true">·</span>
                       {item.modalityLabel}
                       <span className="mx-1.5" aria-hidden="true">·</span>
-                      <span className="font-mono font-medium text-slate-700">{item.score}</span>
+                      <span className=" font-medium text-slate-700">{item.score}</span>
                     </p>
                   </div>
 
@@ -973,16 +970,16 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <p className="mt-1 text-slate-600">
                 Rol actual: <strong className="capitalize">{membership?.role || 'player'}</strong>
                 <span className="mx-1.5" aria-hidden="true">·</span>
-                Ausencias registradas: <span className="font-mono">{membership?.noShowCount ?? 0}</span>/{activeClub.maxNoShowsBeforeBlock}
+                Ausencias registradas: <span className="">{membership?.noShowCount ?? 0}</span>/{activeClub.maxNoShowsBeforeBlock}
               </p>
               {activeClubRankingEntry && (
                 <p className="mt-1.5 text-slate-600">
                   Ranking en el club:{' '}
-                  <strong className="font-mono tabular-nums text-emerald-700">
+                  <strong className=" tabular-nums text-emerald-700">
                     #{activeClubRankingEntry.rank}
                   </strong>
                   <span className="mx-1.5" aria-hidden="true">·</span>
-                  <span className="font-mono tabular-nums font-semibold text-slate-900">
+                  <span className=" tabular-nums font-semibold text-slate-900">
                     {activeClubRankingEntry.points} pts
                   </span>
                 </p>
