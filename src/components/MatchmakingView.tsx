@@ -417,7 +417,8 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                   if (!f) return;
                   setPhotoBusy(true);
                   try {
-                    await uploadProfilePhoto(userProfile.uid, userProfile.activeClubIds ?? [], f);
+                    const url = await uploadProfilePhoto(userProfile.uid, userProfile.activeClubIds ?? [], f);
+                    onProfileUpdated({ ...userProfile, photoUrl: url });
                     onToast('Listo, tu foto quedó en tu ficha.');
                   } catch (err) {
                     onToast(err instanceof Error ? err.message : 'No se pudo subir la foto.');
