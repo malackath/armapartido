@@ -125,6 +125,22 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:14px;paddin
   .scale div{grid-template-columns:minmax(0,1fr);gap:4px}
 }
 @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+@page{size:A4;margin:14mm 0 16mm}
+@page :first{margin:0}
+@media print{
+  :root{--bg:#fff}
+  body{background:#fff}
+  .hero{min-height:297mm;display:flex;align-items:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .hero-in{width:100%}
+  nav.toc{display:none}
+  .wrap{display:block;padding-block:0}
+  main{display:block}
+  section{break-before:page;padding-top:4mm}
+  section+section{margin-top:0}
+  .tile,.swatch,.build,.tablebox,figure,tr,.idea,.iso-big,.parts li,.photo,img,svg{break-inside:avoid}
+  h2,h3,.intro{break-after:avoid}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 </style>
 
 <header class="hero">
