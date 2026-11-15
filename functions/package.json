@@ -1,0 +1,21 @@
+{
+  "name": "armapartido-functions",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=lib/index.js --external:firebase-functions --external:firebase-admin",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && esbuild test/harness.ts --bundle --platform=node --target=node22 --format=cjs --outfile=lib-test/harness.js --external:firebase-functions --external:firebase-admin && cd .. && npx -y firebase-tools@15 emulators:exec --project demo-armapartido --only auth,firestore,functions \"FIREBASE_EMULATORS=1 DEMO_PASSWORD=prueba-local-123 npx tsx scripts/seed-demo.ts && node functions/test/armado.emulator.mjs\""
+  },
+  "dependencies": {
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^7.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0"
+  }
+}

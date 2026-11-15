@@ -21,6 +21,7 @@ export type NotificationEventType =
   | 'match_proposed'
   | 'match_confirmed'
   | 'match_unfilled_1h'
+  | 'match_expired'
   | 'tournament_new'
   | 'pair_invite'
   | 'tournament_next_match'

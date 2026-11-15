@@ -15,12 +15,12 @@ import {
   writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
   addDaysISO,
   calculateSlotPrice,
   canCancelFree,
-  findMatchForClub,
   formatCategory,
   formatDateFriendly,
   formatMinutes,
@@ -78,6 +78,7 @@ const NOTIFICATION_CHANNELS: Record<NotificationEventType, { push: boolean; emai
   match_proposed: { push: true, email: false },
   match_confirmed: { push: true, email: true },
   match_unfilled_1h: { push: true, email: false },
+  match_expired: { push: true, email: false },
   tournament_new: { push: true, email: true },
   pair_invite: { push: true, email: true },
   tournament_next_match: { push: true, email: true },
@@ -94,6 +95,7 @@ function getDefaultTabForEvent(eventType: NotificationEventType): string {
     case 'match_proposed':
     case 'match_confirmed':
     case 'match_unfilled_1h':
+    case 'match_expired':
     case 'pair_invite':
       return 'matchmaking';
     case 'tournament_new':
@@ -1040,12 +1042,26 @@ export async function markBookingNoShow(params: {
   }
 }
 
+// -----------------------------------------------------------------------------
+// Armado de partidos: corre en el servidor (Cloud Functions, functions/src).
+// Estas funciones mantienen la firma que usaba la pantalla; los datos de club que
+// reciben ya no hacen falta porque el servidor lee lo suyo de Firestore.
+// -----------------------------------------------------------------------------
+const callArmado = async <T,>(name: string, data: Record<string, unknown>, path: string): Promise<T> => {
+  try {
+    const res = await httpsCallable<Record<string, unknown>, T>(functions, name)(data);
+    return res.data;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+  }
+};
+
 export async function createMatchRequestAndTryMatch(params: {
   club: Club;
-  courts: Court[];
-  bookings: Booking[];
-  existingRequests: MatchRequest[];
-  memberships: ClubMembership[];
+  courts?: Court[];
+  bookings?: Booking[];
+  existingRequests?: MatchRequest[];
+  memberships?: ClubMembership[];
   creatorUid: string;
   creatorName: string;
   category: number;
@@ -1059,191 +1075,21 @@ export async function createMatchRequestAndTryMatch(params: {
   partnerName: string;
   playerLevels?: Map<string, number>;
 }): Promise<{ request: MatchRequest; proposedMatch: ProposedMatch | null }> {
-  const {
-    club,
-    courts,
-    bookings,
-    existingRequests,
-    memberships,
-    creatorUid,
-    creatorName,
-    category,
-    modality,
-    requestType,
-    date,
-    dayOfWeek,
-    startMinute,
-    endMinute,
-    partnerUid,
-    partnerName,
-    playerLevels,
-  } = params;
-
-  const today = getTodayISO();
-  const isSameDay = requestType === 'priority' && date === today;
-  const reqId = makeId('mreq');
-  const isDemoPartner = partnerUid.startsWith('demo_');
-
-  const newReq: MatchRequest = {
-    id: reqId,
-    clubId: club.id,
-    clubIds: [club.id],
-    creatorUid,
-    creatorName: creatorName.slice(0, 80),
-    partnerUid,
-    partnerName: partnerName.slice(0, 80),
-    partnerAccepted: !partnerUid || isDemoPartner,
-    category,
-    modality,
-    requestType,
-    date: requestType === 'priority' ? date : '',
-    dayOfWeek,
-    startMinute,
-    endMinute,
-    isSameDay,
-    status: 'waiting',
-    unfilledAlertSent: false,
-  };
-
-  const path = `clubs/${club.id}/matchRequests/${reqId}`;
-  try {
-    await setDoc(doc(db, 'clubs', club.id, 'matchRequests', reqId), {
-      ...newReq,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    if (partnerUid && !isDemoPartner) {
-      await dispatchNotification({
-        clubId: club.id,
-        recipientUid: partnerUid,
-        eventType: 'pair_invite',
-        title: `Invitación de pareja fija · ${club.name}`,
-        body: `${creatorName} te invitó a buscar rivales (${modality}, ${formatCategory(category)}).`,
-        currentUserUid: creatorUid,
-      });
-    }
-
-    const proposed = await runMatchmakingSweep({
-      club,
-      courts,
-      bookings,
-      requests: [...existingRequests, newReq],
-      memberships,
-      triggeredByUid: creatorUid,
-      targetDate: requestType === 'priority' ? date : undefined,
-      playerLevels,
-    });
-
-    return { request: newReq, proposedMatch: proposed };
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, path);
-  }
+  const { club, modality, requestType, date, dayOfWeek, startMinute, endMinute, partnerUid, partnerName } = params;
+  return callArmado('armadoCrearPedido', {
+    clubId: club.id, modality, requestType, date, dayOfWeek, startMinute, endMinute, partnerUid, partnerName,
+  }, `clubs/${club.id}/matchRequests`);
 }
 
 export async function runMatchmakingSweep(params: {
   club: Club;
-  courts: Court[];
-  bookings: Booking[];
-  requests: MatchRequest[];
-  memberships: ClubMembership[];
   triggeredByUid: string;
-  targetDate?: string;
-  playerLevels?: Map<string, number>;
+  [rest: string]: unknown;
 }): Promise<ProposedMatch | null> {
-  const { club, courts, bookings, requests, memberships, triggeredByUid, targetDate, playerLevels } = params;
-  const candidate = findMatchForClub({
-    club,
-    courts,
-    bookings,
-    requests,
-    memberships,
-    targetDate,
-    playerLevels,
-  });
-  if (!candidate) return null;
-
-  const bookingId = makeId('bk');
-  const matchId = makeId('pm');
-  const totalPrice = calculateSlotPrice(club, candidate.date, candidate.startMinute);
-  const pricePerPlayer = Math.round(totalPrice / 4);
-  const playerUids = candidate.slots.map((s) => s.uid);
-
-  const proposed: ProposedMatch = {
-    id: matchId,
-    clubId: club.id,
-    bookingId,
-    courtId: candidate.court.id,
-    courtName: candidate.court.name,
-    date: candidate.date,
-    startMinute: candidate.startMinute,
-    endMinute: candidate.endMinute,
-    modality: candidate.modality,
-    minCategory: candidate.minCategory,
-    maxCategory: candidate.maxCategory,
-    pricePerPlayer,
-    playerUids,
-    slots: candidate.slots,
-    expiresAt: candidate.expiresAt,
-    status: 'pending',
-    createdByUid: triggeredByUid,
-  };
-
-  try {
-    await runTransaction(db, async (tx) => {
-      const bookingRef = doc(db, 'clubs', club.id, 'bookings', bookingId);
-      tx.set(bookingRef, {
-        id: bookingId,
-        clubId: club.id,
-        courtId: candidate.court.id,
-        courtName: candidate.court.name,
-        date: candidate.date,
-        startMinute: candidate.startMinute,
-        endMinute: candidate.endMinute,
-        type: 'matched',
-        status: 'held',
-        createdByUid: triggeredByUid,
-        playerUids,
-        guestName: `Partido armado (${candidate.modality})`,
-        totalPrice,
-        paidAmount: 0,
-        paymentMethod: 'split',
-        paymentStatus: 'pending',
-        holdExpiresAt: candidate.expiresAt,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      const matchRef = doc(db, 'clubs', club.id, 'proposedMatches', matchId);
-      tx.set(matchRef, {
-        ...proposed,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      for (const reqId of candidate.usedRequestIds) {
-        tx.update(doc(db, 'clubs', club.id, 'matchRequests', reqId), {
-          status: 'proposed',
-          updatedAt: serverTimestamp(),
-        });
-      }
-    });
-
-    for (const slot of candidate.slots) {
-      await dispatchNotification({
-        clubId: club.id,
-        recipientUid: slot.uid,
-        eventType: 'match_proposed',
-        title: `Partido propuesto · ${club.name}`,
-        body: `${candidate.court.name} el ${formatDateFriendly(candidate.date, false)} ${formatMinutes(candidate.startMinute)} hs (${candidate.modality}). Confirmá antes de que venza el plazo.`,
-        currentUserUid: triggeredByUid,
-      });
-    }
-
-    return proposed;
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, `clubs/${club.id}/proposedMatches/${matchId}`);
-  }
+  const res = await callArmado<{ proposedMatch: ProposedMatch | null }>(
+    'armadoBuscar', { clubId: params.club.id }, `clubs/${params.club.id}/proposedMatches`
+  );
+  return res.proposedMatch;
 }
 
 export async function respondToProposedMatch(params: {
@@ -1252,139 +1098,15 @@ export async function respondToProposedMatch(params: {
   targetSlotUid: string;
   decision: 'accepted' | 'declined';
   currentUid: string;
-  courts: Court[];
-  bookings: Booking[];
-  requests: MatchRequest[];
-  memberships: ClubMembership[];
-  playerLevels?: Map<string, number>;
+  [rest: string]: unknown;
 }): Promise<'confirmed' | 'pending' | 'replaced_or_cancelled'> {
-  const {
-    club,
-    proposedMatch,
-    targetSlotUid,
-    decision,
-    currentUid,
-    courts,
-    bookings,
-    requests,
-    memberships,
-    playerLevels,
-  } = params;
-
-  const matchPath = `clubs/${club.id}/proposedMatches/${proposedMatch.id}`;
-  try {
-    if (decision === 'declined') {
-      await updateDoc(doc(db, 'clubs', club.id, 'proposedMatches', proposedMatch.id), {
-        status: 'cancelled',
-        slots: proposedMatch.slots.map((s) =>
-          s.uid === targetSlotUid ? { ...s, status: 'declined' } : s
-        ),
-        updatedAt: serverTimestamp(),
-      });
-
-      await updateDoc(doc(db, 'clubs', club.id, 'bookings', proposedMatch.bookingId), {
-        status: 'cancelled',
-        updatedAt: serverTimestamp(),
-      });
-
-      // Return non-declining players' requests back to waiting and look for replacement
-      const remainingRequests: MatchRequest[] = [];
-      for (const r of requests) {
-        const inThisMatch = proposedMatch.slots.some((s) => s.requestId === r.id);
-        if (!inThisMatch) {
-          remainingRequests.push(r);
-          continue;
-        }
-        if (r.creatorUid === targetSlotUid || r.partnerUid === targetSlotUid) {
-          await updateDoc(doc(db, 'clubs', club.id, 'matchRequests', r.id), {
-            status: 'cancelled',
-            updatedAt: serverTimestamp(),
-          });
-        } else {
-          await updateDoc(doc(db, 'clubs', club.id, 'matchRequests', r.id), {
-            status: 'waiting',
-            updatedAt: serverTimestamp(),
-          });
-          remainingRequests.push({ ...r, status: 'waiting' });
-        }
-      }
-
-      const replacementMatch = await runMatchmakingSweep({
-        club,
-        courts,
-        bookings: bookings.filter((b) => b.id !== proposedMatch.bookingId),
-        requests: remainingRequests,
-        memberships,
-        triggeredByUid: currentUid,
-        targetDate: proposedMatch.date,
-        playerLevels,
-      });
-
-      const slotReoccupied =
-        replacementMatch &&
-        replacementMatch.courtId === proposedMatch.courtId &&
-        replacementMatch.date === proposedMatch.date &&
-        replacementMatch.startMinute < proposedMatch.endMinute &&
-        replacementMatch.endMinute > proposedMatch.startMinute;
-
-      if (!slotReoccupied) {
-        await notifyWaitlistForFreedSlot({
-          club,
-          courtId: proposedMatch.courtId,
-          courtName: proposedMatch.courtName,
-          date: proposedMatch.date,
-          startMinute: proposedMatch.startMinute,
-          endMinute: proposedMatch.endMinute,
-          triggeredByUid: currentUid,
-        });
-      }
-
-      return 'replaced_or_cancelled';
-    }
-
-    const updatedSlots = proposedMatch.slots.map((s) =>
-      s.uid === targetSlotUid ? { ...s, status: 'accepted' as const } : s
-    );
-    const allAccepted = updatedSlots.every((s) => s.status === 'accepted');
-
-    await updateDoc(doc(db, 'clubs', club.id, 'proposedMatches', proposedMatch.id), {
-      slots: updatedSlots,
-      status: allAccepted ? 'confirmed' : 'pending',
-      updatedAt: serverTimestamp(),
-    });
-
-    if (allAccepted) {
-      await updateDoc(doc(db, 'clubs', club.id, 'bookings', proposedMatch.bookingId), {
-        status: 'confirmed',
-        holdExpiresAt: '',
-        updatedAt: serverTimestamp(),
-      });
-
-      const reqIds = Array.from(new Set(updatedSlots.map((s) => s.requestId)));
-      for (const reqId of reqIds) {
-        await updateDoc(doc(db, 'clubs', club.id, 'matchRequests', reqId), {
-          status: 'confirmed',
-          updatedAt: serverTimestamp(),
-        });
-      }
-
-      for (const slot of updatedSlots) {
-        await dispatchNotification({
-          clubId: club.id,
-          recipientUid: slot.uid,
-          eventType: 'match_confirmed',
-          title: `Partido confirmado · ${club.name}`,
-          body: `¡Listo! ${proposedMatch.courtName} el ${formatDateFriendly(proposedMatch.date, false)} a las ${formatMinutes(proposedMatch.startMinute)} hs. Tu parte: $${proposedMatch.pricePerPlayer}.`,
-          currentUserUid: currentUid,
-        });
-      }
-      return 'confirmed';
-    }
-
-    return 'pending';
-  } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, matchPath);
-  }
+  const { club, proposedMatch, targetSlotUid, decision } = params;
+  const res = await callArmado<{ result: 'confirmed' | 'pending' | 'replaced_or_cancelled' | 'already_closed' }>(
+    'armadoResponder',
+    { clubId: club.id, matchId: proposedMatch.id, slotUid: targetSlotUid, decision },
+    `clubs/${club.id}/proposedMatches/${proposedMatch.id}`
+  );
+  return res.result === 'already_closed' ? 'replaced_or_cancelled' : res.result;
 }
 
 export async function payMatchShare(params: {
@@ -1508,50 +1230,14 @@ export async function triggerUnfilledSameDayAlert(params: {
 export async function acceptMatchPartnerInvite(params: {
   club: Club;
   req: MatchRequest;
-  courts: Court[];
-  bookings: Booking[];
-  requests: MatchRequest[];
-  memberships: ClubMembership[];
   currentUid: string;
-  playerLevels?: Map<string, number>;
+  [rest: string]: unknown;
 }): Promise<ProposedMatch | null> {
-  const { club, req, courts, bookings, requests, memberships, currentUid, playerLevels } = params;
-  const path = `clubs/${club.id}/matchRequests/${req.id}`;
-  try {
-    await updateDoc(doc(db, 'clubs', club.id, 'matchRequests', req.id), {
-      partnerAccepted: true,
-      updatedAt: serverTimestamp(),
-    });
-
-    if (req.creatorUid && !req.creatorUid.startsWith('demo_')) {
-      await dispatchNotification({
-        clubId: club.id,
-        recipientUid: req.creatorUid,
-        eventType: 'pair_invite',
-        title: `Pareja confirmada · ${club.name}`,
-        body: `${req.partnerName || 'Tu compañero'} aceptó tu invitación de pareja fija (${req.modality}).`,
-        currentUserUid: currentUid,
-        tab: 'matchmaking',
-      });
-    }
-
-    const updatedRequests = requests.map((item) =>
-      item.id === req.id ? { ...item, partnerAccepted: true } : item
-    );
-
-    return await runMatchmakingSweep({
-      club,
-      courts,
-      bookings,
-      requests: updatedRequests,
-      memberships,
-      triggeredByUid: currentUid,
-      targetDate: req.requestType === 'priority' ? req.date : undefined,
-      playerLevels,
-    });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, path);
-  }
+  const { club, req } = params;
+  const res = await callArmado<{ proposedMatch: ProposedMatch | null }>(
+    'armadoAceptarPareja', { clubId: club.id, requestId: req.id }, `clubs/${club.id}/matchRequests/${req.id}`
+  );
+  return res.proposedMatch;
 }
 
 // -----------------------------------------------------------------------------

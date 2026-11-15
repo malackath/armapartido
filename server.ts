@@ -76,6 +76,7 @@ const EVENT_TAB_MAP: Record<string, string> = {
   match_confirmed: 'matchmaking',
   match_proposed: 'matchmaking',
   match_unfilled_1h: 'matchmaking',
+  match_expired: 'matchmaking',
   pair_invite: 'matchmaking',
   booking_confirmed: 'bookings',
   booking_cancelled: 'bookings',
