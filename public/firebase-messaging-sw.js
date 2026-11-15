@@ -1,5 +1,5 @@
 /* eslint-disable no-undef */
-// Service Worker dedicated to Firebase Cloud Messaging (Web Push) for CuatroEnCancha.
+// Service Worker dedicated to Firebase Cloud Messaging (Web Push) for Sumate.
 // Runs under its own scope (/firebase-cloud-messaging-push-scope) alongside the PWA Workbox SW.
 
 self.addEventListener('install', () => {
@@ -19,7 +19,7 @@ self.addEventListener('push', (event) => {
   } catch {
     payload = {
       notification: {
-        title: 'CuatroEnCancha',
+        title: 'Sumate',
         body: event.data.text(),
       },
     };
@@ -27,14 +27,14 @@ self.addEventListener('push', (event) => {
 
   const notificationData = payload.notification || {};
   const data = payload.data || {};
-  const title = notificationData.title || data.title || 'CuatroEnCancha';
+  const title = notificationData.title || data.title || 'Sumate';
   const body =
     notificationData.body ||
     data.body ||
     'Tenés una nueva actualización de partido o invitación.';
   const icon = notificationData.icon || '/pwa-192x192.png';
   const badge = notificationData.badge || '/pwa-192x192.png';
-  const tag = data.tag || data.eventType || 'cuatroencancha-push';
+  const tag = data.tag || data.eventType || 'sumate-push';
 
   event.waitUntil(
     self.registration.showNotification(title, {

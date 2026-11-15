@@ -25,7 +25,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="mx-auto flex max-w-6xl items-center justify-between gap-8 border-b border-slate-200 px-6 py-4">
         <span className="font-display text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0">
-          CuatroEnCancha
+          Sumate
         </span>
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
           <a href="#reservas" className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0">
@@ -147,7 +147,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
               </div>
 
               <div className="mt-6 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
-                Dominio sugerido disponible para verificación: <span className="font-mono font-semibold text-slate-900">cuatroencancha.com</span>
+                Dominio sugerido disponible para verificación: <span className="font-mono font-semibold text-slate-900">sumatepadel.com</span>
               </div>
             </div>
           </div>

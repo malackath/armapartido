@@ -190,7 +190,7 @@ export async function ensureUserProfile(firebaseUser: User): Promise<UserProfile
 
     await setDoc(doc(db, 'users', firebaseUser.uid, 'private', 'info'), {
       uid: firebaseUser.uid,
-      email: firebaseUser.email || 'jugador@cuatroencancha.com',
+      email: firebaseUser.email || 'jugador@sumatepadel.com',
       phone: '',
       updatedAt: serverTimestamp(),
     });
@@ -2041,7 +2041,7 @@ export async function logPlayerMatchResult(params: {
     id: resultId,
     uid: params.uid,
     clubId: params.clubId,
-    clubName: params.clubName.trim().slice(0, 80) || 'Club CuatroEnCancha',
+    clubName: params.clubName.trim().slice(0, 80) || 'Club Sumate',
     date: params.date,
     outcome: params.outcome,
     score: params.score.trim().slice(0, 40),

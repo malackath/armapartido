@@ -351,7 +351,7 @@ export default function App() {
       <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
         <div className="space-y-3 text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
-          <p className="text-sm font-medium text-slate-600">Cargando CuatroEnCancha...</p>
+          <p className="text-sm font-medium text-slate-600">Cargando Sumate...</p>
         </div>
       </div>
     );

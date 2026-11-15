@@ -451,7 +451,7 @@ export function buildICalContent(club: Club, bookingsToExport: Booking[]): strin
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//CuatroEnCancha//Padel Uruguay//ES',
+    'PRODID:-//Sumate//Padel Uruguay//ES',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
   ];
@@ -467,7 +467,7 @@ export function buildICalContent(club: Club, bookingsToExport: Booking[]): strin
 
     lines.push(
       'BEGIN:VEVENT',
-      `UID:${booking.id}@cuatroencancha.com`,
+      `UID:${booking.id}@sumatepadel.com`,
       `DTSTAMP:${nowStamp}`,
       `DTSTART:${startUtc}`,
       `DTEND:${endUtc}`,

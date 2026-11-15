@@ -1,4 +1,4 @@
-# Security Specification — CuatroEnCancha
+# Security Specification — Sumate
 
 ## 1. Data Invariants
 1. **Identity & Verification**: All writes require `request.auth != null` and `request.auth.token.email_verified == true`.
