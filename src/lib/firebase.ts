@@ -9,6 +9,7 @@ import {
   signOut,
 } from 'firebase/auth';
 import { connectFirestoreEmulator, doc, getDocFromServer, getFirestore } from 'firebase/firestore';
+import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import appletConfig from '../../firebase-applet-config.json';
 
 // Modo demo local: `npm run dev:demo` levanta los emuladores de Firebase y usa datos de prueba.
@@ -38,9 +39,12 @@ export const app = initializeApp(
 export const db =
   USE_EMULATORS || envConfig ? getFirestore(app) : getFirestore(app, appletConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+// Armado de partidos y reloj: Cloud Functions en São Paulo (functions/src).
+export const functions = getFunctions(app, 'southamerica-east1');
 if (USE_EMULATORS) {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  connectFunctionsEmulator(functions, '127.0.0.1', 5001);
 }
 export const googleProvider = new GoogleAuthProvider();
 

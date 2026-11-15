@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, CircleX, Plus, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CircleX, Plus, Trash2, X } from 'lucide-react';
 import type {
   Booking,
   Club,
   ClubMembership,
   Court,
+  FillSearch,
   PaymentRecord,
   ProposedMatch,
   Tournament,
@@ -24,12 +25,16 @@ import {
   cancelBooking,
   createCounterBooking,
   markBookingNoShow,
-  markBookingPaidAtCounter,
-  markMatchSharesPaidAtCounter,
   recordTournamentMatchResult,
+  stopFillSearch,
   type CounterPaymentMethod,
 } from '../services/firestoreService';
 import { BrandIcon } from './BrandIcon';
+import { ClubOpsContext, useClubOps } from './caja/ops';
+import { TurnAccount } from './caja/TurnAccount';
+import { CashPanel } from './caja/CashPanel';
+import { cashSummary, debtsOf } from '../lib/caja';
+import { BADGE_CLASSES, searchForMatch } from './FaltaUno';
 
 interface StaffCounterViewProps {
   club: Club;
@@ -37,6 +42,7 @@ interface StaffCounterViewProps {
   bookings: Booking[];
   memberships: ClubMembership[];
   proposedMatches: ProposedMatch[];
+  fillSearches?: FillSearch[];
   tournaments: Tournament[];
   payments: PaymentRecord[];
   userProfile: UserProfile;
@@ -95,6 +101,33 @@ interface CellInfo {
   payTone: 'paid' | 'due' | 'none' | 'danger';
   due: number;
   match?: ProposedMatch;
+  fill?: { label: string; detail: string; tone: 'amber' | 'green' | 'red'; search: FillSearch };
+}
+
+/** Estado de "Falta uno" para el mostrador (vista 7 de la vista previa). */
+function fillInfo(search: FillSearch | undefined, match: ProposedMatch): CellInfo['fill'] {
+  if (!search) return undefined;
+  const missing = Math.max(0, search.seatsNeeded - search.seatsFilled);
+  if (search.status === 'searching') {
+    return {
+      label: missing === 1 ? 'Falta uno · buscando' : `Faltan ${missing} · buscando`,
+      detail: `Se bajó ${search.seatsNeeded === 1 ? 'un jugador' : `${search.seatsNeeded} jugadores`}. ${search.invitedUids.length ? `Avisamos a ${search.invitedUids.length} de la categoría` : 'Estamos avisando a jugadores de la categoría'}; el primero que confirma entra. No tenés que llamar a nadie.`,
+      tone: 'amber',
+      search,
+    };
+  }
+  if (search.status === 'filled') {
+    return { label: 'Lo llenó Armá Partido', detail: 'Se bajó un jugador y el reemplazo entró solo.', tone: 'green', search };
+  }
+  if (search.status === 'unfilled' && search.choice !== 'cancel') {
+    return {
+      label: `Sin cuarto · juegan ${match.slots.length}`,
+      detail: search.choice === 'play_as_three' ? `No apareció reemplazo. Eligieron jugar igual entre ${match.slots.length}.` : 'No apareció reemplazo. Los jugadores están eligiendo si juegan igual o cancelan.',
+      tone: 'red',
+      search,
+    };
+  }
+  return undefined;
 }
 
 export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
@@ -103,6 +136,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
   bookings,
   memberships,
   proposedMatches,
+  fillSearches = [],
   tournaments,
   payments,
   userProfile,
@@ -115,6 +149,8 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
   const [newTarget, setNewTarget] = useState<{ courtId: string; startMinute: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [minuteNow, setMinuteNow] = useState(nowMinute());
+  const ops = useClubOps(club.id);
+  const [cashOpen, setCashOpen] = useState<null | 'caja' | 'deben' | 'venta'>(null);
 
   useEffect(() => {
     const t = window.setInterval(() => setMinuteNow(nowMinute()), 60_000);
@@ -205,6 +241,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         payTone: paid >= match.slots.length ? 'paid' : 'due',
         due: Math.max(0, (match.slots.length - paid) * match.pricePerPlayer),
         match,
+        fill: fillInfo(searchForMatch(fillSearches, match.id), match),
       };
     }
 
@@ -259,9 +296,18 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     return { total, used, dueTotal, dueCount, mpPaid, currentSlot, playingNow, nextSlot };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayBookings, slots, activeCourts, minuteNow, selectedDate, today, proposedMatches, memberships, tournaments]);
+  }, [dayBookings, slots, activeCourts, minuteNow, selectedDate, today, proposedMatches, fillSearches, memberships, tournaments]);
 
-  const cashToday = useMemo(() => {
+  const nameOfUid = React.useCallback((uid: string) => memberByUid.get(uid)?.displayName ?? 'Jugador', [memberByUid]);
+  const opsSummary = useMemo(() => cashSummary(ops.allPayments, today, ops.cashDays.find((d) => d.id === today)?.openingFloat ?? 0), [ops.allPayments, ops.cashDays, today]);
+  const todayCash = ops.cashDays.find((d) => d.id === today);
+  const lowStock = ops.products.filter((p) => p.active && p.stock !== null && p.stock <= p.minStock);
+  const debtCount = useMemo(
+    () => debtsOf({ consumptions: ops.consumptions, bookings, matches: proposedMatches, today, nowMinute: minuteNow, nameOf: nameOfUid }).length,
+    [ops.consumptions, bookings, proposedMatches, today, minuteNow, nameOfUid]
+  );
+
+  const legacyCashToday = useMemo(() => {
     const byMethod: Record<string, number> = { efectivo: 0, transferencia: 0, debito_club: 0 };
     for (const p of payments) {
       if (p.kind === 'platform_subscription' || p.method === 'mercadopago') continue;
@@ -273,6 +319,9 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
     }
     return { total: byMethod.efectivo + byMethod.transferencia + byMethod.debito_club, byMethod };
   }, [payments, today]);
+  const cashToday = ops.ready
+    ? { total: opsSummary.byMethod.efectivo + opsSummary.byMethod.transferencia + opsSummary.byMethod.debito_club, byMethod: opsSummary.byMethod as Record<string, number> }
+    : legacyCashToday;
 
   const freeCount = useMemo(
     () => slots.reduce((acc, s) => acc + activeCourts.filter((c) => !findBooking(c.id, s)).length, 0),
@@ -297,6 +346,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
   const isCurrentRow = (s: Slot) => selectedDate === today && minuteNow >= s.startMinute && minuteNow < s.endMinute;
 
   return (
+    <ClubOpsContext.Provider value={ops}>
     <div className="space-y-5">
       {/* Encabezado */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -307,14 +357,53 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
             {dateLabel} · turnos de {club.slotDurationMinutes || 90} minutos · abierto de {club.openHour}:00 a {formatMinutes(club.closeHour * 60)}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setNewTarget({ courtId: activeCourts[0]?.id ?? '', startMinute: (stats.nextSlot ?? slots[0])?.startMinute ?? 0 })}
-          className="hidden items-center justify-center gap-2 rounded-xl bg-action px-5 py-3 text-sm font-semibold text-on-action shadow-sm hover:brightness-95 cursor-pointer sm:inline-flex"
-        >
-          <Plus className="h-4 w-4" /> Nueva reserva (teléfono o mostrador)
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedId(null);
+              setCashOpen('caja');
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink hover:bg-mist cursor-pointer"
+          >
+            <BrandIcon name="pago-en-club" size={18} /> Caja
+            {debtCount > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">deben {debtCount}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedId(null);
+              setCashOpen('venta');
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink hover:bg-mist cursor-pointer"
+          >
+            Venta rápida
+          </button>
+          <button
+            type="button"
+            onClick={() => setNewTarget({ courtId: activeCourts[0]?.id ?? '', startMinute: (stats.nextSlot ?? slots[0])?.startMinute ?? 0 })}
+            className="hidden items-center justify-center gap-2 rounded-xl bg-action px-5 py-3 text-sm font-semibold text-on-action shadow-sm hover:brightness-95 cursor-pointer sm:inline-flex"
+          >
+            <Plus className="h-4 w-4" /> Nueva reserva (teléfono o mostrador)
+          </button>
+        </div>
       </div>
+
+      {ops.ready && selectedDate === today && (!todayCash || lowStock.length > 0) && (
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {!todayCash && (
+            <button type="button" onClick={() => { setSelectedId(null); setCashOpen('caja'); }} className="flex-1 rounded-xl border-l-4 border-amber-500 bg-amber-50 px-4 py-2.5 text-left text-[13px] text-amber-900 cursor-pointer">
+              <b>La caja de hoy no está abierta.</b> Tocá acá para abrirla con el fondo.
+            </button>
+          )}
+          {lowStock.length > 0 && (
+            <p className="flex-1 rounded-xl border-l-4 border-slate-500 bg-slate-50 px-4 py-2.5 text-[13px] text-ink">
+              <b>{lowStock.length} {lowStock.length === 1 ? 'producto por acabarse' : 'productos por acabarse'}:</b>{' '}
+              {lowStock.slice(0, 3).map((p) => `${p.name} (${p.stock})`).join(', ')}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Números del día */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
@@ -530,7 +619,23 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         {/* Panel derecho */}
         <div className="space-y-4">
           <div className="hidden lg:block">
-            {selected ? (
+            {cashOpen && !selected ? (
+              <CashPanel
+                key={cashOpen}
+                club={club}
+                bookings={bookings}
+                matches={proposedMatches}
+                nameOf={nameOfUid}
+                staff={{ uid: userProfile.uid, name: userProfile.displayName }}
+                today={today}
+                nowMinute={minuteNow}
+                busy={busy}
+                setBusy={setBusy}
+                onToast={onToast}
+                onClose={() => setCashOpen(null)}
+                initialTab={cashOpen}
+              />
+            ) : selected ? (
               <ChargePanel
                 key={selected.id}
                 club={club}
@@ -588,6 +693,28 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         </div>
       )}
 
+      {cashOpen && !selected && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 backdrop-blur-[2px] lg:hidden" onClick={() => setCashOpen(null)}>
+          <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-3xl" onClick={(e) => e.stopPropagation()}>
+            <CashPanel
+              key={cashOpen}
+              club={club}
+              bookings={bookings}
+              matches={proposedMatches}
+              nameOf={nameOfUid}
+              staff={{ uid: userProfile.uid, name: userProfile.displayName }}
+              today={today}
+              nowMinute={minuteNow}
+              busy={busy}
+              setBusy={setBusy}
+              onToast={onToast}
+              onClose={() => setCashOpen(null)}
+              initialTab={cashOpen}
+            />
+          </div>
+        </div>
+      )}
+
       {newTarget && (
         <NewBookingModal
           club={club}
@@ -605,6 +732,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         />
       )}
     </div>
+    </ClubOpsContext.Provider>
   );
 };
 
@@ -648,6 +776,7 @@ const BookingCell: React.FC<{ info: CellInfo; booking: Booking; selected: boolea
     }`}
   >
     <span className={`text-[10.5px] font-bold tracking-wide uppercase ${tagClass(info.kind)}`}>{info.tag}</span>
+    {info.fill && <span className={`mt-0.5 self-start rounded-full px-2 py-px text-[10.5px] font-semibold ${BADGE_CLASSES[info.fill.tone]}`}>{info.fill.label}</span>}
     <span className="mt-0.5 truncate text-[13.5px] font-semibold text-ink">{info.title}</span>
     <span className="truncate text-xs text-muted">{info.subtitle}</span>
     <span className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs">
@@ -663,6 +792,7 @@ const MobileRow: React.FC<{ court: Court; info: CellInfo; booking: Booking; onCl
       <span className={`block text-[11px] font-bold tracking-wide uppercase ${tagClass(info.kind)}`}>
         {court.name} · {info.kind === 'matched' ? 'Partido armado' : info.kind === 'held' ? 'Retenida' : info.tag}
       </span>
+      {info.fill && <span className={`mt-0.5 inline-block rounded-full px-2 py-px text-[11px] font-semibold ${BADGE_CLASSES[info.fill.tone]}`}>{info.fill.label}</span>}
       <span className="mt-0.5 block truncate text-sm font-semibold text-ink">{info.title}</span>
       <span className="block truncate text-xs text-muted">{info.subtitle}</span>
     </span>
@@ -709,12 +839,10 @@ interface ChargePanelProps {
 const ChargePanel: React.FC<ChargePanelProps> = ({ club, booking, info, memberships, userProfile, busy, setBusy, onToast, onClose, sheet }) => {
   const match = info.match;
   const unpaidUids = match ? match.slots.filter((s) => !s.paid).map((s) => s.uid) : [];
-  const [picked, setPicked] = useState<string[]>(unpaidUids);
-  const [method, setMethod] = useState<CounterPaymentMethod>('efectivo');
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   const isMatched = info.kind === 'matched' && match;
-  const chargeAmount = isMatched ? picked.length * match.pricePerPlayer : info.due;
+  const chargeAmount = isMatched ? unpaidUids.length * match.pricePerPlayer : info.due;
   const canCharge = booking.status === 'confirmed' && info.kind !== 'tournament' && chargeAmount > 0;
 
   const run = async (fn: () => Promise<unknown>, msg: string) => {
@@ -726,16 +854,6 @@ const ChargePanel: React.FC<ChargePanelProps> = ({ club, booking, info, membersh
       setBusy(false);
     }
   };
-
-  const handleCharge = () =>
-    run(async () => {
-      if (isMatched) {
-        await markMatchSharesPaidAtCounter({ club, match, booking, payerUids: picked, staffUid: userProfile.uid, method });
-        setPicked([]);
-      } else {
-        await markBookingPaidAtCounter({ club, booking, staffUid: userProfile.uid, method });
-      }
-    }, `Cobro registrado: ${formatUYU(chargeAmount)} en ${payMethodLabel(method).toLowerCase()}.`);
 
   return (
     <div className={`border border-line bg-white p-5 ${sheet ? 'rounded-t-3xl pb-8' : 'rounded-2xl'}`}>
@@ -764,6 +882,23 @@ const ChargePanel: React.FC<ChargePanelProps> = ({ club, booking, info, membersh
         </div>
       </div>
 
+      {info.fill && (
+        <div className={`mt-4 rounded-xl px-3.5 py-3 text-[13px] ${BADGE_CLASSES[info.fill.tone]}`}>
+          <p className="font-semibold">{info.fill.label}</p>
+          <p className="mt-0.5">{info.fill.detail}</p>
+          {info.fill.search.status === 'searching' && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run(() => stopFillSearch(club, info.fill!.search.id), 'Listo, dejamos de buscar para este partido.')}
+              className="mt-2.5 rounded-lg border border-current/30 bg-white px-3 py-1.5 text-xs font-semibold cursor-pointer disabled:opacity-60"
+            >
+              Dejar de buscar
+            </button>
+          )}
+        </div>
+      )}
+
       {info.kind === 'tournament' || info.kind === 'held' ? (
         <div className="mt-4 space-y-1 text-sm">
           <p className="font-semibold text-ink">{info.title}</p>
@@ -784,39 +919,19 @@ const ChargePanel: React.FC<ChargePanelProps> = ({ club, booking, info, membersh
         </div>
       ) : (
         <>
-          {isMatched ? (
-            <>
-              <p className="mt-4 mb-1 text-xs font-semibold tracking-wider text-muted uppercase">
-                Cada uno paga su parte · {formatUYU(match.pricePerPlayer)}
-              </p>
-              <ul>
-                {match.slots.map((s) => {
-                  const on = s.paid || picked.includes(s.uid);
-                  return (
-                    <li key={s.uid} className="flex items-center gap-3 border-b border-[#eef5f5] py-2.5 last:border-0">
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-mist text-xs font-bold text-brand">
-                        {s.displayName.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-ink">{s.displayName}</span>
-                        <span className="block text-xs text-muted">{formatCategory(s.category)}{s.paid ? ' · ya pagó' : ''}</span>
-                      </span>
-                      <button
-                        type="button"
-                        disabled={s.paid}
-                        aria-label={s.paid ? 'Pagó' : `Cobrar a ${s.displayName}`}
-                        onClick={() => setPicked((prev) => (prev.includes(s.uid) ? prev.filter((u) => u !== s.uid) : [...prev, s.uid]))}
-                        className={`grid h-6 w-6 place-items-center rounded-md border-2 ${
-                          s.paid ? 'border-emerald-600 bg-emerald-600 text-white' : on ? 'border-emerald-600 bg-white text-emerald-700 cursor-pointer' : 'border-line bg-white cursor-pointer'
-                        }`}
-                      >
-                        {on && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
+          {booking.status === 'confirmed' ? (
+            <TurnAccount
+              club={club}
+              booking={booking}
+              match={match}
+              nameOf={(uid) => memberships.find((m) => m.uid === uid)?.displayName ?? 'Jugador'}
+              staff={{ uid: userProfile.uid, name: userProfile.displayName }}
+              today={getTodayISO()}
+              busy={busy}
+              setBusy={setBusy}
+              onToast={onToast}
+              onClose={onClose}
+            />
           ) : (
             <div className="mt-4 flex items-center gap-3">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-mist text-xs font-bold text-brand">
@@ -827,31 +942,6 @@ const ChargePanel: React.FC<ChargePanelProps> = ({ club, booking, info, membersh
                 <span className="block text-xs text-muted">{info.subtitle}</span>
               </span>
             </div>
-          )}
-
-          {canCharge ? (
-            <>
-              <p className="mt-5 mb-2 text-xs font-semibold tracking-wider text-muted uppercase">Forma de cobro</p>
-              <MethodPicker value={method} onChange={setMethod} />
-              <div className="mt-5 mb-3 flex items-baseline justify-between">
-                <span className="text-sm text-muted">A cobrar ahora{isMatched ? ` (${picked.length})` : ''}</span>
-                <span className="font-display text-2xl font-bold tabular-nums">{formatUYU(chargeAmount)}</span>
-              </div>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={handleCharge}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60 cursor-pointer"
-              >
-                <Check className="h-4 w-4" /> Registrar cobro
-              </button>
-            </>
-          ) : (
-            booking.status === 'confirmed' && (
-              <p className="mt-4 rounded-xl bg-green-50 px-3 py-2.5 text-sm font-semibold text-green-800">
-                Turno pago{booking.paymentMethod === 'mercadopago' ? ' por Mercado Pago' : ''}.
-              </p>
-            )
           )}
 
           {booking.status === 'confirmed' && (

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import type { Booking, Club, Court, MatchRequest, ProposedMatch, Tournament, UserProfile } from '../types/padel';
+import type { Booking, Club, Court, FillInvite, FillSearch, MatchRequest, ProposedMatch, Tournament, UserProfile } from '../types/padel';
 import {
   addDaysISO,
   formatCategory,
@@ -11,6 +11,7 @@ import {
   calculateSlotPrice,
 } from '../lib/padelUtils';
 import { BrandIcon } from './BrandIcon';
+import { BADGE_CLASSES, DropMatchButton, FillInvitesSection, MatchFillStatus, fillBadge, searchForMatch } from './FaltaUno';
 import type { ActiveTab } from './TopBar';
 
 export interface HomeJoinPreset {
@@ -26,7 +27,10 @@ interface HomeViewProps {
   proposedMatches: ProposedMatch[];
   matchRequests: MatchRequest[];
   tournaments: Tournament[];
+  fillSearches?: FillSearch[];
+  fillInvites?: FillInvite[];
   userProfile: UserProfile;
+  onToast: (msg: string) => void;
   onNavigate: (tab: ActiveTab) => void;
   onJoinRequest: (preset: HomeJoinPreset) => void;
 }
@@ -94,7 +98,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
   proposedMatches,
   matchRequests,
   tournaments,
+  fillSearches = [],
+  fillInvites = [],
   userProfile,
+  onToast,
   onNavigate,
   onJoinRequest,
 }) => {
@@ -142,6 +149,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       const linked = bookings.find((b) => b.id === match.bookingId);
       return {
         kind: 'match' as const,
+        match,
         date: match.date,
         start: match.startMinute,
         end: match.endMinute,
@@ -149,7 +157,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         court: courts.find((c) => c.id === match.courtId),
         confirmed: match.status === 'confirmed',
         names: match.slots.map((s) => s.displayName),
-        payAtClub: (linked?.paymentMethod ?? 'club') === 'club',
+        payAtClub: linked?.paymentMethod !== 'mercadopago',
         price: match.pricePerPlayer,
         priceLabel: 'por jugador',
       };
@@ -157,6 +165,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
     if (booking) {
       return {
         kind: 'booking' as const,
+        match: undefined,
         date: booking.date,
         start: booking.startMinute,
         end: booking.endMinute,
@@ -200,8 +209,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const courtDetail = (c?: Court) =>
     c ? ` · ${c.roof === 'techada' ? 'techada' : 'descubierta'}, ${c.surface === 'cristal' ? 'vidrio' : 'muro'}` : '';
 
+  const nextSearch = next?.match ? searchForMatch(fillSearches, next.match.id) : undefined;
+  const nextBadge = fillBadge(nextSearch);
+
   return (
     <div className="mx-auto max-w-xl space-y-6">
+      <FillInvitesSection club={club} invites={fillInvites} searches={fillSearches} matches={proposedMatches} onToast={onToast} />
       <section>
         <div className="flex items-start justify-between gap-3">
           <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight text-ink">¡Hola, {firstName}!</h1>
@@ -270,13 +283,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <span className="text-sm font-semibold text-emerald-600">
                 {dayLabel(next.date)} · {formatMinutes(next.start)} a {formatMinutes(next.end)}
               </span>
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  next.confirmed ? 'bg-[#dcf5e8] text-[#137a4b]' : 'bg-[#fff3d6] text-[#8a5a00]'
-                }`}
-              >
-                {next.confirmed ? 'Confirmado' : 'Por confirmar'}
-              </span>
+              {nextBadge ? (
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${BADGE_CLASSES[nextBadge.tone]}`}>{nextBadge.label}</span>
+              ) : (
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    next.confirmed ? 'bg-[#dcf5e8] text-[#137a4b]' : 'bg-[#fff3d6] text-[#8a5a00]'
+                  }`}
+                >
+                  {next.confirmed ? 'Confirmado' : 'Por confirmar'}
+                </span>
+              )}
             </div>
             <p className="mt-1 text-[19px] font-semibold text-ink">
               {next.courtName}
@@ -300,6 +317,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
             >
               Ver detalle
             </button>
+            {next.match && (
+              <MatchFillStatus club={club} match={next.match} search={nextSearch} userUid={userProfile.uid} onToast={onToast} />
+            )}
+            {next.match?.status === 'confirmed' && nextSearch?.status !== 'unfilled' && (
+              <DropMatchButton club={club} match={next.match} onToast={onToast} />
+            )}
           </div>
         ) : (
           <div className="rounded-[18px] border border-dashed border-line bg-white p-4 text-center">

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import PhotoHeader from './PhotoHeader';
+import { BADGE_CLASSES, DropMatchButton, FillInvitesSection, MatchFillStatus, fillBadge, searchForMatch } from './FaltaUno';
+import { dropFromMatch } from '../services/firestoreService';
 import {
   AlertTriangle,
   CalendarClock,
@@ -19,6 +21,8 @@ import type {
   Club,
   ClubMembership,
   Court,
+  FillInvite,
+  FillSearch,
   Gender,
   MatchRequest,
   Modality,
@@ -69,6 +73,8 @@ interface MatchmakingViewProps {
   friends: UserFriend[];
   playerLevelsMap?: Map<string, PlayerLevelSummary>;
   invitePreset?: MatchInvitePreset | null;
+  fillSearches?: FillSearch[];
+  fillInvites?: FillInvite[];
   userProfile: UserProfile;
   onProfileUpdated: (next: UserProfile) => void;
   onToast: (msg: string) => void;
@@ -85,6 +91,8 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
   friends,
   playerLevelsMap,
   invitePreset,
+  fillSearches = [],
+  fillInvites = [],
   userProfile,
   onProfileUpdated,
   onToast,
@@ -351,8 +359,22 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
     }
   };
 
+  const isFake = (uid: string) => /^demo[-_]/.test(uid);
+  const simulateDrop = async (match: ProposedMatch, uid: string) => {
+    setBusy(true);
+    try {
+      const r = await dropFromMatch(club, match, uid);
+      onToast(r.status === 'searching' ? 'Se bajó un jugador. Ya estamos buscando reemplazo.' : 'Se bajó un jugador.');
+    } catch {
+      onToast('No se pudo simular la baja.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
+      <FillInvitesSection club={club} invites={fillInvites} searches={fillSearches} matches={proposedMatches} onToast={onToast} />
       <PhotoHeader
         image="/img/armar-partido.webp"
         title="Armá tu partido"
@@ -787,6 +809,8 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
               });
               const slotLevels = match.slots.map((s) => getPlayerLevel(s.uid, s.category));
               const levelSpread = Math.max(...slotLevels) - Math.min(...slotLevels);
+              const search = searchForMatch(fillSearches, match.id);
+              const badge = fillBadge(search);
 
               return (
                 <div key={match.id} className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -801,12 +825,15 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                         <span className="mx-1.5" aria-hidden="true">·</span>
                         <span className={match.status === 'confirmed' ? 'font-semibold text-emerald-700' : 'font-semibold text-amber-700'}>
                           {match.status === 'confirmed'
-                            ? 'Confirmado (4/4)'
+                            ? `Confirmado (${match.slots.length}/4)`
                             : `Cancha retenida (${acceptedCount}/4)`}
                         </span>
                       </p>
-                      <h3 className="mt-1 font-display text-lg font-bold text-slate-900">
+                      <h3 className="mt-1 flex flex-wrap items-center gap-2 font-display text-lg font-bold text-slate-900">
                         {match.courtName}
+                        {badge && (
+                          <span className={`rounded-full px-2.5 py-0.5 font-sans text-xs font-semibold ${BADGE_CLASSES[badge.tone]}`}>{badge.label}</span>
+                        )}
                       </h3>
                       <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-600 tabular-nums">
                         <Clock className="h-3.5 w-3.5" />
@@ -858,7 +885,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                         {/* Allow current player OR demo simulation on demo_* slots */}
                         {match.status === 'pending' &&
                           slot.status === 'pending' &&
-                          (slot.uid === userProfile.uid || slot.uid.startsWith('demo_')) && (
+                          (slot.uid === userProfile.uid || isFake(slot.uid)) && (
                             <div className="flex items-center gap-1.5">
                               <button
                                 type="button"
@@ -894,9 +921,25 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                               Pagar mi 1/4
                             </button>
                           )}
+
+                        {match.status === 'confirmed' && isFake(slot.uid) && !search?.status?.match(/searching|unfilled/) && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => simulateDrop(match, slot.uid)}
+                            className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-amber-50 cursor-pointer"
+                          >
+                            Simular "no puedo ir"
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
+
+                  {mySlot && <MatchFillStatus club={club} match={match} search={search} userUid={userProfile.uid} onToast={onToast} />}
+                  {mySlot && match.status === 'confirmed' && search?.status !== 'unfilled' && (
+                    <DropMatchButton club={club} match={match} onToast={onToast} />
+                  )}
 
                   {match.status === 'confirmed' && mySlot?.paid && (
                     <p className="mt-3 text-xs font-semibold text-emerald-700">

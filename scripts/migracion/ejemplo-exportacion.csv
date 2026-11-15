@@ -1,0 +1,10 @@
+Cliente,Email,Teléfono,Nivel,Día,Hora,Cancha,Observaciones
+"Federico Acosta",fede.acosta@ejemplo.com,+598 99 111 222,1ra,lunes,19:00,Cancha 2,
+"Valentina Suárez",VALE.SUAREZ@ejemplo.com,099222333,2,,,,"Paga siempre por transferencia"
+"Valentina Suárez",vale.suarez@ejemplo.com,099 222 333,2da,,,,
+"Martín y Lucía",pareja@ejemplo.com,094 555 666,quinta,jueves,20.00,3,
+"Lucía (de Martín)",pareja@ejemplo.com,094 777 888,4ta,,,,
+"Camila Olivera",,091 444 555,3.5,,,,"Nivel decimal del sistema viejo"
+,sin.nombre@ejemplo.com,,5,,,,
+"Paula Martínez",paula.m@ejemplo.com,,6ta,sábado,10:00,Cancha 4,
+"Gonzalo Viera",gonza.viera@ejemplo.com,092 333 444,,,,,

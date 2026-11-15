@@ -31,6 +31,8 @@ import type {
   Court,
   CourtWaitlistEntry,
   DiscoverablePlayer,
+  FillInvite,
+  FillSearch,
   MatchRequest,
   NotificationItem,
   PaymentRecord,
@@ -110,6 +112,8 @@ export default function App() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [matchRequests, setMatchRequests] = useState<MatchRequest[]>([]);
   const [proposedMatches, setProposedMatches] = useState<ProposedMatch[]>([]);
+  const [fillSearches, setFillSearches] = useState<FillSearch[]>([]);
+  const [myFillInvites, setMyFillInvites] = useState<FillInvite[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -289,6 +293,8 @@ export default function App() {
         onBookings: setBookings,
         onMatchRequests: setMatchRequests,
         onProposedMatches: setProposedMatches,
+        onFillSearches: setFillSearches,
+        onMyFillInvites: setMyFillInvites,
         onTournaments: setTournaments,
         onPayments: setPayments,
         onNotifications: (list) => {
@@ -452,7 +458,10 @@ export default function App() {
                 proposedMatches={proposedMatches}
                 matchRequests={matchRequests}
                 tournaments={tournaments}
+                fillSearches={fillSearches}
+                fillInvites={myFillInvites}
                 userProfile={userProfile}
+                onToast={showToast}
                 onNavigate={setActiveTab}
                 onJoinRequest={(preset) => {
                   setInvitePreset({ partnerUid: '', ...preset, nonce: Date.now() });
@@ -491,6 +500,8 @@ export default function App() {
                 friends={friends}
                 playerLevelsMap={playerLevelsMap}
                 invitePreset={invitePreset}
+                fillSearches={fillSearches}
+                fillInvites={myFillInvites}
                 userProfile={userProfile}
                 onProfileUpdated={setUserProfile}
                 onToast={showToast}
@@ -541,6 +552,7 @@ export default function App() {
                 bookings={bookings}
                 memberships={memberships}
                 proposedMatches={proposedMatches}
+                fillSearches={fillSearches}
                 tournaments={tournaments}
                 payments={payments}
                 userProfile={userProfile}
