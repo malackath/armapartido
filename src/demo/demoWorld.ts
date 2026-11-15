@@ -104,6 +104,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
   const club: Club = {
     id: C,
     name: 'Los Jacarandás Pádel',
+    sponsor: { name: 'Parrilla El Saque', tagline: 'Mostrá la app y la primera ronda después del partido va 2x1. (Auspiciante ficticio de la demo.)' },
     slug: 'los-jacarandas',
     primaryColor: '#0a5761',
     accentColor: '#172123',
@@ -383,8 +384,8 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
   });
   const pairs: TournamentPair[] = [
     pair('pr1', uids.jugador, 'demo-p09', 5),
-    pair('pr2', 'demo-p08', 'demo-p10', 5),
-    pair('pr3', 'demo-p11', 'demo-p12', 6),
+    { ...pair('pr2', 'demo-p08', 'demo-p10', 5), photoUrl: '/img/pareja-torneo.webp' },
+    { ...pair('pr3', 'demo-p11', 'demo-p12', 6), paid: false },
     pair('pr4', 'demo-p06', 'demo-p07', 4),
     pair('pr5', uids.jugadora, 'demo-p05', 4),
     pair('pr6', 'demo-p13', 'demo-p14', 6),

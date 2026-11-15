@@ -5,6 +5,8 @@ import type { Club, ClubMembership, Tournament, UserProfile } from '../types/pad
 import { formatCategory, formatMinutes, formatUYU, formatDateFriendly} from '../lib/padelUtils';
 import { acceptTournamentPair, registerPairInTournament } from '../services/firestoreService';
 import { MercadoPagoModal } from './MercadoPagoModal';
+import { BrandIcon } from './BrandIcon';
+import { CategoryBadge, PairAvatar, PlayerAvatar, StatusChip } from './ui/People';
 
 interface TournamentsViewProps {
   club: Club;
@@ -112,28 +114,26 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
                       </span>
                     </p>
                     <h2 className="mt-1 font-display text-xl font-bold text-slate-900">{trn.name}</h2>
-                    <p className="mt-1 text-xs text-slate-600">
-                      Estado:{' '}
-                      <strong className="text-slate-900">
-                        {trn.status === 'registration_open'
-                          ? 'Inscripción abierta'
-                          : trn.status === 'draw_generated'
-                            ? 'Cuadro sorteado'
-                            : trn.status === 'in_progress'
-                              ? 'En juego'
-                              : 'Finalizado'}
-                      </strong>
-                      <span className="mx-1.5" aria-hidden="true">·</span>
-                      Cupo:{' '}
-                      <span className=" tabular-nums">
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {trn.status === 'in_progress' ? (
+                        <StatusChip kind="live">● En juego</StatusChip>
+                      ) : trn.status === 'registration_open' ? (
+                        <StatusChip kind="ok" icon="reservar">Inscripción abierta</StatusChip>
+                      ) : trn.status === 'draw_generated' ? (
+                        <StatusChip kind="wait" icon="torneos">Cuadro sorteado</StatusChip>
+                      ) : (
+                        <StatusChip kind="busy">Finalizado</StatusChip>
+                      )}
+                      <StatusChip kind="neutral" icon="pareja">
                         {trn.pairs.length}/{trn.maxPairs} parejas
+                      </StatusChip>
+                      <StatusChip kind="free" icon="pago-en-club">Inscripción {formatUYU(trn.entryFee)}</StatusChip>
+                      <span className="ml-1 flex items-center gap-1">
+                        {trn.categories.map((c) => (
+                          <CategoryBadge key={c} category={c} />
+                        ))}
                       </span>
-                      <span className="mx-1.5" aria-hidden="true">·</span>
-                      Inscripción:{' '}
-                      <span className=" font-semibold text-slate-900 tabular-nums">
-                        {formatUYU(trn.entryFee)}
-                      </span>
-                    </p>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0">
@@ -166,28 +166,34 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
 
                 {/* Pairs List */}
                 <div className="mt-4">
-                  <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                    <Users className="h-3.5 w-3.5 text-emerald-600" />
+                  <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+                    <BrandIcon name="pareja" size={18} className="text-brand" />
                     Parejas inscriptas ({trn.pairs.length})
                   </p>
                   {trn.pairs.length === 0 ? (
                     <p className="mt-2 text-xs text-slate-500">Todavía no hay parejas anotadas.</p>
                   ) : (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="mt-2 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                       {trn.pairs.map((pair) => (
-                        <div
-                          key={pair.id}
-                          className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs"
-                        >
-                          <div>
-                            <p className="font-semibold text-slate-900">
+                        <div key={pair.id} className="flex items-center gap-3 rounded-2xl border border-line bg-white p-2.5">
+                          <PairAvatar a={pair.player1Name} b={pair.player2Name} photoUrl={pair.photoUrl} size={52} />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-ink">
                               {pair.player1Name} / {pair.player2Name}
                             </p>
-                            <p className="text-[11px] text-slate-500">
-                              {formatCategory(pair.category)} ·{' '}
-                              {pair.partnerAccepted ? 'Confirmada' : 'Esperando compañero'} ·{' '}
-                              {pair.paid ? 'Paga' : 'Paga en club'}
-                            </p>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                              <CategoryBadge category={pair.category} />
+                              {pair.partnerAccepted ? (
+                                <StatusChip kind="ok" icon="pareja">Confirmada</StatusChip>
+                              ) : (
+                                <StatusChip kind="wait" icon="pareja">Esperando compañero</StatusChip>
+                              )}
+                              {pair.paid ? (
+                                <StatusChip kind="ok" icon="pago-en-club">Pagó</StatusChip>
+                              ) : (
+                                <StatusChip kind="due" icon="pago-online">Debe {formatUYU(trn.entryFee)}</StatusChip>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -198,48 +204,49 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
                 {/* Draw / Matches */}
                 {trn.matches.length > 0 && (
                   <div className="mt-6 border-t border-slate-100 pt-4">
-                    <p className="text-xs font-semibold text-slate-700">
-                      Cuadro y próximos partidos (canchas reservadas)
+                    <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+                      <BrandIcon name="resultado" size={18} className="text-brand" />
+                      Cuadro y próximos partidos
                     </p>
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      {trn.matches.map((m) => (
-                        <div
-                          key={m.id}
-                          className="rounded-xl border border-slate-200 bg-white p-3.5"
-                        >
-                          <div className="flex items-center justify-between text-[11px] text-slate-500">
-                            <span className="font-semibold text-emerald-700">{m.round}</span>
-                            <span className=" tabular-nums">
-                              {m.courtName} · {formatDateFriendly(m.date)} {formatMinutes(m.startMinute)}
-                            </span>
+                      {trn.matches.map((m) => {
+                        const side = (pairId: string, label: string) => {
+                          const p = trn.pairs.find((x) => x.id === pairId);
+                          const won = m.status === 'completed' && m.winnerPairId === pairId;
+                          return (
+                            <div className={`flex items-center gap-2 rounded-xl px-2 py-1.5 ${won ? 'bg-ok-bg' : ''}`}>
+                              {p ? (
+                                <span className="flex gap-1">
+                                  <PlayerAvatar name={p.player1Name} size={32} />
+                                  <PlayerAvatar name={p.player2Name} size={32} />
+                                </span>
+                              ) : (
+                                <span className="h-[30px] w-[64px] rounded-lg border-2 border-dashed border-line" />
+                              )}
+                              <span className={`ml-1.5 truncate text-sm ${won ? 'font-bold text-ink' : 'font-medium text-ink'}`}>{p ? `${p.player1Name} / ${p.player2Name}` : label}</span>
+                              {p && <CategoryBadge category={p.category} size={20} />}
+                              {won && <StatusChip kind="ok" icon="resultado" className="ml-auto">Ganó</StatusChip>}
+                              {won && <span className="shrink-0 text-sm font-bold tabular-nums">{m.score}</span>}
+                            </div>
+                          );
+                        };
+                        return (
+                          <div key={m.id} className="rounded-2xl border border-line bg-white p-3">
+                            <div className="flex items-center gap-2 px-1 text-xs">
+                              <BrandIcon name="torneos" size={15} className="text-brand" />
+                              <span className="font-semibold text-brand">{m.round}</span>
+                              <span className="ml-auto flex items-center gap-1 text-muted tabular-nums">
+                                <BrandIcon name="cancha" size={14} />
+                                {m.courtName} · {formatDateFriendly(m.date)} {formatMinutes(m.startMinute)}
+                              </span>
+                            </div>
+                            <div className="mt-2 space-y-1">
+                              {side(m.pair1Id, m.pair1Label)}
+                              {side(m.pair2Id, m.pair2Label)}
+                            </div>
                           </div>
-                          <div className="mt-2 space-y-1 text-sm">
-                            <p
-                              className={
-                                m.winnerPairId === m.pair1Id
-                                  ? 'font-bold text-emerald-700'
-                                  : 'font-medium text-slate-900'
-                              }
-                            >
-                              {m.pair1Label}
-                            </p>
-                            <p
-                              className={
-                                m.winnerPairId === m.pair2Id
-                                  ? 'font-bold text-emerald-700'
-                                  : 'font-medium text-slate-900'
-                              }
-                            >
-                              {m.pair2Label}
-                            </p>
-                          </div>
-                          {m.status === 'completed' && (
-                            <p className="mt-2 text-xs font-semibold text-slate-700 tabular-nums">
-                              Resultado: {m.score}
-                            </p>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}

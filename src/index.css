@@ -22,13 +22,28 @@
   --color-action: #0bfbff;
   --color-on-action: #002020;
   --color-surface: #f2fbfb;
-  /* Fondo de página: surface oscurecido 10% (15/11/2026, pedido de Ber). */
-  --color-page: #dae2e2;
+  /* Fondo de página: el original #F2FBFB un poco más intenso (15/11/2026, pedido de Ber). */
+  --color-page: #e8f5f5;
   --color-ink: #172123;
   --color-brand: #0a5761;
   --color-mist: #e2f3f3;
   --color-line: #d7e9ea;
   --color-muted: #55696c;
+
+  /* Colores de estado (15/11/2026, opción B aprobada por Ber): relleno suave + texto fuerte. */
+  --color-ok: #1e6b3a;
+  --color-ok-bg: #e3f5ea;
+  --color-ok-fill: #cdebd6;
+  --color-due: #c0362c;
+  --color-due-bg: #fdecea;
+  --color-due-fill: #f9d3cf;
+  --color-wait: #8a5a00;
+  --color-wait-bg: #fff3d6;
+  --color-wait-fill: #fbe6b5;
+  --color-fu-fill: #9df3f9;
+  --color-busy: #dfe5e5;
+  --color-live-fill: #bfd9dc;
+  --color-avatar: #d3e7e8;
 }
 
 :root {
@@ -38,7 +53,7 @@
 
 body {
   font-family: var(--font-sans);
-  background-color: #dae2e2;
+  background-color: #e8f5f5;
   color: #151D1D;
 }
 

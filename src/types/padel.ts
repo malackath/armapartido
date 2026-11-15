@@ -88,6 +88,8 @@ export interface Club {
   /** "Falta uno" automático (por defecto encendido) y diferencia de categoría permitida (1 o 2). */
   fillEnabled?: boolean;
   fillMaxGap?: 1 | 2;
+  /** Auspiciante que el club muestra en Inicio. Si no hay, el espacio no se muestra. */
+  sponsor?: { name: string; tagline?: string; logoUrl?: string; url?: string };
   courtCount: number;
   /** Plan contratado (para el informe mensual). Sin dato = Estándar. */
   plan?: 'entrada' | 'estandar';
@@ -215,6 +217,8 @@ export interface TournamentPair {
   partnerAccepted: boolean;
   paid: boolean;
   group?: string;
+  /** Foto de la pareja (opcional). En la demo, imágenes hechas con IA. */
+  photoUrl?: string;
 }
 
 export interface TournamentMatch {

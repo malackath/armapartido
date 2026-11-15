@@ -53,6 +53,8 @@ import {
   updateUserGlobalProfile,
 } from '../services/firestoreService';
 import { MercadoPagoModal } from './MercadoPagoModal';
+import { BrandIcon } from './BrandIcon';
+import { CategoryBadge, PlayerAvatar, StatusChip } from './ui/People';
 
 export interface MatchInvitePreset {
   partnerUid: string;
@@ -393,24 +395,23 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
 
       {/* Top Row: Global Category + Modality + Weekly Schedule */}
       <div className="grid gap-6 lg:grid-cols-12">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:col-span-5">
-          <h2 className="font-display text-lg font-bold text-slate-900">
-            Tu ficha de jugador
-          </h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Es una sola en toda la plataforma y se aplica automáticamente en todos los clubes.
-          </p>
-
-          <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs">
-            <p className="text-[11px] font-medium text-slate-500">Tu categoría</p>
-            <p className="font-semibold text-slate-900">
-              {formatCategory(userProfile.category)}
-              <span className="ml-2 font-normal text-slate-600">
-                · cruces de {formatCategory(Math.max(1, userProfile.category - 1))} a{' '}
-                {formatCategory(Math.min(8, userProfile.category + 1))}
-              </span>
-            </p>
+        <div className="overflow-hidden rounded-3xl bg-[#ecfcfc] shadow-[0_0_0_2px_#05e2f2] lg:col-span-5">
+          {/* Tu ficha: bloque destacado con foto grande (pedido de Ber, 15/11/2026). */}
+          <div className="flex items-center gap-5 bg-brand p-5 text-white sm:p-6">
+            <PlayerAvatar name={userProfile.displayName} photoUrl={userProfile.photoUrl} size={96} className="[&>span:first-child]:border-[3px] [&>span:first-child]:border-action" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold tracking-wider text-[#9fd6da] uppercase">Tu ficha de jugador</p>
+              <h2 className="mt-0.5 truncate font-display text-2xl font-bold">{userProfile.displayName}</h2>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-white/80">
+                <CategoryBadge category={userProfile.category} size={28} />
+                <span>
+                  Cruces de {formatCategory(Math.max(1, userProfile.category - 1))} a {formatCategory(Math.min(8, userProfile.category + 1))}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-white/65">Una sola ficha para todos los clubes de Armá Partido.</p>
+            </div>
           </div>
+          <div className="p-5 sm:p-6">
 
           <div className="mt-4 grid grid-cols-2 gap-4">
             <div>
@@ -543,6 +544,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                 Agregar
               </button>
             </div>
+          </div>
           </div>
         </div>
 
@@ -823,13 +825,14 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                           {levelSpread === 0 ? 'Equilibrio: Exacto' : `Equilibrio: ±${levelSpread} nv.`}
                         </span>
                         <span className="mx-1.5" aria-hidden="true">·</span>
-                        <span className={match.status === 'confirmed' ? 'font-semibold text-emerald-700' : 'font-semibold text-amber-700'}>
-                          {match.status === 'confirmed'
-                            ? `Confirmado (${match.slots.length}/4)`
-                            : `Cancha retenida (${acceptedCount}/4)`}
-                        </span>
+                        {match.status === 'confirmed' ? (
+                          <StatusChip kind="ok" icon="armar-partido">Confirmado {match.slots.length}/4</StatusChip>
+                        ) : (
+                          <StatusChip kind="wait" icon="horario">Cancha retenida {acceptedCount}/4</StatusChip>
+                        )}
                       </p>
                       <h3 className="mt-1 flex flex-wrap items-center gap-2 font-display text-lg font-bold text-slate-900">
+                        <BrandIcon name="cancha" size={20} className="text-brand" />
                         {match.courtName}
                         {badge && (
                           <span className={`rounded-full px-2.5 py-0.5 font-sans text-xs font-semibold ${BADGE_CLASSES[badge.tone]}`}>{badge.label}</span>
@@ -858,28 +861,30 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                   <div className="mt-4 divide-y divide-slate-100">
                     {match.slots.map((slot) => (
                       <div key={slot.uid} className="flex items-center justify-between gap-3 py-2.5">
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">
-                            {slot.displayName}
-                            {slot.uid === userProfile.uid && ' (Vos)'}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {formatCategory(slot.category)}{' '}
-                            ·{' '}
-                            {slot.status === 'accepted' ? (
-                              <span className="font-semibold text-emerald-700">Aceptó</span>
-                            ) : slot.status === 'declined' ? (
-                              <span className="font-semibold text-red-700">Rechazó</span>
-                            ) : (
-                              <span className="text-amber-700">Pendiente</span>
-                            )}
-                            {match.status === 'confirmed' && (
-                              <>
-                                <span className="mx-1.5" aria-hidden="true">·</span>
-                                <span>{slot.paid ? 'Parte pagada' : 'Pago pendiente'}</span>
-                              </>
-                            )}
-                          </p>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <PlayerAvatar name={slot.displayName} photoUrl={slot.uid === userProfile.uid ? userProfile.photoUrl : undefined} size={44} />
+                          <div className="min-w-0">
+                            <p className="truncate text-[15px] font-semibold text-slate-900">
+                              {slot.displayName}
+                              {slot.uid === userProfile.uid && ' (Vos)'}
+                            </p>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              <CategoryBadge category={slot.category} />
+                              {slot.status === 'accepted' ? (
+                                <StatusChip kind="ok" icon="perfil">Aceptó</StatusChip>
+                              ) : slot.status === 'declined' ? (
+                                <StatusChip kind="due" icon="perfil">Rechazó</StatusChip>
+                              ) : (
+                                <StatusChip kind="wait" icon="horario">Pendiente</StatusChip>
+                              )}
+                              {match.status === 'confirmed' &&
+                                (slot.paid ? (
+                                  <StatusChip kind="ok" icon="pago-en-club">Pagó</StatusChip>
+                                ) : (
+                                  <StatusChip kind="due" icon="pago-online">Pago pendiente</StatusChip>
+                                ))}
+                            </div>
+                          </div>
                         </div>
 
                         {/* Allow current player OR demo simulation on demo_* slots */}
