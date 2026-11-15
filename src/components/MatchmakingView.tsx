@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import PhotoHeader from './PhotoHeader';
 import { BADGE_CLASSES, DropMatchButton, FillInvitesSection, MatchFillStatus, fillBadge, searchForMatch } from './FaltaUno';
 import { dropFromMatch } from '../services/firestoreService';
@@ -55,7 +55,7 @@ import {
 import { MercadoPagoModal } from './MercadoPagoModal';
 import { BrandIcon } from './BrandIcon';
 import { uploadProfilePhoto } from '../services/photoService';
-import { CategoryBadge, PlayerAvatar, StatusChip } from './ui/People';
+import { CategoryBadge, PlayerAvatar, StatusChip, initialsOf } from './ui/People';
 
 export interface MatchInvitePreset {
   partnerUid: string;
@@ -102,6 +102,17 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
 }) => {
   const today = getTodayISO();
   const [photoBusy, setPhotoBusy] = useState(false);
+  // La foto de la ficha mide lo mismo que el texto de al lado: ocupa todo el alto de la franja sin agrandarla.
+  // En el celular se frena en 100 px: más grande achica el texto, que pasa a más renglones y agranda la franja.
+  const fichaTextRef = useRef<HTMLDivElement>(null);
+  const [fichaSide, setFichaSide] = useState(96);
+  useEffect(() => {
+    const el = fichaTextRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setFichaSide(Math.max(80, Math.min(window.innerWidth < 640 ? 100 : 140, Math.round(el.getBoundingClientRect().height)))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const photoByUid = useMemo(() => new Map(memberships.map((m) => [m.uid, m.photoUrl])), [memberships]);
   const [reqType, setReqType] = useState<'priority' | 'weekly'>('priority');
   const [dateISO, setDateISO] = useState(today);
@@ -400,9 +411,15 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         <div className="overflow-hidden rounded-3xl bg-[#ecfcfc] shadow-[0_0_0_2px_#05e2f2] lg:col-span-5">
           {/* Tu ficha: bloque destacado con foto grande (pedido de Ber, 15/11/2026). */}
-          <div className="flex items-center gap-5 bg-brand p-5 text-white sm:p-6">
-            <label className="relative shrink-0 cursor-pointer" title="Cambiar foto">
-              <PlayerAvatar name={userProfile.displayName} photoUrl={userProfile.photoUrl} size={96} className="[&>span:first-child]:border-[3px] [&>span:first-child]:border-action" />
+          <div className="flex items-stretch gap-5 bg-brand p-5 text-white sm:p-6">
+            {/* La foto ocupa todo el alto de la franja, sin agrandarla (pedido de Ber, 15/11/2026). */}
+            <label className="relative shrink-0 cursor-pointer self-center" style={{ width: fichaSide, height: fichaSide }} title="Cambiar foto">
+              <span
+                className="grid h-full w-full place-items-center overflow-hidden rounded-xl border-[3px] border-action bg-avatar bg-cover bg-center font-display text-3xl font-bold text-brand"
+                style={{ backgroundImage: userProfile.photoUrl ? `url(${userProfile.photoUrl})` : undefined }}
+              >
+                {userProfile.photoUrl ? null : initialsOf(userProfile.displayName)}
+              </span>
               <span className="absolute -bottom-2.5 left-1/2 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-brand shadow">
                 <BrandIcon name="perfil" size={12} />
                 {photoBusy ? 'Subiendo…' : userProfile.photoUrl ? 'Cambiar foto' : 'Poner foto'}
@@ -429,7 +446,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                 }}
               />
             </label>
-            <div className="min-w-0">
+            <div ref={fichaTextRef} className="min-w-0 self-center">
               <p className="text-xs font-semibold tracking-wider text-[#9fd6da] uppercase">Tu ficha de jugador</p>
               <h2 className="mt-0.5 truncate font-display text-2xl font-bold">{userProfile.displayName}</h2>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-white/80">

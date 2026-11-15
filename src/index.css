@@ -4,6 +4,13 @@
    cian #0BFBFF para acciones de alta intención, fondo claro #F2FBFB, tipografía Outfit.
    La escala "emerald" del prototipo se reasigna a la paleta teal de Stitch. */
 @theme {
+  /* Esquinas: 12 px en todo el sitio (pedido de Ber, 15/11/2026). Quedan aparte las pastillas (rounded-full)
+     y los cuadraditos chicos de leyenda (rounded-sm). */
+  --radius-md: 12px;
+  --radius-lg: 12px;
+  --radius-xl: 12px;
+  --radius-2xl: 12px;
+  --radius-3xl: 12px;
   --font-display: "Outfit", system-ui, sans-serif;
   --font-sans: "Outfit", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;

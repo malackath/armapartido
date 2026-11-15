@@ -236,7 +236,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* En escritorio, Inicio usa todo el ancho de la página en dos columnas. */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
       <div className="grid min-w-0 grid-cols-1 gap-6">
-      <section className="rounded-[18px] border border-line bg-white p-4">
+      <section className="rounded-xl border border-line bg-white p-4">
         <h2 className="flex items-center gap-2 text-[17px] font-semibold text-ink">
           <BrandIcon name="reservar" className="text-brand" />
           Reservá una cancha
@@ -298,7 +298,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     key={it.key}
                     type="button"
                     onClick={() => onNavigate(it.kind === 'match' ? 'matchmaking' : 'bookings')}
-                    className={`flex cursor-pointer flex-col gap-1 rounded-[20px] p-4 text-left hover:brightness-105 ${tone}`}
+                    className={`flex cursor-pointer flex-col gap-1 rounded-xl p-4 text-left hover:brightness-105 ${tone}`}
                   >
                     <span className="text-xs font-bold tracking-wider uppercase opacity-80">{dayLabel(it.date)}</span>
                     <span className="font-display text-[22px] font-bold tabular-nums leading-tight">
@@ -345,7 +345,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             )}
           </>
         ) : (
-          <div className="rounded-[18px] border border-dashed border-line bg-white p-4 text-center">
+          <div className="rounded-xl border border-dashed border-line bg-white p-4 text-center">
             <p className="text-sm text-muted">Todavía no tenés partidos. Reservá una cancha o pedile a la app que te arme uno.</p>
             <button
               type="button"
@@ -438,7 +438,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             const p1 = pairOf(nextMatch?.pair1Id);
             const p2 = pairOf(nextMatch?.pair2Id);
             return (
-              <section className="overflow-hidden rounded-[20px] bg-white">
+              <section className="overflow-hidden rounded-xl bg-white">
                 <div className="relative h-[150px] bg-ink bg-cover bg-[center_30%]" style={{ backgroundImage: `url('${photo}')` }}>
                   <span className="absolute top-3 left-3">
                     {tournament.status === 'in_progress' ? (
@@ -506,7 +506,7 @@ const SponsorCard: React.FC<{ sponsors: ClubSponsor[] }> = ({ sponsors }) => {
       href={s.url || undefined}
       target="_blank"
       rel="noreferrer"
-      className="block overflow-hidden rounded-[20px] border-2 border-dashed border-[#9bb3b6] bg-white/60 p-4"
+      className="block overflow-hidden rounded-xl border-2 border-dashed border-[#9bb3b6] bg-white/60 p-4"
     >
       <div className="mb-2 flex items-center justify-between">
         <p className="text-[11px] tracking-widest text-muted uppercase">Auspicia el club</p>

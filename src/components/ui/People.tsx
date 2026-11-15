@@ -67,7 +67,8 @@ export const PlayerAvatar: React.FC<{
       style={{
         width: size,
         height: size,
-        borderRadius: Math.round(size * 0.28),
+        // 12 px como el resto del sitio; los avatares chicos bajan en proporción para no quedar redondos.
+        borderRadius: Math.min(12, Math.round(size * 0.28)),
         fontSize: Math.round(size * 0.36),
         backgroundImage: photoUrl ? `url(${photoUrl})` : undefined,
       }}
