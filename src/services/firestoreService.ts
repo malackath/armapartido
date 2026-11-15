@@ -22,6 +22,7 @@ import {
   canCancelFree,
   findMatchForClub,
   formatCategory,
+  formatDateFriendly,
   formatMinutes,
   generateTournamentDraw,
   getDayOfWeekFromISO,
@@ -825,7 +826,7 @@ export async function createDirectBooking(params: {
       recipientUid: userUid,
       eventType: 'booking_confirmed',
       title: `Reserva confirmada · ${club.name}`,
-      body: `${court.name} el ${date} a las ${formatMinutes(startMinute)} hs.`,
+      body: `${court.name} el ${formatDateFriendly(date, false)} a las ${formatMinutes(startMinute)} hs.`,
       currentUserUid: userUid,
     });
 
@@ -1234,7 +1235,7 @@ export async function runMatchmakingSweep(params: {
         recipientUid: slot.uid,
         eventType: 'match_proposed',
         title: `Partido propuesto · ${club.name}`,
-        body: `${candidate.court.name} el ${candidate.date} ${formatMinutes(candidate.startMinute)} hs (${candidate.modality}). Confirmá antes de que venza el plazo.`,
+        body: `${candidate.court.name} el ${formatDateFriendly(candidate.date, false)} ${formatMinutes(candidate.startMinute)} hs (${candidate.modality}). Confirmá antes de que venza el plazo.`,
         currentUserUid: triggeredByUid,
       });
     }
@@ -1373,7 +1374,7 @@ export async function respondToProposedMatch(params: {
           recipientUid: slot.uid,
           eventType: 'match_confirmed',
           title: `Partido confirmado · ${club.name}`,
-          body: `¡Listo! ${proposedMatch.courtName} el ${proposedMatch.date} a las ${formatMinutes(proposedMatch.startMinute)} hs. Tu parte: $${proposedMatch.pricePerPlayer}.`,
+          body: `¡Listo! ${proposedMatch.courtName} el ${formatDateFriendly(proposedMatch.date, false)} a las ${formatMinutes(proposedMatch.startMinute)} hs. Tu parte: $${proposedMatch.pricePerPlayer}.`,
           currentUserUid: currentUid,
         });
       }
@@ -1758,7 +1759,7 @@ export async function closeRegistrationAndDraw(params: {
           recipientUid: rUid,
           eventType: 'tournament_next_match',
           title: `Próximo partido · ${tournament.name}`,
-          body: `${m.round} en ${m.courtName} el ${m.date} a las ${formatMinutes(m.startMinute)} hs.`,
+          body: `${m.round} en ${m.courtName} el ${formatDateFriendly(m.date, false)} a las ${formatMinutes(m.startMinute)} hs.`,
           currentUserUid: adminUid,
         });
       }
@@ -2458,7 +2459,7 @@ export async function notifyWaitlistForFreedSlot(params: {
         recipientUid: entry.uid,
         eventType: 'waitlist_slot_open',
         title: `¡Cancha liberada! · ${club.name}`,
-        body: `${courtName} quedó disponible el ${date} a las ${formatMinutes(startMinute)} hs. Reservá antes de que se ocupe.`,
+        body: `${courtName} quedó disponible el ${formatDateFriendly(date, false)} a las ${formatMinutes(startMinute)} hs. Reservá antes de que se ocupe.`,
         currentUserUid: triggeredByUid,
         tab: 'bookings',
       });

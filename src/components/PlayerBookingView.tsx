@@ -692,7 +692,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                 <p className="mt-1 flex items-center gap-2 text-xs text-slate-500">
                   <Clock className="h-3.5 w-3.5" />
                   <span className=" tabular-nums">
-                    {selectedDate} · {formatMinutes(selectedSlot.startMinute)}–{formatMinutes(selectedSlot.endMinute)} hs
+                    {formatDateFriendly(selectedDate)} · {formatMinutes(selectedSlot.startMinute)}–{formatMinutes(selectedSlot.endMinute)} hs
                   </span>
                 </p>
               </div>
@@ -770,7 +770,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                   <p className="mt-1 flex items-center gap-2 text-xs text-slate-500">
                     <Clock className="h-3.5 w-3.5" />
                     <span className=" tabular-nums">
-                      {selectedDate} · {formatMinutes(waitlistTarget.startMinute)}–{formatMinutes(waitlistTarget.endMinute)} hs
+                      {formatDateFriendly(selectedDate)} · {formatMinutes(waitlistTarget.startMinute)}–{formatMinutes(waitlistTarget.endMinute)} hs
                     </span>
                   </p>
                 </div>
@@ -835,7 +835,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
         title={selectedSlot ? `Reserva ${selectedSlot.court.name}` : ''}
         subtitle={
           selectedSlot
-            ? `${selectedDate} · ${formatMinutes(selectedSlot.startMinute)} hs`
+            ? `${formatDateFriendly(selectedDate)} · ${formatMinutes(selectedSlot.startMinute)} hs`
             : ''
         }
         amount={
