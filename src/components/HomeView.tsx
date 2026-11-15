@@ -213,7 +213,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const nextBadge = fillBadge(nextSearch);
 
   return (
-    <div className="mx-auto max-w-xl space-y-6">
+    <div className="space-y-6">
       <FillInvitesSection club={club} invites={fillInvites} searches={fillSearches} matches={proposedMatches} onToast={onToast} />
       <section>
         <div className="flex items-start justify-between gap-3">
@@ -228,6 +228,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </p>
       </section>
 
+      {/* En escritorio, Inicio usa todo el ancho de la página en dos columnas. */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
       <section className="rounded-[18px] border border-line bg-white p-4">
         <h2 className="flex items-center gap-2 text-[17px] font-semibold text-ink">
           <BrandIcon name="reservar" className="text-brand" />
@@ -430,6 +432,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         </section>
       )}
+      </div>
     </div>
   );
 };
