@@ -1,0 +1,6 @@
+{
+  "summary":  "Plan de implementación integral para CuatroEnCancha (plataforma SaaS marca blanca de reservas, armado automático de partidos parejos y torneos para clubes de pádel en Uruguay), basado en Firebase Auth + Firestore, PWA instalable, reglas de armado de partidos confirmadas y diseño deportivo luminoso de alto contraste.",
+  "updatedAt":  "2026-11-15T05:18:22.717786486Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

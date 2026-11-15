@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+
+<html lang="es"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;font-family:'Outfit',sans-serif;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: 'class', theme: { extend: { colors: { 'secondary-fixed': '#afeeee', 'surface-dim': '#d3dcdc', 'surface-variant': '#dbe4e4', 'on-secondary': '#ffffff', 'surface-bright': '#f2fbfb', 'error-container': '#ffdad6', 'on-tertiary-fixed': '#151a30', 'primary-fixed-dim': '#00dce0', 'surface': '#f2fbfb', 'on-primary-fixed': '#002020', 'inverse-primary': '#00dce0', 'primary-fixed': '#0dfbff', 'error': '#ba1a1a', 'on-error': '#ffffff', 'outline-variant': '#b9caca', 'on-secondary-fixed-variant': '#004f51', 'tertiary-fixed': '#dce1ff', 'surface-container-lowest': '#ffffff', 'tertiary-container': '#dce1ff', 'secondary-fixed-dim': '#93d1d2', 'on-primary': '#ffffff', 'outline': '#6a7a7a', 'tertiary': '#585d76', 'on-tertiary': '#ffffff', 'inverse-on-surface': '#e9f2f2', 'primary': '#00696b', 'on-error-container': '#93000a', 'surface-container-high': '#e1eaea', 'on-primary-container': '#007072', 'on-secondary-fixed': '#002020', 'tertiary-fixed-dim': '#c0c5e2', 'on-surface': '#151d1d', 'background': '#f2fbfb', 'secondary': '#276869', 'surface-container': '#e7f0ef', 'surface-container-low': '#ecf5f5', 'inverse-surface': '#293232', 'on-tertiary-container': '#5e637d', 'surface-container-highest': '#dbe4e4', 'on-secondary-container': '#2c6c6d', 'on-surface-variant': '#3a4a4a', 'on-tertiary-fixed-variant': '#40465e', 'primary-container': '#0bfbff', 'surface-tint': '#00696b', 'secondary-container': '#acebec', 'on-background': '#151d1d', 'on-primary-fixed-variant': '#004f51' }, borderRadius: { 'DEFAULT': '0.25rem', 'lg': '0.5rem', 'xl': '0.75rem', 'full': '9999px' }, spacing: { 'space-xl': '2.5rem', 'space-sm': '0.5rem', 'gutter': '1rem', 'space-xs': '0.25rem', 'space-lg': '1.5rem', 'space-md': '1rem', 'margin': '1rem' }, fontFamily: { 'headline-lg': ['Outfit', 'sans-serif'] }, fontSize: { 'headline-lg': ['32px', { lineHeight: '40px', fontWeight: '600' }] } } } };</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface text-on-surface min-h-screen flex flex-col antialiased selection:bg-primary-container selection:text-on-primary-fixed"><header class="fixed top-0 inset-x-0 z-50 bg-surface/85 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-gutter flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm min-w-0"><div class="flex flex-col min-w-0"><div class="flex items-center gap-space-xs"><span class="font-headline-lg font-bold text-base tracking-tight text-on-surface leading-tight truncate">CuatroEnCancha</span><span class="px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 text-[10px] font-bold tracking-wide uppercase">PRO</span></div><button class="flex items-center gap-1 text-left group"><span class="text-xs font-medium text-secondary truncate max-w-[150px]">Club Carrasco Pádel</span><span class="material-symbols-outlined text-[14px] text-secondary group-hover:translate-y-0.5 transition-transform">expand_more</span></button></div></div><div class="flex items-center gap-space-xs"><button aria-label="Notificaciones" class="relative w-11 h-11 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container active:scale-95 transition-all"><span class="material-symbols-outlined text-[22px]">notifications</span><span class="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-primary-container ring-2 ring-surface"></span></button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex-1 flex flex-col relative w-full pt-16 bg-surface pb-28"><div class="flex flex-col w-full px-4 space-y-5 pb-6">
+<!-- Header Card: Martín Silva Profile -->
+<section class="bg-surface-container-lowest rounded-xl p-5 shadow-sm relative overflow-hidden">
+<div class="absolute -right-10 -top-10 w-36 h-36 rounded-full bg-secondary-fixed/30 pointer-events-none blur-2xl"></div>
+<div class="flex items-start gap-4 relative z-10">
+<div class="relative shrink-0">
+<img class="w-20 h-20 rounded-xl object-cover shadow-sm" data-alt="Close up athletic portrait of a 30 year old male padel tennis player smiling in white sports polo, natural sunlight on outdoor glass padel court with blurred background and teal accents" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD5VxehscwntUboR5xxhqun9jGXiHdLVep55Y2tiZn8jpMhCjNKE6kHp7jdfC7-zd2W--jQhR6lvIVflHfBx9YLZt9NJOHyLdiqnQ7paB2P9o7mWwXkrHF2NkS_Z99TMbbM7-0MB14MCUeR_sQYQIshyaQQWQtnfKyCWQipa5JAHNPDpcVpi74rPB91D3gJC78DKP3-a2yQO0o0DnhCyyTpjKnzaU1E4_wOGoz7lVKU"/>
+<span class="absolute -bottom-1.5 -right-1.5 bg-primary text-on-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
+          ACTIVO
+        </span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between gap-2">
+<h1 class="text-xl font-bold tracking-tight text-on-surface truncate">Martín Silva</h1>
+<button class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-container-high text-secondary transition-all active:scale-95 shrink-0 flex items-center gap-1" id="btn-edit-profile">
+<span class="material-symbols-outlined text-[14px]">edit</span>
+<span>Editar</span>
+</button>
+</div>
+<p class="text-xs text-on-surface-variant font-medium mt-0.5">Socio #1842 • Club Carrasco Pádel</p>
+<!-- Official Category Badge -->
+<div class="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-fixed/40 text-on-primary-fixed">
+<span class="material-symbols-outlined text-[15px] text-primary" style="font-variation-settings: 'FILL' 1;">workspace_premium</span>
+<span class="text-xs font-bold uppercase tracking-wide">3ra Categoría Oficial</span>
+</div>
+</div>
+</div>
+<!-- Quick Tech Sheet -->
+<div class="mt-4 pt-3.5 grid grid-cols-3 gap-2 bg-surface-container-low rounded-lg p-2.5">
+<div class="flex flex-col">
+<span class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">Posición</span>
+<span class="text-xs font-bold text-on-surface truncate mt-0.5">Drive (Derecha)</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">Mano</span>
+<span class="text-xs font-bold text-on-surface truncate mt-0.5">Diestro</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">Pala Actual</span>
+<span class="text-xs font-bold text-secondary truncate mt-0.5">Bullpadel Vertex 04</span>
+</div>
+</div>
+</section>
+<!-- Official Category Range (1ra a 8va) -->
+<section class="bg-surface-container-lowest rounded-xl p-4 shadow-sm space-y-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-[18px]">military_tech</span>
+<h2 class="text-sm font-bold text-on-surface tracking-tight">Nivel de Competición</h2>
+</div>
+<span class="text-[11px] font-bold text-primary bg-secondary-fixed/50 px-2 py-0.5 rounded-full">3ra Asignada</span>
+</div>
+<!-- Category Selector Slider Grid -->
+<div class="flex items-center justify-between gap-1 overflow-x-auto py-1">
+<!-- 1ra -->
+<div class="flex flex-col items-center min-w-[36px] opacity-45">
+<span class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-xs font-bold text-on-surface-variant">1ra</span>
+</div>
+<!-- 2da -->
+<div class="flex flex-col items-center min-w-[36px] opacity-60">
+<span class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-xs font-bold text-on-surface-variant">2da</span>
+</div>
+<!-- 3ra (Current Active) -->
+<div class="flex flex-col items-center min-w-[38px] scale-105">
+<span class="w-9 h-9 rounded-lg bg-primary text-on-primary flex items-center justify-center text-xs font-extrabold shadow-sm">3ra</span>
+<span class="w-1.5 h-1.5 rounded-full bg-primary mt-1"></span>
+</div>
+<!-- 4ta -->
+<div class="flex flex-col items-center min-w-[36px]">
+<span class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-xs font-bold text-on-surface-variant">4ta</span>
+</div>
+<!-- 5ta -->
+<div class="flex flex-col items-center min-w-[36px]">
+<span class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-xs font-bold text-on-surface-variant">5ta</span>
+</div>
+<!-- 6ta -->
+<div class="flex flex-col items-center min-w-[36px]">
+<span class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-xs font-bold text-on-surface-variant">6ta</span>
+</div>
+<!-- 7ma -->
+<div class="flex flex-col items-center min-w-[36px]">
+<span class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-xs font-bold text-on-surface-variant">7ma</span>
+</div>
+<!-- 8va -->
+<div class="flex flex-col items-center min-w-[36px]">
+<span class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-xs font-bold text-on-surface-variant">8va</span>
+</div>
+</div>
+<div class="flex items-start gap-2 bg-surface-container-low p-2.5 rounded-lg text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] text-secondary shrink-0 mt-0.5">verified</span>
+<p class="text-[11px] leading-relaxed">
+        Categoría oficial validada por los torneos del Club Carrasco Pádel para el ranking 2026.
+      </p>
+</div>
+</section>
+<!-- Weekly Availability Matrix (Noviembre 2026) -->
+<section class="bg-surface-container-lowest rounded-xl p-4 shadow-sm space-y-3.5">
+<div class="flex items-center justify-between">
+<div>
+<h2 class="text-sm font-bold text-on-surface tracking-tight">Disponibilidad para Partidos</h2>
+<p class="text-[11px] text-on-surface-variant">Semana del 17 al 23 de Noviembre 2026</p>
+</div>
+<span class="material-symbols-outlined text-secondary text-[20px]">calendar_today</span>
+</div>
+<!-- Interactive Time-Matrix Grid -->
+<div class="overflow-x-auto -mx-1 px-1">
+<table class="w-full text-left text-xs border-collapse">
+<thead>
+<tr class="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider text-center">
+<th class="py-1 px-1 text-left font-semibold">Franja</th>
+<th class="py-1 px-1">Lun</th>
+<th class="py-1 px-1">Mar</th>
+<th class="py-1 px-1">Mié</th>
+<th class="py-1 px-1">Jue</th>
+<th class="py-1 px-1">Vie</th>
+<th class="py-1 px-1 text-primary">Sáb</th>
+<th class="py-1 px-1 text-primary">Dom</th>
+</tr>
+</thead>
+<tbody class="space-y-1">
+<!-- Franja Mañana -->
+<tr class="border-b border-transparent">
+<td class="py-1.5 px-1 font-medium text-[10px] text-on-surface-variant leading-tight">
+              Mañana<br/><span class="text-[9px] opacity-75">08-12h</span>
+</td>
+<!-- Lun -->
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+<!-- Mar -->
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs" data-status="free">✓</button></td>
+<!-- Mié -->
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+<!-- Jue -->
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs" data-status="free">✓</button></td>
+<!-- Vie -->
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+<!-- Sáb -->
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs" data-status="free">✓</button></td>
+<!-- Dom -->
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs" data-status="free">✓</button></td>
+</tr>
+<!-- Franja Tarde -->
+<tr>
+<td class="py-1.5 px-1 font-medium text-[10px] text-on-surface-variant leading-tight">
+              Tarde<br/><span class="text-[9px] opacity-75">14-18h</span>
+</td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs" data-status="free">✓</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs" data-status="free">✓</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+</tr>
+<!-- Franja Tarde/Noche -->
+<tr>
+<td class="py-1.5 px-1 font-medium text-[10px] text-on-surface-variant leading-tight">
+              Tarde/Noche<br/><span class="text-[9px] opacity-75">18-20:30h</span>
+</td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs" data-status="free">✓</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs" data-status="free">✓</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs" data-status="free">✓</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs" data-status="free">✓</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+</tr>
+<!-- Franja Noche -->
+<tr>
+<td class="py-1.5 px-1 font-medium text-[10px] text-on-surface-variant leading-tight">
+              Noche<br/><span class="text-[9px] opacity-75">20:30-23h</span>
+</td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs" data-status="free">✓</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs" data-status="free">✓</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+<td class="p-0.5 text-center"><button class="slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold" data-status="busy">✕</button></td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Legend & Action -->
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-3 text-[11px] font-medium text-on-surface-variant">
+<span class="flex items-center gap-1">
+<span class="w-3 h-3 rounded bg-primary"></span> Libre
+        </span>
+<span class="flex items-center gap-1">
+<span class="w-3 h-3 rounded bg-surface-container-high"></span> Laboral
+        </span>
+</div>
+<button class="bg-secondary-fixed text-on-secondary-fixed text-xs font-bold px-3 py-1.5 rounded-lg active:scale-95 transition-all" id="btn-save-availability">
+        Actualizar Mis Horarios
+      </button>
+</div>
+</section>
+<!-- Season 2026 Summary Cards -->
+<section class="space-y-2.5">
+<div class="flex items-center justify-between">
+<h2 class="text-sm font-bold text-on-surface tracking-tight">Temporada Oficial 2026</h2>
+<span class="text-xs text-secondary font-medium">Carrasco Ranking #14</span>
+</div>
+<div class="grid grid-cols-3 gap-2.5">
+<!-- Total Matches -->
+<div class="bg-surface-container-lowest rounded-xl p-3 shadow-sm flex flex-col justify-between">
+<span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Jugados</span>
+<div class="my-1">
+<span class="text-2xl font-black text-on-surface font-headline-lg">48</span>
+<span class="text-[11px] text-on-surface-variant ml-0.5">pj</span>
+</div>
+<span class="text-[10px] font-semibold text-secondary">32 Victorias</span>
+</div>
+<!-- Win Rate -->
+<div class="bg-surface-container-lowest rounded-xl p-3 shadow-sm flex flex-col justify-between">
+<span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Efectividad</span>
+<div class="my-1 flex items-baseline">
+<span class="text-2xl font-black text-primary font-headline-lg">68</span>
+<span class="text-sm font-bold text-primary">%</span>
+</div>
+<div class="w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 68%;"></div>
+</div>
+</div>
+<!-- Streak -->
+<div class="bg-surface-container-lowest rounded-xl p-3 shadow-sm flex flex-col justify-between">
+<span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Últimos 5</span>
+<div class="flex items-center gap-1 my-2">
+<span class="w-5 h-5 rounded bg-primary text-on-primary text-[10px] font-black flex items-center justify-center">V</span>
+<span class="w-5 h-5 rounded bg-primary text-on-primary text-[10px] font-black flex items-center justify-center">V</span>
+<span class="w-5 h-5 rounded bg-surface-container-highest text-error text-[10px] font-black flex items-center justify-center">D</span>
+<span class="w-5 h-5 rounded bg-primary text-on-primary text-[10px] font-black flex items-center justify-center">V</span>
+<span class="w-5 h-5 rounded bg-primary text-on-primary text-[10px] font-black flex items-center justify-center">V</span>
+</div>
+<span class="text-[10px] font-bold text-primary">Racha +2</span>
+</div>
+</div>
+</section>
+<!-- Recent Matches History - Noviembre 2026 -->
+<section class="space-y-2.5">
+<div class="flex items-center justify-between">
+<h2 class="text-sm font-bold text-on-surface tracking-tight">Historial Reciente (Noviembre 2026)</h2>
+<a class="text-xs font-semibold text-primary" href="#">Ver todos</a>
+</div>
+<div class="space-y-2">
+<!-- Match 1: 15 Nov 2026 -->
+<div class="bg-surface-container-lowest rounded-xl p-3 shadow-sm flex items-center justify-between gap-3">
+<div class="flex items-center gap-3 min-w-0">
+<div class="w-8 h-8 rounded-lg bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-bold text-xs shrink-0">
+            V
+          </div>
+<div class="min-w-0">
+<div class="flex items-center gap-1.5">
+<span class="text-xs font-bold text-on-surface truncate">vs F. Rossi / M. Balbi</span>
+<span class="text-[10px] font-semibold text-primary bg-secondary-fixed/50 px-1.5 rounded">Cancha 2 Cristal</span>
+</div>
+<p class="text-[11px] text-on-surface-variant truncate">Competición 3ra • 15 Nov 2026</p>
+</div>
+</div>
+<div class="text-right shrink-0">
+<span class="text-xs font-black text-on-surface tracking-tight">6-3, 6-4</span>
+<p class="text-[10px] font-semibold text-primary">Ganado</p>
+</div>
+</div>
+<!-- Match 2: 10 Nov 2026 -->
+<div class="bg-surface-container-lowest rounded-xl p-3 shadow-sm flex items-center justify-between gap-3">
+<div class="flex items-center gap-3 min-w-0">
+<div class="w-8 h-8 rounded-lg bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-bold text-xs shrink-0">
+            V
+          </div>
+<div class="min-w-0">
+<div class="flex items-center gap-1.5">
+<span class="text-xs font-bold text-on-surface truncate">vs G. Méndez / L. Varela</span>
+<span class="text-[10px] font-semibold text-secondary bg-surface-container px-1.5 rounded">Cancha Central</span>
+</div>
+<p class="text-[11px] text-on-surface-variant truncate">Torneo Clausura • 10 Nov 2026</p>
+</div>
+</div>
+<div class="text-right shrink-0">
+<span class="text-xs font-black text-on-surface tracking-tight">6-4, 7-5</span>
+<p class="text-[10px] font-semibold text-primary">Ganado</p>
+</div>
+</div>
+<!-- Match 3: 04 Nov 2026 -->
+<div class="bg-surface-container-lowest rounded-xl p-3 shadow-sm flex items-center justify-between gap-3">
+<div class="flex items-center gap-3 min-w-0">
+<div class="w-8 h-8 rounded-lg bg-surface-container-highest text-error flex items-center justify-center font-bold text-xs shrink-0">
+            D
+          </div>
+<div class="min-w-0">
+<div class="flex items-center gap-1.5">
+<span class="text-xs font-bold text-on-surface truncate">vs J. P. Arocena / D. Urioste</span>
+<span class="text-[10px] font-semibold text-secondary bg-surface-container px-1.5 rounded">Cancha 4</span>
+</div>
+<p class="text-[11px] text-on-surface-variant truncate">Amistoso Nivelado • 04 Nov 2026</p>
+</div>
+</div>
+<div class="text-right shrink-0">
+<span class="text-xs font-black text-on-surface tracking-tight">4-6, 6-3, 4-6</span>
+<p class="text-[10px] font-semibold text-error">Perdido</p>
+</div>
+</div>
+</div>
+</section>
+</div>
+<script>
+  // Interactive micro-behavior for the weekly schedule matrix cells
+  document.querySelectorAll('.slot-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const isFree = btn.getAttribute('data-status') === 'free';
+      if (isFree) {
+        btn.setAttribute('data-status', 'busy');
+        btn.className = 'slot-btn w-7 h-7 rounded bg-surface-container-high text-on-surface-variant text-[10px] font-bold transition-all';
+        btn.innerText = '✕';
+      } else {
+        btn.setAttribute('data-status', 'free');
+        btn.className = 'slot-btn w-7 h-7 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs transition-all scale-105';
+        btn.innerText = '✓';
+      }
+    });
+  });
+
+  // Simple feedback alert for updating availability
+  const updateBtn = document.getElementById('btn-save-availability');
+  if (updateBtn) {
+    updateBtn.addEventListener('click', () => {
+      const orig = updateBtn.innerText;
+      updateBtn.innerText = '¡Guardado!';
+      updateBtn.classList.add('bg-primary', 'text-on-primary');
+      setTimeout(() => {
+        updateBtn.innerText = orig;
+        updateBtn.classList.remove('bg-primary', 'text-on-primary');
+      }, 1500);
+    });
+  }
+</script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-2px_12px_rgba(0,0,0,0.04)]" data-active-classes="text-primary font-semibold"><div class="flex justify-around items-center h-16 px-space-xs"><a class="flex flex-col items-center justify-center flex-1 h-full text-on-surface-variant transition-colors group" data-path="home" href="#"><span class="material-symbols-outlined text-[22px] transition-transform group-active:scale-90">home</span><span class="text-[11px] tracking-tight mt-0.5">Inicio</span></a><a class="flex flex-col items-center justify-center flex-1 h-full text-on-surface-variant transition-colors group" data-path="book" href="#"><span class="material-symbols-outlined text-[22px] transition-transform group-active:scale-90">calendar_month</span><span class="text-[11px] tracking-tight mt-0.5">Reservar</span></a><a class="flex flex-col items-center justify-center flex-1 h-full text-on-surface-variant transition-colors group relative" data-path="matchmaking" href="#"><span class="material-symbols-outlined text-[22px] transition-transform group-active:scale-90">sports_tennis</span><span class="text-[11px] tracking-tight mt-0.5">Armar Partido</span></a><a class="flex flex-col items-center justify-center flex-1 h-full text-on-surface-variant transition-colors group" data-path="tournaments" href="#"><span class="material-symbols-outlined text-[22px] transition-transform group-active:scale-90">emoji_events</span><span class="text-[11px] tracking-tight mt-0.5">Torneos</span></a><a aria-current="page" class="flex flex-col items-center justify-center flex-1 h-full transition-colors group text-primary font-semibold" data-path="profile" href="#"><span class="material-symbols-outlined text-[22px] transition-transform group-active:scale-90">account_circle</span><span class="text-[11px] tracking-tight mt-0.5">Perfil</span></a></div></nav></body></html>

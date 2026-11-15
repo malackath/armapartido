@@ -1,0 +1,450 @@
+{
+  "entities": {
+    "AdminMarker": {
+      "title": "AdminMarker",
+      "description": "Platform administrator marker document",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Global player profile without PII (shared identity across all clubs)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "category": { "type": "integer" },
+        "gender": { "type": "string", "enum": ["masculino", "femenino"] },
+        "preferredModality": { "type": "string", "enum": ["masculino", "femenino", "mixto"] },
+        "weeklyAvailability": { "type": "array" },
+        "activeClubIds": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "category", "gender", "preferredModality", "weeklyAvailability", "activeClubIds", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII for the user (email and phone)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "maxLength": 160 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "Club": {
+      "title": "Club",
+      "description": "White-label padel club tenant with geo location, rules, pricing, and billing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "slug": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-z0-9\\-]+$" },
+        "primaryColor": { "type": "string", "minLength": 4, "maxLength": 16 },
+        "accentColor": { "type": "string", "minLength": 4, "maxLength": 16 },
+        "address": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "neighborhood": { "type": "string", "maxLength": 80 },
+        "city": { "type": "string", "maxLength": 80 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "slotDurationMinutes": { "type": "integer" },
+        "openHour": { "type": "integer" },
+        "closeHour": { "type": "integer" },
+        "basePrice": { "type": "number" },
+        "nightFromHour": { "type": "integer" },
+        "nightPrice": { "type": "number" },
+        "weekendPrice": { "type": "number" },
+        "cancellationHours": { "type": "integer" },
+        "maxNoShowsBeforeBlock": { "type": "integer" },
+        "mpEnabled": { "type": "boolean" },
+        "mpMode": { "type": "string", "enum": ["full", "deposit"] },
+        "mpDepositPercent": { "type": "integer" },
+        "subscriptionStatus": { "type": "string", "enum": ["trial", "active", "past_due"] },
+        "trialEndsAt": { "type": "string", "maxLength": 40 },
+        "monthlyPricePerCourt": { "type": "number" },
+        "courtCount": { "type": "integer" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id", "name", "slug", "primaryColor", "accentColor", "address", "city",
+        "lat", "lng", "ownerUid", "slotDurationMinutes", "openHour", "closeHour",
+        "basePrice", "nightFromHour", "nightPrice", "weekendPrice",
+        "cancellationHours", "maxNoShowsBeforeBlock", "mpEnabled", "mpMode",
+        "mpDepositPercent", "subscriptionStatus", "monthlyPricePerCourt", "courtCount",
+        "active", "createdAt", "updatedAt"
+      ]
+    },
+    "Court": {
+      "title": "Court",
+      "description": "Individual padel court inside a club",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clubId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "roof": { "type": "string", "enum": ["techada", "aire_libre"] },
+        "surface": { "type": "string", "enum": ["cristal", "muro"] },
+        "hasLights": { "type": "boolean" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "clubId", "name", "roof", "surface", "hasLights", "active", "createdAt", "updatedAt"]
+    },
+    "ClubMembership": {
+      "title": "ClubMembership",
+      "description": "Club-scoped role, category override, availability and no-show strikes",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clubId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "role": { "type": "string", "enum": ["admin", "staff", "player"] },
+        "category": { "type": "integer" },
+        "gender": { "type": "string", "enum": ["masculino", "femenino"] },
+        "preferredModality": { "type": "string", "enum": ["masculino", "femenino", "mixto"] },
+        "weeklyAvailability": { "type": "array" },
+        "noShowCount": { "type": "integer" },
+        "blocked": { "type": "boolean" },
+        "isDiscoverable": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid", "clubId", "displayName", "role", "category", "gender",
+        "preferredModality", "weeklyAvailability", "noShowCount", "blocked",
+        "isDiscoverable", "createdAt", "updatedAt"
+      ]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Court reservation or temporary hold for matchmaking/tournament",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clubId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "courtId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "courtName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "date": { "type": "string", "minLength": 10, "maxLength": 10 },
+        "startMinute": { "type": "integer" },
+        "endMinute": { "type": "integer" },
+        "type": { "type": "string", "enum": ["direct", "counter", "matched", "tournament"] },
+        "status": { "type": "string", "enum": ["held", "confirmed", "cancelled", "no_show"] },
+        "createdByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "playerUids": { "type": "array" },
+        "guestName": { "type": "string", "maxLength": 80 },
+        "totalPrice": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["club", "mercadopago", "split"] },
+        "paymentStatus": { "type": "string", "enum": ["pending", "deposit_paid", "paid", "refunded"] },
+        "holdExpiresAt": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id", "clubId", "courtId", "courtName", "date", "startMinute", "endMinute",
+        "type", "status", "createdByUid", "playerUids", "guestName", "totalPrice",
+        "paidAmount", "paymentMethod", "paymentStatus", "holdExpiresAt", "createdAt", "updatedAt"
+      ]
+    },
+    "MatchRequest": {
+      "title": "MatchRequest",
+      "description": "Player or fixed-pair request looking for a balanced 4-player match",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clubId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clubIds": { "type": "array" },
+        "creatorUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "creatorName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "partnerUid": { "type": "string", "maxLength": 128 },
+        "partnerName": { "type": "string", "maxLength": 80 },
+        "partnerAccepted": { "type": "boolean" },
+        "category": { "type": "integer" },
+        "modality": { "type": "string", "enum": ["masculino", "femenino", "mixto"] },
+        "requestType": { "type": "string", "enum": ["weekly", "priority"] },
+        "date": { "type": "string", "maxLength": 10 },
+        "dayOfWeek": { "type": "integer" },
+        "startMinute": { "type": "integer" },
+        "endMinute": { "type": "integer" },
+        "isSameDay": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["waiting", "proposed", "confirmed", "expired", "cancelled"] },
+        "unfilledAlertSent": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id", "clubId", "clubIds", "creatorUid", "creatorName", "partnerUid",
+        "partnerName", "partnerAccepted", "category", "modality", "requestType",
+        "date", "dayOfWeek", "startMinute", "endMinute", "isSameDay", "status",
+        "unfilledAlertSent", "createdAt", "updatedAt"
+      ]
+    },
+    "ProposedMatch": {
+      "title": "ProposedMatch",
+      "description": "4-player match proposal holding a court until all 4 players accept",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clubId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "bookingId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "courtId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "courtName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "date": { "type": "string", "minLength": 10, "maxLength": 10 },
+        "startMinute": { "type": "integer" },
+        "endMinute": { "type": "integer" },
+        "modality": { "type": "string", "enum": ["masculino", "femenino", "mixto"] },
+        "minCategory": { "type": "integer" },
+        "maxCategory": { "type": "integer" },
+        "pricePerPlayer": { "type": "number" },
+        "playerUids": { "type": "array" },
+        "slots": { "type": "array" },
+        "expiresAt": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled"] },
+        "createdByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id", "clubId", "bookingId", "courtId", "courtName", "date",
+        "startMinute", "endMinute", "modality", "minCategory", "maxCategory",
+        "pricePerPlayer", "playerUids", "slots", "expiresAt", "status",
+        "createdByUid", "createdAt", "updatedAt"
+      ]
+    },
+    "Tournament": {
+      "title": "Tournament",
+      "description": "Club tournament with pair registrations and generated bracket",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clubId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "startDate": { "type": "string", "minLength": 10, "maxLength": 10 },
+        "endDate": { "type": "string", "minLength": 10, "maxLength": 10 },
+        "categories": { "type": "array" },
+        "maxPairs": { "type": "integer" },
+        "entryFee": { "type": "number" },
+        "format": { "type": "string", "enum": ["knockout", "groups_knockout"] },
+        "status": { "type": "string", "enum": ["registration_open", "draw_generated", "in_progress", "completed"] },
+        "pairs": { "type": "array" },
+        "matches": { "type": "array" },
+        "createdByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id", "clubId", "name", "startDate", "endDate", "categories", "maxPairs",
+        "entryFee", "format", "status", "pairs", "matches", "createdByUid",
+        "createdAt", "updatedAt"
+      ]
+    },
+    "PaymentRecord": {
+      "title": "PaymentRecord",
+      "description": "Club cash register and Mercado Pago ledger entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clubId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "payerName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "referenceId": { "type": "string", "maxLength": 128 },
+        "amount": { "type": "number" },
+        "method": { "type": "string", "enum": ["mercadopago", "efectivo", "transferencia", "debito_club"] },
+        "kind": { "type": "string", "enum": ["booking_full", "booking_deposit", "match_share", "tournament_fee", "refund", "platform_subscription"] },
+        "status": { "type": "string", "enum": ["completed", "refunded"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "clubId", "uid", "payerName", "referenceId", "amount", "method", "kind", "status", "createdAt"]
+    },
+    "NotificationItem": {
+      "title": "NotificationItem",
+      "description": "Push and email dispatch log item for players and staff",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clubId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "recipientUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "eventType": {
+          "type": "string",
+          "enum": [
+            "booking_confirmed",
+            "booking_cancelled",
+            "reminder_2h",
+            "match_proposed",
+            "match_confirmed",
+            "match_unfilled_1h",
+            "tournament_new",
+            "pair_invite",
+            "tournament_next_match",
+            "waitlist_slot_open"
+          ]
+        },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "body": { "type": "string", "minLength": 1, "maxLength": 320 },
+        "pushSent": { "type": "boolean" },
+        "emailSent": { "type": "boolean" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "clubId", "recipientUid", "eventType", "title", "body", "pushSent", "emailSent", "read", "createdAt"]
+    },
+    "PlayerMatchResult": {
+      "title": "PlayerMatchResult",
+      "description": "Player-logged match outcome and score for performance tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clubId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clubName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "date": { "type": "string", "minLength": 10, "maxLength": 10 },
+        "outcome": { "type": "string", "enum": ["win", "loss"] },
+        "score": { "type": "string", "maxLength": 40 },
+        "modality": { "type": "string", "enum": ["masculino", "femenino", "mixto"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uid", "clubId", "clubName", "date", "outcome", "score", "modality", "createdAt"]
+    },
+    "UserFriend": {
+      "title": "UserFriend",
+      "description": "Followed friend entry for inviting frequent padel partners and viewing availability",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "category": { "type": "integer" },
+        "gender": { "type": "string", "enum": ["masculino", "femenino"] },
+        "preferredModality": { "type": "string", "enum": ["masculino", "femenino", "mixto"] },
+        "primaryClubId": { "type": "string", "maxLength": 128 },
+        "primaryClubName": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid", "ownerUid", "displayName", "category", "gender",
+        "preferredModality", "primaryClubId", "primaryClubName", "createdAt"
+      ]
+    },
+    "UserFcmToken": {
+      "title": "UserFcmToken",
+      "description": "Firebase Cloud Messaging device registration token for Web Push delivery",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "token": { "type": "string", "minLength": 10, "maxLength": 512 },
+        "deviceLabel": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "platform": { "type": "string", "enum": ["web", "android", "ios"] },
+        "enabled": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uid", "token", "deviceLabel", "platform", "enabled", "createdAt", "updatedAt"]
+    },
+    "CourtWaitlistEntry": {
+      "title": "CourtWaitlistEntry",
+      "description": "Player waitlist entry for an occupied court time slot, notified automatically on cancellation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clubId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "courtId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "courtName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "date": { "type": "string", "minLength": 10, "maxLength": 10 },
+        "startMinute": { "type": "integer" },
+        "endMinute": { "type": "integer" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "status": { "type": "string", "enum": ["waiting", "notified", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id", "clubId", "courtId", "courtName", "date", "startMinute", "endMinute",
+        "uid", "displayName", "status", "createdAt", "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/AdminMarker" },
+      "description": "Platform administrators"
+    },
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Global player profile shared across clubs"
+    },
+    "/users/{uid}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Private PII document for user email and phone"
+    },
+    "/users/{uid}/matchResults/{resultId}": {
+      "schema": { "$ref": "#/entities/PlayerMatchResult" },
+      "description": "Player match outcomes for win/loss and play frequency analytics"
+    },
+    "/users/{uid}/friends/{friendUid}": {
+      "schema": { "$ref": "#/entities/UserFriend" },
+      "description": "Followed padel friends for quick partner invitations and availability checks"
+    },
+    "/users/{uid}/fcmTokens/{tokenId}": {
+      "schema": { "$ref": "#/entities/UserFcmToken" },
+      "description": "Device FCM Web Push tokens belonging strictly to the user"
+    },
+    "/clubs/{clubId}": {
+      "schema": { "$ref": "#/entities/Club" },
+      "description": "Padel club tenant configuration and billing"
+    },
+    "/clubs/{clubId}/courts/{courtId}": {
+      "schema": { "$ref": "#/entities/Court" },
+      "description": "Club padel courts"
+    },
+    "/clubs/{clubId}/memberships/{memberUid}": {
+      "schema": { "$ref": "#/entities/ClubMembership" },
+      "description": "Club memberships, roles, availability and no-show counters"
+    },
+    "/clubs/{clubId}/bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/Booking" },
+      "description": "Court reservations and matchmaking holds"
+    },
+    "/clubs/{clubId}/matchRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/MatchRequest" },
+      "description": "Matchmaking availability and priority requests"
+    },
+    "/clubs/{clubId}/proposedMatches/{matchId}": {
+      "schema": { "$ref": "#/entities/ProposedMatch" },
+      "description": "Proposed 4-player matches awaiting confirmation"
+    },
+    "/clubs/{clubId}/tournaments/{tournamentId}": {
+      "schema": { "$ref": "#/entities/Tournament" },
+      "description": "Club tournaments, pair registrations, and brackets"
+    },
+    "/clubs/{clubId}/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/PaymentRecord" },
+      "description": "Club ledger and Mercado Pago transactions"
+    },
+    "/clubs/{clubId}/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/NotificationItem" },
+      "description": "Notification dispatch records (Push + Email)"
+    },
+    "/clubs/{clubId}/matchResults/{resultId}": {
+      "schema": { "$ref": "#/entities/PlayerMatchResult" },
+      "description": "Club-scoped player match results for club leaderboard ranking"
+    },
+    "/clubs/{clubId}/waitlist/{waitlistId}": {
+      "schema": { "$ref": "#/entities/CourtWaitlistEntry" },
+      "description": "Automatic waitlist entries for occupied court slots"
+    }
+  }
+}
