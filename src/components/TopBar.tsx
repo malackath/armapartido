@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { LayoutGrid, LogOut, RotateCcw, Shield, Store, UserCircle2, Users } from 'lucide-react';
 import type { Club, PerspectiveRole, UserProfile } from '../types/padel';
 import { formatCategory } from '../lib/padelUtils';
-import { PWAInstallButton } from './PWAInstallButton';
+import { InstallGuideModal, PWAInstallButton } from './PWAInstallButton';
 import { BrandIcon, type BrandIconName } from './BrandIcon';
 
 export type ActiveTab =
@@ -67,6 +67,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onResetDemo,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [installGuideOpen, setInstallGuideOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const isManaging = perspectiveRole !== 'player';
 
@@ -98,6 +99,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   return (
     <>
+      <InstallGuideModal open={installGuideOpen} onClose={() => setInstallGuideOpen(false)} />
       <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur-md pt-safe">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-6 px-4 sm:px-6">
           <button type="button" onClick={() => go('home')} className="min-w-0 cursor-pointer text-left" aria-label="Ir al inicio">
@@ -209,7 +211,13 @@ export const TopBar: React.FC<TopBarProps> = ({
                   )}
                   <div className="my-1 border-t border-line" />
                   <div className="px-4 py-1.5">
-                    <PWAInstallButton compact />
+                    <PWAInstallButton
+                      compact
+                      onShowGuide={() => {
+                        setMenuOpen(false);
+                        setInstallGuideOpen(true);
+                      }}
+                    />
                   </div>
                   <MenuItem
                     icon={<LogOut className="h-4 w-4" />}

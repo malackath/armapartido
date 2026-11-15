@@ -49,7 +49,7 @@ import {
   logPlayerMatchResult,
   updateUserGlobalProfile,
 } from '../services/firestoreService';
-import { PWAInstallButton } from './PWAInstallButton';
+import { InstallGuideModal, PWAInstallButton } from './PWAInstallButton';
 
 interface ProfileViewProps {
   userProfile: UserProfile;
@@ -133,6 +133,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [gender, setGender] = useState<Gender>(userProfile.gender);
   const [modality, setModality] = useState<Modality>(userProfile.preferredModality);
   const [busy, setBusy] = useState(false);
+  const [installGuideOpen, setInstallGuideOpen] = useState(false);
 
   // Performance analytics state
   const [frequencyView, setFrequencyView] = useState<'weekly' | 'weekday'>('weekly');
@@ -885,7 +886,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 {privateInfo?.email || 'Cuenta Google verificada'}
               </p>
             </div>
-            <PWAInstallButton />
+            <PWAInstallButton onShowGuide={() => setInstallGuideOpen(true)} />
+            <InstallGuideModal open={installGuideOpen} onClose={() => setInstallGuideOpen(false)} />
           </div>
 
           <div>
