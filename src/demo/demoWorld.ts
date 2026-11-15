@@ -85,6 +85,9 @@ export const DEMO_CLUB_SUBCOLLECTIONS = [
   'fixedBookings',
   'recoveries',
   'monthlyReports',
+  'migrations',
+  'fillSearches',
+  'fillInvites',
 ];
 
 const SLOT = 90;
