@@ -157,8 +157,8 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
   );
 
   useEffect(() => {
-    if (!invitePreset?.partnerUid) return;
-    setPartnerUid(invitePreset.partnerUid);
+    if (!invitePreset) return;
+    if (invitePreset.partnerUid) setPartnerUid(invitePreset.partnerUid);
     if (typeof invitePreset.dayOfWeek === 'number') {
       setDayOfWeek(invitePreset.dayOfWeek);
       const matchingOffset = [0, 1, 2, 3, 4, 5, 6].find(

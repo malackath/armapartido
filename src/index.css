@@ -22,6 +22,11 @@
   --color-action: #0bfbff;
   --color-on-action: #002020;
   --color-surface: #f2fbfb;
+  --color-ink: #172123;
+  --color-brand: #0a5761;
+  --color-mist: #e2f3f3;
+  --color-line: #d7e9ea;
+  --color-muted: #55696c;
 }
 
 :root {
@@ -42,6 +47,10 @@ h1, h2, h3, .font-display {
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
 }
 
 .pb-safe {

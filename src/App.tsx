@@ -44,6 +44,7 @@ import type {
 import { AuthScreen } from './components/AuthScreen';
 import { ClubAdminView } from './components/ClubAdminView';
 import { FriendsView } from './components/FriendsView';
+import { HomeView } from './components/HomeView';
 import { MatchmakingView, type MatchInvitePreset } from './components/MatchmakingView';
 import { NotificationsPanel } from './components/NotificationsPanel';
 import { OfflineIndicator } from './components/OfflineIndicator';
@@ -55,6 +56,7 @@ import { TopBar, type ActiveTab } from './components/TopBar';
 import { TournamentsView } from './components/TournamentsView';
 
 const VALID_TABS: ActiveTab[] = [
+  'home',
   'bookings',
   'matchmaking',
   'friends',
@@ -67,12 +69,12 @@ const VALID_TABS: ActiveTab[] = [
 ];
 
 function getInitialDeepLink(): { tab: ActiveTab; clubId: string } {
-  if (typeof window === 'undefined') return { tab: 'bookings', clubId: '' };
+  if (typeof window === 'undefined') return { tab: 'home', clubId: '' };
   const params = new URLSearchParams(window.location.search);
   const rawTab = params.get('tab') as ActiveTab | null;
   const rawClub = params.get('clubId') || '';
   return {
-    tab: rawTab && VALID_TABS.includes(rawTab) ? rawTab : 'bookings',
+    tab: rawTab && VALID_TABS.includes(rawTab) ? rawTab : 'home',
     clubId: rawClub,
   };
 }
@@ -88,6 +90,13 @@ export default function App() {
   const [activeClubId, setActiveClubId] = useState<string>(initialDeepLink.clubId);
   const [perspectiveRole, setPerspectiveRole] = useState<PerspectiveRole>('player');
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialDeepLink.tab);
+
+  // La vista de gestión se deriva de la sección abierta: no hay selector de rol a la vista.
+  useEffect(() => {
+    setPerspectiveRole(
+      activeTab === 'staff' ? 'staff' : activeTab === 'admin' ? 'admin' : activeTab === 'platform' ? 'platform_owner' : 'player'
+    );
+  }, [activeTab]);
 
   // Active club real-time collections
   const [courts, setCourts] = useState<Court[]>([]);
@@ -390,7 +399,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20 md:pb-12">
+    <div className="min-h-screen bg-surface pb-24 md:pb-12">
       <TopBar
         clubs={clubs}
         activeClub={activeClub}
@@ -398,7 +407,6 @@ export default function App() {
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         perspectiveRole={perspectiveRole}
-        onChangePerspective={setPerspectiveRole}
         canAccessStaff={canAccessStaff}
         canAccessAdmin={canAccessAdmin}
         canAccessPlatform={isPlatformOwner}
@@ -407,13 +415,30 @@ export default function App() {
         onLogout={logoutUser}
       />
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8">
         {!activeClub ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
             <p className="text-sm text-slate-600">Preparando los clubes piloto en Montevideo...</p>
           </div>
         ) : (
           <>
+            {activeTab === 'home' && (
+              <HomeView
+                club={activeClub}
+                courts={courts}
+                bookings={bookings}
+                proposedMatches={proposedMatches}
+                matchRequests={matchRequests}
+                tournaments={tournaments}
+                userProfile={userProfile}
+                onNavigate={setActiveTab}
+                onJoinRequest={(preset) => {
+                  setInvitePreset({ partnerUid: '', ...preset, nonce: Date.now() });
+                  setActiveTab('matchmaking');
+                }}
+              />
+            )}
+
             {activeTab === 'bookings' && (
               <PlayerBookingView
                 club={activeClub}

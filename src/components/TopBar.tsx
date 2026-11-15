@@ -1,10 +1,21 @@
-import React from 'react';
-import { Bell, CalendarDays, LogOut, Shield, Trophy, UserCheck, UserCircle2, Users } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { LogOut, Shield, Store, UserCircle2, Users, LayoutGrid } from 'lucide-react';
 import type { Club, PerspectiveRole, UserProfile } from '../types/padel';
 import { formatCategory } from '../lib/padelUtils';
 import { PWAInstallButton } from './PWAInstallButton';
+import { BrandIcon, type BrandIconName } from './BrandIcon';
 
-export type ActiveTab = 'bookings' | 'matchmaking' | 'friends' | 'tournaments' | 'staff' | 'admin' | 'platform' | 'notifications' | 'profile';
+export type ActiveTab =
+  | 'home'
+  | 'bookings'
+  | 'matchmaking'
+  | 'friends'
+  | 'tournaments'
+  | 'staff'
+  | 'admin'
+  | 'platform'
+  | 'notifications'
+  | 'profile';
 
 interface TopBarProps {
   clubs: Club[];
@@ -13,13 +24,30 @@ interface TopBarProps {
   activeTab: ActiveTab;
   onSelectTab: (tab: ActiveTab) => void;
   perspectiveRole: PerspectiveRole;
-  onChangePerspective: (role: PerspectiveRole) => void;
   canAccessStaff: boolean;
   canAccessAdmin: boolean;
   canAccessPlatform: boolean;
   unreadNotifications: number;
   userProfile: UserProfile;
   onLogout: () => void;
+}
+
+/** Los 5 botones del jugador. Amigos vive dentro de Perfil. */
+const PLAYER_NAV: { id: ActiveTab; label: string; icon: BrandIconName; also?: ActiveTab[] }[] = [
+  { id: 'home', label: 'Inicio', icon: 'inicio' },
+  { id: 'bookings', label: 'Reservar', icon: 'reservar' },
+  { id: 'matchmaking', label: 'Armar partido', icon: 'armar-partido' },
+  { id: 'tournaments', label: 'Torneos', icon: 'torneos' },
+  { id: 'profile', label: 'Perfil', icon: 'perfil', also: ['friends'] },
+];
+
+function initials(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? '')
+    .join('');
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -29,7 +57,6 @@ export const TopBar: React.FC<TopBarProps> = ({
   activeTab,
   onSelectTab,
   perspectiveRole,
-  onChangePerspective,
   canAccessStaff,
   canAccessAdmin,
   canAccessPlatform,
@@ -37,263 +64,208 @@ export const TopBar: React.FC<TopBarProps> = ({
   userProfile,
   onLogout,
 }) => {
-  const brandTitle =
-    perspectiveRole === 'platform_owner'
-      ? 'Armá Partido'
-      : activeClub?.name || 'Armá Partido';
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const isManaging = perspectiveRole !== 'player';
 
-  const navItems: { id: ActiveTab; label: string }[] = [
-    { id: 'bookings', label: 'Reservas' },
-    { id: 'matchmaking', label: 'Armar Partido' },
-    { id: 'friends', label: 'Amigos' },
-    { id: 'tournaments', label: 'Torneos' },
-  ];
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
-  if (canAccessStaff && (perspectiveRole === 'staff' || perspectiveRole === 'admin' || perspectiveRole === 'platform_owner')) {
-    navItems.push({ id: 'staff', label: 'Mostrador' });
-  }
-  if (canAccessAdmin && (perspectiveRole === 'admin' || perspectiveRole === 'platform_owner')) {
-    navItems.push({ id: 'admin', label: 'Admin Club' });
-  }
-  if (canAccessPlatform && perspectiveRole === 'platform_owner') {
-    navItems.push({ id: 'platform', label: 'Plataforma' });
-  }
+  const go = (tab: ActiveTab) => {
+    setMenuOpen(false);
+    onSelectTab(tab);
+  };
+
+  const isActive = (item: (typeof PLAYER_NAV)[number]) => activeTab === item.id || !!item.also?.includes(activeTab);
+
+  const managementItems: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [];
+  if (canAccessStaff) managementItems.push({ id: 'staff', label: 'Mostrador', icon: <Store className="h-4 w-4" /> });
+  if (canAccessAdmin) managementItems.push({ id: 'admin', label: 'Admin del club', icon: <Shield className="h-4 w-4" /> });
+  if (canAccessPlatform) managementItems.push({ id: 'platform', label: 'Plataforma', icon: <LayoutGrid className="h-4 w-4" /> });
 
   return (
     <>
-      {/* Strict 3-zone Desktop / Mobile Top Header */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-8 px-4 sm:px-6">
-          {/* Zone 1: Single-element Brand Wordmark */}
-          <button
-            type="button"
-            onClick={() => onSelectTab('bookings')}
-            className="font-display text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0 cursor-pointer"
-            style={{ color: perspectiveRole === 'platform_owner' ? '#0F172A' : activeClub?.primaryColor || '#00696b' }}
-          >
-            {brandTitle === 'Armá Partido' ? (
-              <img src="/brand/logo-horizontal-color.svg" alt="Armá Partido" className="h-8 w-auto" />
-            ) : (
-              brandTitle
+      <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur-md pt-safe">
+        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-6 px-4 sm:px-6">
+          <button type="button" onClick={() => go('home')} className="min-w-0 cursor-pointer text-left" aria-label="Ir al inicio">
+            <img src="/brand/logo-horizontal-color.svg" alt="Armá Partido" className="h-7 w-auto" />
+            {activeClub && (
+              <span className="mt-0.5 flex items-center gap-1 truncate text-[13px] text-muted">
+                {activeClub.name}
+                <BrandIcon name="ubicacion" size={13} />
+              </span>
             )}
           </button>
 
-          {/* Zone 2: 4-5 single-line nav links */}
-          <nav className="hidden md:flex items-center gap-6">
-            {navItems.map((item) => {
-              const active = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => onSelectTab(item.id)}
-                  className={`border-b-2 py-4 text-sm font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    active
-                      ? 'border-slate-900 text-slate-900'
-                      : 'border-transparent text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
+          <nav className="hidden md:flex items-center gap-1" aria-label="Principal">
+            {PLAYER_NAV.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => go(item.id)}
+                aria-current={isActive(item) ? 'page' : undefined}
+                className={`cursor-pointer rounded-full px-3.5 py-2 text-sm font-medium whitespace-nowrap ${
+                  isActive(item) ? 'bg-mist text-brand' : 'text-muted hover:text-ink'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
           </nav>
 
-          {/* Zone 3: Primary Action */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
-              onClick={() => onSelectTab('notifications')}
-              className="relative flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
-              aria-label="Avisos"
+              onClick={() => go('notifications')}
+              className="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-brand hover:bg-mist"
+              aria-label={unreadNotifications > 0 ? `Avisos, ${unreadNotifications} sin leer` : 'Avisos'}
             >
-              <Bell className="h-4 w-4" />
+              <BrandIcon name="notificaciones" />
               {unreadNotifications > 0 && (
-                <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-emerald-600 px-1 font-mono text-[10px] font-semibold text-white">
+                <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border-2 border-white bg-[#e2492f] px-1 text-[10px] font-semibold text-white">
                   {unreadNotifications}
                 </span>
               )}
             </button>
-            <div className="hidden sm:block">
-              <PWAInstallButton compact />
-            </div>
-            <button
-              type="button"
-              onClick={() => onSelectTab('profile')}
-              className="hidden sm:inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              <span>{userProfile.displayName.split(' ')[0]}</span>
-              <span aria-hidden="true">·</span>
-              <span>{formatCategory(userProfile.category)}</span>
-            </button>
-          </div>
-        </div>
-      </header>
 
-      {/* Workspace Context Strip (Club Selector & Role Perspective) — below header */}
-      <div className="border-b border-slate-200 bg-slate-100/70">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
-          <div className="flex items-center gap-3 overflow-x-auto">
-            <label htmlFor="club-selector" className="text-xs font-medium text-slate-500 whitespace-nowrap shrink-0">
-              Club activo
-            </label>
-            <select
-              id="club-selector"
-              value={activeClub?.id || ''}
-              onChange={(e) => onSelectClub(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-600 focus:outline-none"
-            >
-              {clubs.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.neighborhood || c.city})
-                </option>
-              ))}
-            </select>
-            {activeClub && (
-              <span className="hidden lg:inline text-xs text-slate-500 whitespace-nowrap">
-                {activeClub.address} · {activeClub.courtCount} canchas · Turnos {activeClub.slotDurationMinutes}m
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 overflow-x-auto">
-            <span className="hidden sm:inline text-xs text-slate-500 whitespace-nowrap">Vista</span>
-            <div className="flex items-center gap-1 rounded-lg bg-slate-200/70 p-0.5">
+            <div className="relative" ref={menuRef}>
               <button
                 type="button"
-                onClick={() => {
-                  onChangePerspective('player');
-                  if (activeTab === 'staff' || activeTab === 'admin' || activeTab === 'platform') {
-                    onSelectTab('bookings');
-                  }
-                }}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  perspectiveRole === 'player' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-label="Tu cuenta"
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-brand text-sm font-semibold text-white"
               >
-                Jugador
+                {initials(userProfile.displayName) || <UserCircle2 className="h-5 w-5" />}
               </button>
-              {canAccessStaff && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChangePerspective('staff');
-                    onSelectTab('staff');
-                  }}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    perspectiveRole === 'staff' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
+              {menuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-12 z-50 w-64 overflow-hidden rounded-2xl border border-line bg-white py-2 text-sm shadow-[0_12px_32px_rgba(23,33,35,.16)]"
                 >
-                  Encargado
-                </button>
-              )}
-              {canAccessAdmin && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChangePerspective('admin');
-                    onSelectTab('admin');
-                  }}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    perspectiveRole === 'admin' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Admin Club
-                </button>
-              )}
-              {canAccessPlatform && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChangePerspective('platform_owner');
-                    onSelectTab('platform');
-                  }}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    perspectiveRole === 'platform_owner' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Dueño Plataforma
-                </button>
+                  <div className="px-4 pb-2 pt-1">
+                    <p className="font-semibold text-ink">{userProfile.displayName}</p>
+                    <p className="text-[13px] text-muted">{formatCategory(userProfile.category)} categoría</p>
+                  </div>
+                  <MenuItem icon={<UserCircle2 className="h-4 w-4" />} label="Mi perfil" onClick={() => go('profile')} />
+                  <MenuItem icon={<Users className="h-4 w-4" />} label="Amigos" onClick={() => go('friends')} />
+                  {clubs.length > 1 && (
+                    <div className="px-4 py-2">
+                      <label htmlFor="club-selector" className="mb-1 block text-xs font-medium text-muted">
+                        Club
+                      </label>
+                      <select
+                        id="club-selector"
+                        value={activeClub?.id || ''}
+                        onChange={(e) => {
+                          onSelectClub(e.target.value);
+                          setMenuOpen(false);
+                        }}
+                        className="w-full rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm text-ink focus:border-emerald-600 focus:outline-none"
+                      >
+                        {clubs.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {managementItems.length > 0 && (
+                    <>
+                      <div className="my-1 border-t border-line" />
+                      <p className="px-4 pb-1 pt-1.5 text-xs font-medium text-muted">Gestión del club</p>
+                      {managementItems.map((m) => (
+                        <MenuItem key={m.id} icon={m.icon} label={m.label} active={activeTab === m.id} onClick={() => go(m.id)} />
+                      ))}
+                    </>
+                  )}
+                  <div className="my-1 border-t border-line" />
+                  <div className="px-4 py-1.5">
+                    <PWAInstallButton compact />
+                  </div>
+                  <MenuItem
+                    icon={<LogOut className="h-4 w-4" />}
+                    label="Cerrar sesión"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onLogout();
+                    }}
+                  />
+                </div>
               )}
             </div>
-            <button
-              type="button"
-              onClick={onLogout}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-200 hover:text-slate-900 cursor-pointer"
-              title="Cerrar sesión"
-              aria-label="Cerrar sesión"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-            </button>
           </div>
         </div>
-      </div>
+        {isManaging && (
+          <div className="border-t border-line bg-ink text-white">
+            <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-1.5 text-xs sm:px-6">
+              <span>Estás en la gestión del club</span>
+              <button type="button" onClick={() => go('home')} className="cursor-pointer font-semibold text-action">
+                Volver a la app
+              </button>
+            </div>
+          </div>
+        )}
+      </header>
 
-      {/* Mobile Bottom Thumb-Zone Navigation (strict <=15% sticky cap) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-md md:hidden pb-safe">
-        <div className="grid h-14 grid-cols-5 items-center">
-          <button
-            type="button"
-            onClick={() => onSelectTab('bookings')}
-            className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium cursor-pointer ${
-              activeTab === 'bookings' ? 'text-emerald-700' : 'text-slate-500'
-            }`}
-          >
-            <CalendarDays className="h-5 w-5" />
-            <span>Reservar</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onSelectTab('matchmaking')}
-            className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium cursor-pointer ${
-              activeTab === 'matchmaking' ? 'text-emerald-700' : 'text-slate-500'
-            }`}
-          >
-            <Users className="h-5 w-5" />
-            <span>Partidos</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onSelectTab('friends')}
-            className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium cursor-pointer ${
-              activeTab === 'friends' ? 'text-emerald-700' : 'text-slate-500'
-            }`}
-          >
-            <UserCheck className="h-5 w-5" />
-            <span>Amigos</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onSelectTab('tournaments')}
-            className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium cursor-pointer ${
-              activeTab === 'tournaments' ? 'text-emerald-700' : 'text-slate-500'
-            }`}
-          >
-            <Trophy className="h-5 w-5" />
-            <span>Torneos</span>
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              onSelectTab(
-                perspectiveRole === 'staff'
-                  ? 'staff'
-                  : perspectiveRole === 'admin'
-                    ? 'admin'
-                    : perspectiveRole === 'platform_owner'
-                      ? 'platform'
-                      : 'profile'
-              )
-            }
-            className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium cursor-pointer ${
-              ['staff', 'admin', 'platform', 'profile'].includes(activeTab) ? 'text-emerald-700' : 'text-slate-500'
-            }`}
-          >
-            {perspectiveRole === 'player' ? <UserCircle2 className="h-5 w-5" /> : <Shield className="h-5 w-5" />}
-            <span>{perspectiveRole === 'player' ? 'Perfil' : 'Gestión'}</span>
-          </button>
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-40 border-t border-line bg-white/95 backdrop-blur-md md:hidden pb-safe"
+        aria-label="Principal"
+      >
+        <div className="grid grid-cols-5 pt-2 pb-1.5">
+          {PLAYER_NAV.map((item) => {
+            const active = isActive(item);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => go(item.id)}
+                aria-current={active ? 'page' : undefined}
+                className={`flex min-h-[48px] cursor-pointer flex-col items-center justify-center gap-0.5 text-[11.5px] ${
+                  active ? 'font-semibold text-brand' : 'font-medium text-muted'
+                }`}
+              >
+                <span className={`flex h-7 items-center justify-center rounded-full ${active ? 'w-14 bg-mist' : 'w-7'}`}>
+                  <BrandIcon name={item.icon} size={22} />
+                </span>
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </div>
       </nav>
     </>
   );
 };
+
+const MenuItem: React.FC<{ icon: React.ReactNode; label: string; onClick: () => void; active?: boolean }> = ({
+  icon,
+  label,
+  onClick,
+  active,
+}) => (
+  <button
+    type="button"
+    role="menuitem"
+    onClick={onClick}
+    className={`flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left hover:bg-surface ${
+      active ? 'font-semibold text-brand' : 'text-ink'
+    }`}
+  >
+    <span className="text-brand">{icon}</span>
+    {label}
+  </button>
+);
