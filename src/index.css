@@ -1,20 +1,38 @@
 @import "tailwindcss";
 
+/* Sistema de diseño de Stitch (design/DESIGN.md): teal #00696B como color de marca,
+   cian #0BFBFF para acciones de alta intención, fondo claro #F2FBFB, tipografía Outfit.
+   La escala "emerald" del prototipo se reasigna a la paleta teal de Stitch. */
 @theme {
   --font-display: "Outfit", system-ui, sans-serif;
-  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-sans: "Outfit", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-emerald-50: #e7f6f6;
+  --color-emerald-100: #c9eeee;
+  --color-emerald-200: #93d1d2;
+  --color-emerald-300: #5fb5b6;
+  --color-emerald-400: #2a9294;
+  --color-emerald-500: #00797b;
+  --color-emerald-600: #00696b;
+  --color-emerald-700: #005a5c;
+  --color-emerald-800: #004f51;
+  --color-emerald-900: #002020;
+
+  --color-action: #0bfbff;
+  --color-on-action: #002020;
+  --color-surface: #f2fbfb;
 }
 
 :root {
-  --club-primary: #059669;
+  --club-primary: #00696b;
   --club-accent: #0F172A;
 }
 
 body {
   font-family: var(--font-sans);
-  background-color: #F8FAFC;
-  color: #0F172A;
+  background-color: #F2FBFB;
+  color: #151D1D;
 }
 
 h1, h2, h3, .font-display {

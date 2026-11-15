@@ -248,7 +248,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       total,
       winRate,
       pieData: [
-        { name: 'Ganados', value: wins, color: '#059669' },
+        { name: 'Ganados', value: wins, color: '#00696b' },
         { name: 'Perdidos', value: losses, color: '#DC2626' },
       ],
     };
@@ -454,7 +454,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <button
             type="button"
             onClick={() => setShowLogForm((prev) => !prev)}
-            className="inline-flex min-h-[40px] shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 cursor-pointer"
+            className="inline-flex min-h-[40px] shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer"
           >
             {showLogForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             {showLogForm ? 'Cerrar formulario' : 'Registrar resultado'}
@@ -814,7 +814,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   />
                   <Bar
                     dataKey="partidos"
-                    fill="#059669"
+                    fill="#00696b"
                     radius={[6, 6, 0, 0]}
                     maxBarSize={42}
                   />

@@ -1,11 +1,29 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
+import {
+  connectAuthEmulator,
+  getAuth,
+  GoogleAuthProvider,
+  signInWithCredential,
+  signInWithPopup,
+  signOut,
+} from 'firebase/auth';
+import { connectFirestoreEmulator, doc, getDocFromServer, getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Modo demo local: `npm run dev:demo` levanta los emuladores de Firebase y usa datos de prueba.
+export const USE_EMULATORS = import.meta.env.VITE_USE_EMULATORS === '1';
+
+export const app = initializeApp(
+  USE_EMULATORS ? { ...firebaseConfig, projectId: 'demo-armapartido' } : firebaseConfig
+);
+export const db = USE_EMULATORS
+  ? getFirestore(app)
+  : getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+if (USE_EMULATORS) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+}
 export const googleProvider = new GoogleAuthProvider();
 
 export enum OperationType {
@@ -74,6 +92,16 @@ export async function testFirestoreConnection(): Promise<boolean> {
 }
 
 export async function signInWithGoogle() {
+  if (USE_EMULATORS) {
+    // El emulador de Auth acepta un token de Google sin firmar.
+    const fakeToken = JSON.stringify({
+      sub: 'demo-martin',
+      email: 'martin.demo@example.com',
+      name: 'Martín Silva',
+      email_verified: true,
+    });
+    return signInWithCredential(auth, GoogleAuthProvider.credential(fakeToken));
+  }
   googleProvider.setCustomParameters({ prompt: 'select_account' });
   return signInWithPopup(auth, googleProvider);
 }

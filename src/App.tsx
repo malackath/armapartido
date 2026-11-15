@@ -380,7 +380,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white cursor-pointer"
+            className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white cursor-pointer"
           >
             Reintentar
           </button>

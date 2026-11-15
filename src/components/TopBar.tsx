@@ -69,7 +69,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             type="button"
             onClick={() => onSelectTab('bookings')}
             className="font-display text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0 cursor-pointer"
-            style={{ color: perspectiveRole === 'platform_owner' ? '#0F172A' : activeClub?.primaryColor || '#059669' }}
+            style={{ color: perspectiveRole === 'platform_owner' ? '#0F172A' : activeClub?.primaryColor || '#00696b' }}
           >
             {brandTitle}
           </button>
@@ -116,7 +116,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             <button
               type="button"
               onClick={() => onSelectTab('profile')}
-              className="hidden sm:inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0 cursor-pointer"
+              className="hidden sm:inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 whitespace-nowrap shrink-0 cursor-pointer"
             >
               <span>{userProfile.displayName.split(' ')[0]}</span>
               <span aria-hidden="true">·</span>

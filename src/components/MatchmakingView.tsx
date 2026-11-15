@@ -519,7 +519,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                     next
                   );
                 }}
-                className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Agregar

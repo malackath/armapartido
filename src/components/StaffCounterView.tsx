@@ -138,7 +138,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
               onClick={() => setSelectedDate(d.iso)}
               className={`rounded-lg border px-3 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer ${
                 d.iso === selectedDate
-                  ? 'border-slate-900 bg-slate-900 text-white'
+                  ? 'border-emerald-600 bg-emerald-600 text-white'
                   : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
               }`}
             >
@@ -336,7 +336,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
                                   setBusy(false);
                                 }
                               }}
-                              className="rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800 cursor-pointer"
+                              className="rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-700 cursor-pointer"
                             >
                               Guardar
                             </button>

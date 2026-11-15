@@ -310,7 +310,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
               onClick={() => setSelectedDate(d.iso)}
               className={`flex min-h-[56px] min-w-[72px] flex-col items-center justify-center rounded-xl border px-3 py-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 active
-                  ? 'border-slate-900 bg-slate-900 text-white'
+                  ? 'border-emerald-600 bg-emerald-600 text-white'
                   : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
               }`}
             >

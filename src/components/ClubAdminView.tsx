@@ -435,7 +435,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({
             <button
               type="submit"
               disabled={busy}
-              className="inline-flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 cursor-pointer"
+              className="inline-flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 cursor-pointer"
             >
               <Plus className="h-4 w-4" />
               Crear cancha
@@ -593,7 +593,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({
                         setBusy(false);
                       }
                     }}
-                    className="rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                    className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                   >
                     Cerrar inscripción y sortear cuadro
                   </button>

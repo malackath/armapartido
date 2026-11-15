@@ -156,7 +156,7 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
                         type="button"
                         onClick={() => setSelectedTournament(trn)}
                         disabled={!eligible}
-                        className="min-h-[42px] rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-500 whitespace-nowrap shrink-0 cursor-pointer"
+                        className="min-h-[42px] rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-500 whitespace-nowrap shrink-0 cursor-pointer"
                       >
                         {eligible
                           ? 'Inscribir pareja'

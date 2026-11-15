@@ -17,7 +17,7 @@ export default defineConfig(() => {
           name: 'Armá Partido',
           short_name: 'ArmáPartido',
           description: 'Reservas instantáneas, armado de partidos parejos y torneos para clubes de pádel en Uruguay.',
-          theme_color: '#059669',
+          theme_color: '#00696b',
           background_color: '#F8FAFC',
           display: 'standalone',
           start_url: '/',

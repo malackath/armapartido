@@ -155,7 +155,7 @@ export const ClubRankingSection: React.FC<ClubRankingSectionProps> = ({
         <button
           type="button"
           onClick={() => setShowQuickLog((prev) => !prev)}
-          className="inline-flex min-h-[38px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 cursor-pointer"
+          className="inline-flex min-h-[38px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer"
         >
           {showQuickLog ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
           {showQuickLog ? 'Cerrar carga' : 'Registrar resultado'}

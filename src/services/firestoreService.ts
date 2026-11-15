@@ -270,7 +270,7 @@ export async function seedPilotDataIfNeeded(user: User, userProfile: UserProfile
         id: 'pocitos_padel',
         name: 'Pocitos Pádel Club',
         slug: 'pocitos-padel',
-        primaryColor: '#059669',
+        primaryColor: '#00696b',
         accentColor: '#0F172A',
         address: 'Av. Brasil 2740, Pocitos',
         neighborhood: 'Pocitos',
