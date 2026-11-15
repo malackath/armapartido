@@ -22,6 +22,8 @@
   --color-action: #0bfbff;
   --color-on-action: #002020;
   --color-surface: #f2fbfb;
+  /* Fondo de página: surface oscurecido 20% (15/11/2026, pedido de Ber). */
+  --color-page: #c2c9c9;
   --color-ink: #172123;
   --color-brand: #0a5761;
   --color-mist: #e2f3f3;
@@ -36,7 +38,7 @@
 
 body {
   font-family: var(--font-sans);
-  background-color: #F2FBFB;
+  background-color: #c2c9c9;
   color: #151D1D;
 }
 

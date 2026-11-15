@@ -4,6 +4,7 @@ import type { Club, PerspectiveRole, UserProfile } from '../types/padel';
 import { formatCategory } from '../lib/padelUtils';
 import { InstallGuideModal, PWAInstallButton } from './PWAInstallButton';
 import { BrandIcon, type BrandIconName } from './BrandIcon';
+import { PAGE_CONTAINER } from '../lib/layout';
 
 export type ActiveTab =
   | 'home'
@@ -100,12 +101,12 @@ export const TopBar: React.FC<TopBarProps> = ({
   return (
     <>
       <InstallGuideModal open={installGuideOpen} onClose={() => setInstallGuideOpen(false)} />
-      <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur-md pt-safe">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-6 px-4 sm:px-6">
+      <header className="sticky top-0 z-30 bg-brand pt-safe text-white shadow-[0_2px_10px_rgba(23,33,35,.18)]">
+        <div className={`${PAGE_CONTAINER} flex h-16 items-center justify-between gap-6`}>
           <button type="button" onClick={() => go('home')} className="min-w-0 cursor-pointer text-left" aria-label="Ir al inicio">
-            <img src="/brand/logo-horizontal-color.svg" alt="Armá Partido" className="h-7 w-auto" />
+            <img src="/brand/logo-horizontal-sobre-oscuro.svg" alt="Armá Partido" className="h-7 w-auto" />
             {activeClub && (
-              <span className="mt-0.5 flex items-center gap-1 truncate text-[13px] text-muted">
+              <span className="mt-0.5 flex items-center gap-1 truncate text-[13px] text-white/75">
                 {activeClub.name}
                 <BrandIcon name="ubicacion" size={13} />
               </span>
@@ -120,7 +121,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 onClick={() => go(item.id)}
                 aria-current={isActive(item) ? 'page' : undefined}
                 className={`cursor-pointer rounded-full px-3.5 py-2 text-sm font-medium whitespace-nowrap ${
-                  isActive(item) ? 'bg-mist text-brand' : 'text-muted hover:text-ink'
+                  isActive(item) ? 'bg-white/15 text-white' : 'text-white/75 hover:text-white'
                 }`}
               >
                 {item.label}
@@ -132,12 +133,12 @@ export const TopBar: React.FC<TopBarProps> = ({
             <button
               type="button"
               onClick={() => go('notifications')}
-              className="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-brand hover:bg-mist"
+              className="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-white hover:bg-white/10"
               aria-label={unreadNotifications > 0 ? `Avisos, ${unreadNotifications} sin leer` : 'Avisos'}
             >
               <BrandIcon name="notificaciones" />
               {unreadNotifications > 0 && (
-                <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border-2 border-white bg-[#e2492f] px-1 text-[10px] font-semibold text-white">
+                <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border-2 border-brand bg-[#e2492f] px-1 text-[10px] font-semibold text-white">
                   {unreadNotifications}
                 </span>
               )}
@@ -150,7 +151,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 aria-label="Tu cuenta"
-                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-brand text-sm font-semibold text-white"
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-action text-sm font-semibold text-on-action"
               >
                 {initials(userProfile.displayName) || <UserCircle2 className="h-5 w-5" />}
               </button>
@@ -234,7 +235,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
         {isManaging && (
           <div className="border-t border-line bg-ink text-white">
-            <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-1.5 text-xs sm:px-6">
+            <div className={`${PAGE_CONTAINER} flex items-center justify-between py-1.5 text-xs`}>
               <span>Estás en la gestión del club</span>
               <button type="button" onClick={() => go('home')} className="cursor-pointer font-semibold text-action">
                 Volver a la app
