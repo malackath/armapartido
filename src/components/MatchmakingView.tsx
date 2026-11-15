@@ -384,21 +384,14 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
           </p>
 
           <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs">
-            <div>
-              <p className="text-[11px] font-medium text-slate-500">Nivel dinámico calculado</p>
-              <p className="font-mono font-bold tabular-nums text-slate-900">
-                Nivel {myLevel}/10{' '}
-                <span className="font-normal text-emerald-700">({myExactRating.toFixed(1)})</span>
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[11px] font-medium text-slate-500">
-                {myLevelSummary?.tierLabel ?? getLevelTierLabel(myLevel)}
-              </p>
-              <p className="font-mono text-[11px] tabular-nums text-slate-600">
-                Cruce óptimo: Nv. {Math.max(1, myLevel - 1)}–{Math.min(10, myLevel + 1)}
-              </p>
-            </div>
+            <p className="text-[11px] font-medium text-slate-500">Tu categoría</p>
+            <p className="font-semibold text-slate-900">
+              {formatCategory(userProfile.category)}
+              <span className="ml-2 font-normal text-slate-600">
+                · cruces de {formatCategory(Math.max(1, userProfile.category - 1))} a{' '}
+                {formatCategory(Math.min(8, userProfile.category + 1))}
+              </span>
+            </p>
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-4">
@@ -679,7 +672,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                     >
                       <span>{fp.displayName}</span>
                       <span className="opacity-75">
-                        · {formatCategory(fp.category)} · Nv. {fpLevel}
+                        · {formatCategory(fp.category)}
                       </span>
                     </button>
                   );
@@ -697,7 +690,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                 <optgroup label="Amigos que seguís">
                   {friendPlayers.map((p) => (
                     <option key={p.uid} value={p.uid}>
-                      ★ {p.displayName} · {formatCategory(p.category)} · Nv. {getPlayerLevel(p.uid, p.category)}/10
+                      ★ {p.displayName} · {formatCategory(p.category)}
                     </option>
                   ))}
                 </optgroup>
@@ -706,7 +699,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                 <optgroup label="Otros jugadores del club">
                   {nonFriendPlayers.map((p) => (
                     <option key={p.uid} value={p.uid}>
-                      Con {p.displayName} · {formatCategory(p.category)} · Nv. {getPlayerLevel(p.uid, p.category)}/10
+                      Con {p.displayName} · {formatCategory(p.category)}
                     </option>
                   ))}
                 </optgroup>
@@ -714,21 +707,20 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
             </select>
 
             {selectedPartner && (() => {
-              const partnerLevel = getPlayerLevel(selectedPartner.uid, selectedPartner.category);
-              const levelDiff = Math.abs(partnerLevel - myLevel);
+              const levelDiff = Math.abs(selectedPartner.category - userProfile.category);
               return (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2.5 text-xs">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="flex items-center gap-1.5 font-semibold text-emerald-900">
                       <CalendarClock className="h-3.5 w-3.5 text-emerald-700" />
-                      Disponibilidad de {selectedPartner.displayName} (Nv. {partnerLevel}/10):
+                      Disponibilidad de {selectedPartner.displayName}:
                     </p>
                     <span className="font-mono text-[11px] font-semibold text-emerald-800">
                       {levelDiff === 0
-                        ? 'Nivel idéntico'
+                        ? 'Misma categoría'
                         : levelDiff === 1
-                          ? '±1 nivel · Cruce muy parejo'
-                          : `±${levelDiff} niveles`}
+                          ? '1 categoría de diferencia'
+                          : `${levelDiff} categorías de diferencia`}
                     </span>
                   </div>
                   <p className="mt-1 text-emerald-800">
@@ -849,10 +841,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                             {slot.uid === userProfile.uid && ' (Vos)'}
                           </p>
                           <p className="text-xs text-slate-500">
-                            {formatCategory(slot.category)} ·{' '}
-                            <span className="font-mono font-semibold tabular-nums text-slate-700">
-                              Nv. {getPlayerLevel(slot.uid, slot.category)}/10
-                            </span>{' '}
+                            {formatCategory(slot.category)}{' '}
                             ·{' '}
                             {slot.status === 'accepted' ? (
                               <span className="font-semibold text-emerald-700">Aceptó</span>
@@ -960,10 +949,6 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                       {r.partnerName ? ` + ${r.partnerName} (Pareja fija)` : ''}
                       <span className="mx-1.5 text-slate-400" aria-hidden="true">·</span>
                       <span className="text-slate-600">{formatCategory(r.category)}</span>
-                      <span className="mx-1.5 text-slate-400" aria-hidden="true">·</span>
-                      <span className="font-mono text-xs font-bold tabular-nums text-emerald-700">
-                        Nv. {creatorLevel}/10
-                      </span>
                       <span className="mx-1.5 text-slate-400" aria-hidden="true">·</span>
                       <span className="capitalize text-slate-600">{r.modality}</span>
                       {isLevelMatch && (

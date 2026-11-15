@@ -334,7 +334,6 @@ export const ClubRankingSection: React.FC<ClubRankingSectionProps> = ({
               <th className="px-4 py-3 font-semibold">Pos.</th>
               <th className="px-4 py-3 font-semibold">Jugador</th>
               <th className="px-4 py-3 font-semibold">Cat.</th>
-              <th className="px-4 py-3 text-right font-semibold">Nivel</th>
               <th className="px-4 py-3 text-right font-semibold">Frecuencia</th>
               <th className="px-4 py-3 text-right font-semibold">PJ</th>
               <th className="px-4 py-3 text-right font-semibold">G / P</th>
@@ -382,12 +381,6 @@ export const ClubRankingSection: React.FC<ClubRankingSectionProps> = ({
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-700">
                       {formatCategory(row.category)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono font-bold tabular-nums text-emerald-700">
-                      Nv.{' '}
-                      {playerLevelsMap?.get(row.uid)?.level ??
-                        Math.min(10, Math.max(1, Math.round(10.5 - row.category)))}
-                      /10
                     </td>
                     <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-700">
                       <span>{row.frequencyCount}</span>

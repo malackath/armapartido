@@ -342,9 +342,9 @@ export async function seedPilotDataIfNeeded(user: User, userProfile: UserProfile
       }
 
       const courts2: Omit<Court, 'createdAt' | 'updatedAt'>[] = [
-        { id: 'cancha_a', clubId: club2.id, name: 'Pista A · Pro', roof: 'techada', surface: 'cristal', hasLights: true, active: true },
-        { id: 'cancha_b', clubId: club2.id, name: 'Pista B · Cristal', roof: 'techada', surface: 'cristal', hasLights: true, active: true },
-        { id: 'cancha_c', clubId: club2.id, name: 'Pista C · Entreno', roof: 'techada', surface: 'muro', hasLights: true, active: true },
+        { id: 'cancha_a', clubId: club2.id, name: 'Cancha A · Pro', roof: 'techada', surface: 'cristal', hasLights: true, active: true },
+        { id: 'cancha_b', clubId: club2.id, name: 'Cancha B · Cristal', roof: 'techada', surface: 'cristal', hasLights: true, active: true },
+        { id: 'cancha_c', clubId: club2.id, name: 'Cancha C · Entreno', roof: 'techada', surface: 'muro', hasLights: true, active: true },
       ];
       for (const ct of courts2) {
         batch.set(doc(db, 'clubs', club2.id, 'courts', ct.id), { ...ct, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
@@ -548,7 +548,7 @@ export async function seedPilotDataIfNeeded(user: User, userProfile: UserProfile
         id: 'bk_demo_c2',
         clubId: club2.id,
         courtId: 'cancha_a',
-        courtName: 'Pista A · Pro',
+        courtName: 'Cancha A · Pro',
         date: tomorrow,
         startMinute: 19 * 60 + 30,
         endMinute: 21 * 60,

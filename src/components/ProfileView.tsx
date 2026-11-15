@@ -565,97 +565,47 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </form>
         )}
 
-        {/* Dynamic Player Level (1 to 10) */}
+        {/* Categoría del jugador (1ra a 8va) */}
         <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-semibold text-emerald-700">
-                Nivel dinámico de jugador (escala 1 al 10)
-              </p>
-              <div className="mt-1 flex flex-wrap items-baseline gap-2.5">
-                <span className="font-mono text-2xl font-bold tabular-nums text-slate-900">
-                  Nivel {resolvedLevel.level} / 10
-                </span>
-                <span className="font-mono text-sm font-semibold tabular-nums text-emerald-700">
-                  {resolvedLevel.exactRating.toFixed(1)} pts
-                </span>
-                <span className="text-xs font-medium text-slate-600">
-                  · {resolvedLevel.tierLabel}
-                </span>
-                <span
-                  className={`font-mono text-xs font-semibold tabular-nums ${
-                    resolvedLevel.deltaFromBase > 0
-                      ? 'text-emerald-700'
-                      : resolvedLevel.deltaFromBase < 0
-                        ? 'text-red-600'
-                        : 'text-slate-500'
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-slate-900">Categoría</p>
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
+              {formatCategory(userProfile.category)}
+            </span>
+          </div>
+          <div className="grid grid-cols-8 gap-1.5" aria-label={`Categoría ${formatCategory(userProfile.category)}`}>
+            {Array.from({ length: 8 }, (_, idx) => {
+              const cat = idx + 1;
+              const active = cat === userProfile.category;
+              return (
+                <div
+                  key={cat}
+                  className={`rounded-lg py-2 text-center text-xs font-semibold ${
+                    active ? 'bg-emerald-700 text-white' : 'bg-white text-slate-400 border border-slate-200'
                   }`}
                 >
-                  {resolvedLevel.deltaFromBase > 0
-                    ? `+${resolvedLevel.deltaFromBase.toFixed(1)}`
-                    : resolvedLevel.deltaFromBase < 0
-                      ? resolvedLevel.deltaFromBase.toFixed(1)
-                      : '0.0'}{' '}
-                  vs. base ({formatCategory(userProfile.category)})
-                </span>
-              </div>
-            </div>
-
-            <div className="text-right">
-              <p className="text-[11px] font-medium text-slate-500">
-                Emparejamiento prioritario
-              </p>
-              <p className="font-mono text-xs font-bold tabular-nums text-slate-900">
-                Nivel {Math.max(1, resolvedLevel.level - 1)}–{Math.min(10, resolvedLevel.level + 1)}
-              </p>
-              {resolvedLevel.recentForm.length > 0 && (
-                <p className="mt-0.5 text-[11px] text-slate-600">
-                  Racha reciente:{' '}
-                  <span className="font-mono font-bold tracking-wider">
-                    {resolvedLevel.recentForm.map((f, idx) => (
-                      <span
-                        key={idx}
-                        className={f === 'W' ? 'text-emerald-700' : 'text-red-600'}
-                      >
-                        {f === 'W' ? 'G' : 'P'}
-                        {idx < resolvedLevel.recentForm.length - 1 ? ' ' : ''}
-                      </span>
-                    ))}
+                  {formatCategory(cat)}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-slate-600">
+            Te proponemos partidos con jugadores de {formatCategory(Math.max(1, userProfile.category - 1))} a{' '}
+            {formatCategory(Math.min(8, userProfile.category + 1))}.
+          </p>
+          {resolvedLevel.recentForm.length > 0 && (
+            <p className="text-[11px] text-slate-600">
+              Racha reciente:{' '}
+              <span className="font-mono font-bold tracking-wider">
+                {resolvedLevel.recentForm.map((f, idx) => (
+                  <span key={idx} className={f === 'W' ? 'text-emerald-700' : 'text-red-600'}>
+                    {f === 'W' ? 'G' : 'P'}
+                    {idx < resolvedLevel.recentForm.length - 1 ? ' ' : ''}
                   </span>
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <div
-              className="grid grid-cols-10 gap-1"
-              aria-label={`Nivel ${resolvedLevel.level} de 10`}
-            >
-              {Array.from({ length: 10 }, (_, idx) => {
-                const seg = idx + 1;
-                const filled = seg <= resolvedLevel.level;
-                return (
-                  <div key={seg} className="space-y-1">
-                    <div
-                      className={`h-2 rounded-sm transition-colors ${
-                        filled ? 'bg-emerald-600' : 'bg-slate-200'
-                      }`}
-                    />
-                    <p
-                      className={`text-center font-mono text-[10px] tabular-nums ${
-                        seg === resolvedLevel.level
-                          ? 'font-bold text-emerald-700'
-                          : 'text-slate-400'
-                      }`}
-                    >
-                      {seg}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                ))}
+              </span>
+            </p>
+          )}
         </div>
 
         {/* 4-KPI Summary Strip */}

@@ -375,10 +375,6 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
                             {formatCategory(item.category)}
                           </span>
                           <span className="text-slate-300" aria-hidden="true">·</span>
-                          <span className="font-mono text-xs font-bold tabular-nums text-emerald-700">
-                            Nv. {getLevel(friend.uid, item.category)}/10
-                          </span>
-                          <span className="text-slate-300" aria-hidden="true">·</span>
                           <span className="text-xs capitalize text-slate-500">
                             {item.preferredModality}
                           </span>
@@ -561,9 +557,6 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
                         </span>
                         <span className="text-xs font-medium text-slate-600">
                           · {formatCategory(player.category)}
-                        </span>
-                        <span className="font-mono text-xs font-bold tabular-nums text-emerald-700">
-                          · Nv. {getLevel(player.uid, player.category)}/10
                         </span>
                         {(categoryDiff <= 1 || Math.abs(getLevel(player.uid, player.category) - myLevel) <= 1) && (
                           <span className="text-[11px] font-medium text-emerald-700">
