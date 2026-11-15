@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import type {
+  RecoveryRecord,
   Booking,
   Club,
   ClubMembership,
@@ -21,6 +22,7 @@ import {
   createTournament,
   removeClubCourt,
   updateClubCourt,
+  subscribeRecoveries,
   updateClubSettings,
   updateMembershipByAdmin,
 } from '../services/firestoreService';
@@ -44,11 +46,12 @@ interface ClubAdminViewProps {
   onToast: (msg: string) => void;
 }
 
-type Section = 'courts' | 'prices' | 'members' | 'tournaments' | 'cash' | 'cantina' | 'fixed' | 'report' | 'club';
+type Section = 'courts' | 'prices' | 'fill' | 'members' | 'tournaments' | 'cash' | 'cantina' | 'fixed' | 'report' | 'club';
 
 const SECTIONS: { id: Section; label: string; icon: BrandIconName; title: string; subtitle: string }[] = [
   { id: 'courts', label: 'Canchas y horarios', icon: 'cancha', title: 'Canchas y horarios', subtitle: 'Lo que cambies acá se ve al instante en la app de los jugadores y en el Mostrador.' },
   { id: 'prices', label: 'Precios y reglas', icon: 'pago-en-club', title: 'Precios y reglas', subtitle: 'Precio por turno, cancelación, faltas y Mercado Pago.' },
+  { id: 'fill', label: 'Falta uno', icon: 'falta-uno', title: '"Falta uno" automático', subtitle: 'Cuando alguien se baja, la app busca reemplazo sola y te muestra los turnos recuperados.' },
   { id: 'members', label: 'Jugadores y encargados', icon: 'pareja', title: 'Jugadores y encargados', subtitle: 'Corregí categorías, nombrá encargados del mostrador y bloqueá a quien falta seguido.' },
   { id: 'tournaments', label: 'Torneos', icon: 'torneos', title: 'Torneos', subtitle: 'Creá torneos, seguí la inscripción y sorteá el cuadro.' },
   { id: 'cash', label: 'Caja', icon: 'pago-online', title: 'Caja', subtitle: 'Cierres de cada día y todo lo cobrado en el club y por Mercado Pago.' },
@@ -110,6 +113,93 @@ const Toggle: React.FC<{ on: boolean; onChange: (v: boolean) => void; label: str
   </button>
 );
 
+const MONTH_NAMES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+/** Admin → "Falta uno": encender, diferencia de categoría y turnos recuperados del mes (vista 8). */
+const FillSection: React.FC<{
+  club: Club;
+  enabled: boolean;
+  setEnabled: (v: boolean) => void;
+  maxGap: 1 | 2;
+  setMaxGap: (v: 1 | 2) => void;
+}> = ({ club, enabled, setEnabled, maxGap, setMaxGap }) => {
+  const [records, setRecords] = useState<RecoveryRecord[]>([]);
+  useEffect(() => subscribeRecoveries(club.id, setRecords), [club.id]);
+
+  const month = getTodayISO().slice(0, 7);
+  const summary = useMemo(() => {
+    const mine = records.filter((r) => r.date.startsWith(month));
+    const counted = mine.filter((r) => r.status === 'counted');
+    const pending = mine.filter((r) => r.status === 'pending');
+    const replaced = counted.filter((r) => r.kind === 'player_replaced');
+    const filled = counted.filter((r) => r.kind === 'slot_filled');
+    const saved = counted.filter((r) => r.kind === 'match_completed');
+    const sum = (list: RecoveryRecord[]) => list.reduce((a, r) => a + (r.amountRecovered || 0), 0);
+    return { replaced, filled, saved, pending, total: sum(replaced) + sum(filled), sumReplaced: sum(replaced), sumFilled: sum(filled) };
+  }, [records, month]);
+  const monthName = MONTH_NAMES[Number(month.slice(5, 7)) - 1];
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+  return (
+    <div className="grid items-start gap-5 xl:grid-cols-[1.1fr_1fr]">
+      <div className="space-y-5">
+        <Card title="Buscar reemplazo solo" action={<Toggle on={enabled} onChange={setEnabled} label="Buscar reemplazo solo" />}>
+          <p className="text-[13px] text-muted">
+            Cuando alguien se baja de un partido armado o no contesta a tiempo, avisamos a jugadores del club de la misma categoría. El primero que confirma entra. Nadie del mostrador tiene que llamar.
+          </p>
+          {!enabled && <Hint>Apagado: si alguien se baja, solo les avisamos a los demás jugadores del partido.</Hint>}
+        </Card>
+
+        <Card title="Diferencia de categoría permitida">
+          <div className={`grid grid-cols-2 gap-2 ${enabled ? '' : 'pointer-events-none opacity-50'}`}>
+            {([1, 2] as const).map((g) => (
+              <button
+                key={g}
+                type="button"
+                aria-pressed={maxGap === g}
+                onClick={() => setMaxGap(g)}
+                className={`h-11 rounded-xl border text-sm font-semibold cursor-pointer ${maxGap === g ? 'border-brand bg-brand text-white' : 'border-line bg-white text-ink hover:bg-mist'}`}
+              >
+                {g} {g === 1 ? 'categoría' : 'categorías'}
+              </button>
+            ))}
+          </div>
+          <Hint>Entre el más alto y el más bajo de los 4. Si un jugador pidió menos en su perfil, vale lo que pidió él.</Hint>
+        </Card>
+
+        <Card title="Llenar turnos libres" action={<span className="rounded-full bg-mist px-2.5 py-1 text-xs font-semibold text-muted">Próximamente</span>}>
+          <p className="text-[13px] text-muted">Invitar a armar partido en canchas vacías de hoy y mañana, en las franjas que elijas. Llega en la próxima versión.</p>
+        </Card>
+      </div>
+
+      <Card title={`Este mes · ${monthName}`}>
+        <p className="font-display text-3xl font-bold text-ink tabular-nums">{formatUYU(summary.total)}</p>
+        <p className="text-sm font-semibold text-emerald-700">recuperados con "Falta uno"</p>
+        <ul className="mt-4 divide-y divide-[#eef5f5] text-[13.5px]">
+          <li className="flex justify-between py-2.5">
+            <span className="text-ink">{plural(summary.replaced.length, 'reemplazo', 'reemplazos')}</span>
+            <span className="font-semibold tabular-nums text-ink">{formatUYU(summary.sumReplaced)}</span>
+          </li>
+          <li className="flex justify-between py-2.5">
+            <span className="text-ink">{plural(summary.filled.length, 'turno libre lleno', 'turnos libres llenos')}</span>
+            <span className="font-semibold tabular-nums text-ink">{formatUYU(summary.sumFilled)}</span>
+          </li>
+          <li className="flex justify-between py-2.5">
+            <span className="text-ink">{plural(summary.saved.length, 'partido que se habría caído', 'partidos que se habrían caído')}</span>
+            <span className="text-muted">se jugaron</span>
+          </li>
+        </ul>
+        {summary.pending.length > 0 && (
+          <p className="mt-2 text-xs text-muted">
+            {plural(summary.pending.length, 'reemplazo todavía no jugado', 'reemplazos todavía no jugados')}: se suman cuando pase el partido.
+          </p>
+        )}
+        <Hint>Cuenta solo los lugares que se llenaron por la app y que se jugaron. Si la reserva se cancela o alguien falta, no se suma.</Hint>
+      </Card>
+    </div>
+  );
+};
+
 const hourOptions = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
 
 export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memberships, bookings, proposedMatches, tournaments, payments, userProfile, onToast }) => {
@@ -132,6 +222,8 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
   const [mpEnabled, setMpEnabled] = useState(club.mpEnabled);
   const [mpMode, setMpMode] = useState<'full' | 'deposit'>(club.mpMode);
   const [mpDeposit, setMpDeposit] = useState(club.mpDepositPercent);
+  const [fillEnabled, setFillEnabled] = useState(club.fillEnabled !== false);
+  const [fillMaxGap, setFillMaxGap] = useState<1 | 2>(club.fillMaxGap ?? 1);
 
   const dirty =
     clubName !== club.name ||
@@ -147,7 +239,9 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
     maxNoShows !== club.maxNoShowsBeforeBlock ||
     mpEnabled !== club.mpEnabled ||
     mpMode !== club.mpMode ||
-    mpDeposit !== club.mpDepositPercent;
+    mpDeposit !== club.mpDepositPercent ||
+    fillEnabled !== (club.fillEnabled !== false) ||
+    fillMaxGap !== (club.fillMaxGap ?? 1);
 
   const previewSlots = useMemo(
     () => generateDaySlots({ ...club, openHour, closeHour, slotDurationMinutes: slotDuration }),
@@ -180,6 +274,8 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
         mpEnabled,
         mpMode,
         mpDepositPercent: mpDeposit,
+        fillEnabled,
+        fillMaxGap,
       });
       onToast('Cambios guardados.');
     } finally {
@@ -188,7 +284,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
   };
 
   const current = SECTIONS.find((s) => s.id === section)!;
-  const showSave = section === 'courts' || section === 'prices' || section === 'club';
+  const showSave = section === 'courts' || section === 'prices' || section === 'fill' || section === 'club';
 
   return (
     <ClubOpsContext.Provider value={ops}>
@@ -353,6 +449,10 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
               </Card>
             </div>
           </div>
+        )}
+
+        {section === 'fill' && (
+          <FillSection club={club} enabled={fillEnabled} setEnabled={setFillEnabled} maxGap={fillMaxGap} setMaxGap={setFillMaxGap} />
         )}
 
         {section === 'members' && <MembersCard club={club} memberships={memberships} userProfile={userProfile} onToast={onToast} />}

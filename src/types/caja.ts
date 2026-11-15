@@ -111,7 +111,7 @@ export interface Recovery {
   sport?: string;
   kind: 'slot_filled' | 'player_replaced' | 'match_completed';
   freeSince: string;
-  alertId: string;
+  alertId?: string;
   searchId?: string;
   alertSentAt: string;
   filledByUid: string;

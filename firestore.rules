@@ -101,7 +101,8 @@ service cloud.firestore {
 
     function isValidUserProfile(data, uid) {
       return data.keys().hasAll(['uid', 'displayName', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'activeClubIds', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['uid', 'displayName', 'photoUrl', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'activeClubIds', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'photoUrl', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'activeClubIds', 'alertPrefs', 'fillCounter', 'createdAt', 'updatedAt'])
+        && (!('alertPrefs' in data) || isValidAlertPrefs(data.alertPrefs))
         && data.uid == uid
         && isValidId(data.uid)
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
@@ -113,6 +114,13 @@ service cloud.firestore {
         && data.activeClubIds is list && data.activeClubIds.size() <= 20
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
+    }
+
+    // "Falta uno": cuántas invitaciones por semana acepta el jugador y cuánta diferencia de categoría.
+    function isValidAlertPrefs(p) {
+      return p is map && p.keys().hasOnly(['weeklyInvites', 'maxCategoryGap'])
+        && p.weeklyInvites is int && p.weeklyInvites in [0, 3, 6, -1]
+        && p.maxCategoryGap is int && p.maxCategoryGap in [0, 1, 2];
     }
 
     function isValidUserPrivateInfo(data, uid) {
@@ -140,12 +148,14 @@ service cloud.firestore {
           'basePrice', 'nightFromHour', 'nightPrice', 'weekendPrice',
           'cancellationHours', 'maxNoShowsBeforeBlock', 'mpEnabled', 'mpMode',
           'mpDepositPercent', 'subscriptionStatus', 'trialEndsAt', 'monthlyPricePerCourt', 'courtCount',
-          'plan', 'deposit', 'reportEmails',
+          'plan', 'deposit', 'reportEmails', 'fillEnabled', 'fillMaxGap',
           'active', 'createdAt', 'updatedAt'
         ])
         && (!('plan' in data) || data.plan in ['entrada', 'estandar'])
         && (!('deposit' in data) || isValidDepositRule(data.deposit))
         && (!('reportEmails' in data) || (data.reportEmails is list && data.reportEmails.size() <= 5))
+        && (!('fillEnabled' in data) || data.fillEnabled is bool)
+        && (!('fillMaxGap' in data) || data.fillMaxGap in [1, 2])
         && data.id == clubId && isValidId(data.id)
         && data.name is string && data.name.size() >= 2 && data.name.size() <= 80
         && data.slug is string && data.slug.size() >= 2 && data.slug.size() <= 64 && data.slug.matches('^[a-z0-9\\-]+$')
@@ -497,7 +507,7 @@ service cloud.firestore {
           isPlatformAdmin() ||
           (isOwner(uid) && incoming().diff(existing()).affectedKeys().hasOnly([
             'displayName', 'photoUrl', 'category', 'gender', 'preferredModality',
-            'weeklyAvailability', 'activeClubIds', 'updatedAt'
+            'weeklyAvailability', 'activeClubIds', 'alertPrefs', 'updatedAt'
           ]))
         );
 
@@ -580,7 +590,7 @@ service cloud.firestore {
             'lat', 'lng', 'slotDurationMinutes', 'openHour', 'closeHour', 'basePrice',
             'nightFromHour', 'nightPrice', 'weekendPrice', 'cancellationHours',
             'maxNoShowsBeforeBlock', 'mpEnabled', 'mpMode', 'mpDepositPercent',
-            'courtCount', 'updatedAt'
+            'courtCount', 'fillEnabled', 'fillMaxGap', 'updatedAt'
           ]))
         );
 
@@ -900,12 +910,6 @@ service cloud.firestore {
           && incoming().bookingIds is list && incoming().bookingIds.size() <= 30;
       }
 
-      // Turnos recuperados por "Falta uno": los escribe solo el servidor (Admin SDK)
-      match /recoveries/{recoveryId} {
-        allow read: if isClubAdmin(clubId) || isClubStaffOrAdmin(clubId) || isPlatformAdmin();
-        allow write: if false;
-      }
-
       // Foto del informe del mes: la guarda el servidor el día 1
       match /monthlyReports/{month} {
         allow read: if isClubAdmin(clubId) || isPlatformAdmin();
@@ -915,6 +919,27 @@ service cloud.firestore {
       // Registro de cada migración (con el permiso del club, ley 18.331): solo el script con Admin SDK
       match /migrations/{migrationId} {
         allow read: if isClubAdmin(clubId) || isPlatformAdmin();
+        allow write: if false;
+      }
+
+      // "Falta uno": solo las escribe el servidor (Cloud Functions). El celular solo lee.
+      match /fillSearches/{searchId} {
+        allow get: if isSignedIn() && isValidId(clubId) && isValidId(searchId);
+        allow list: if isSignedIn() && existing().clubId == clubId;
+        allow write: if false;
+      }
+
+      match /fillInvites/{inviteId} {
+        allow get: if isSignedIn() && isValidId(clubId) && isValidId(inviteId)
+          && (existing().uid == request.auth.uid || isClubStaffOrAdmin(clubId) || isPlatformAdmin());
+        allow list: if isSignedIn() && existing().clubId == clubId
+          && (existing().uid == request.auth.uid || isClubStaffOrAdmin(clubId) || isPlatformAdmin());
+        allow write: if false;
+      }
+
+      // Turnos recuperados (los cuenta el reloj de Falta uno; los lee el informe del mes)
+      match /recoveries/{recoveryId} {
+        allow get, list: if isSignedIn() && isValidId(clubId) && (isClubStaffOrAdmin(clubId) || isPlatformAdmin());
         allow write: if false;
       }
 
