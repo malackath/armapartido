@@ -104,7 +104,14 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
   const club: Club = {
     id: C,
     name: 'Los Jacarandás Pádel',
-    sponsor: { name: 'Parrilla El Saque', tagline: 'Mostrá la app y la primera ronda después del partido va 2x1. (Auspiciante ficticio de la demo.)' },
+    sponsor: { name: 'Parrilla El Saque', tagline: 'Mostrá la app y la primera ronda después del partido va 2x1.', imageUrl: '/img/demo/auspiciantes/el-saque.webp' },
+    // Auspiciantes ficticios de la demo (fotos hechas por Ber en Flow, 15/11/2026). Rotan en Inicio.
+    sponsors: [
+      { name: 'Parrilla El Saque', tagline: 'Mostrá la app y la primera ronda después del partido va 2x1.', imageUrl: '/img/demo/auspiciantes/el-saque.webp' },
+      { name: 'Tienda Punto de Oro', tagline: 'Paletas y ropa de pádel. 10% para socios del club.', imageUrl: '/img/demo/auspiciantes/punto-de-oro.webp' },
+      { name: 'Kinesiología La Volea', tagline: 'Primera consulta sin cargo para jugadores del club.', imageUrl: '/img/demo/auspiciantes/la-volea.webp' },
+      { name: 'Heladería Bandeja', tagline: 'Licuado de frutas a mitad de precio después del partido.', imageUrl: '/img/demo/auspiciantes/bandeja.webp' },
+    ],
     slug: 'los-jacarandas',
     primaryColor: '#0a5761',
     accentColor: '#172123',
@@ -153,8 +160,12 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
   };
   const avail = (days: number[], from: number, to: number): AvailabilityWindow[] =>
     days.map((d) => ({ dayOfWeek: d, startMinute: from, endMinute: to }));
-  const people: { uid: string; name: string; category: number; gender: Gender; role: ClubRole; modality: Modality }[] = [
+  // Fotos de perfil ficticias (hechas por Ber en Flow, 15/11/2026), fijas en public/img/demo/perfiles.
+  const PHOTO_KEYS = new Set(['jugador', 'jugadora', 'dueno', 'mostrador', ...EXTRA_PLAYERS.map((p) => p.id)]);
+  const photoOf = (key: string) => (PHOTO_KEYS.has(key) ? `/img/demo/perfiles/${key}.webp` : '');
+  const people: { uid: string; name: string; category: number; gender: Gender; role: ClubRole; modality: Modality; photo: string }[] = [
     ...DEMO_ACCOUNTS.map((a) => ({
+      photo: photoOf(a.key),
       uid: uids[a.key],
       name: a.name,
       category: a.category,
@@ -162,7 +173,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
       role: roleOf[a.key],
       modality: 'mixto' as Modality,
     })),
-    ...EXTRA_PLAYERS.map((p) => ({ uid: p.id, name: p.name, category: p.category, gender: p.gender, role: 'player' as ClubRole, modality: 'mixto' as Modality })),
+    ...EXTRA_PLAYERS.map((p) => ({ photo: photoOf(p.id), uid: p.id, name: p.name, category: p.category, gender: p.gender, role: 'player' as ClubRole, modality: 'mixto' as Modality })),
   ];
   const nameOf = (uid: string) => people.find((p) => p.uid === uid)?.name ?? 'Jugador';
   const catOf = (uid: string) => people.find((p) => p.uid === uid)?.category ?? 5;
@@ -173,7 +184,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
     const profile: UserProfile = {
       uid: p.uid,
       displayName: p.name,
-      photoUrl: '',
+      photoUrl: p.photo,
       category: p.category,
       gender: p.gender,
       preferredModality: p.modality,
@@ -185,6 +196,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
       uid: p.uid,
       clubId: C,
       displayName: p.name,
+      ...(p.photo ? { photoUrl: p.photo } : {}),
       role: p.role,
       category: p.category,
       gender: p.gender,

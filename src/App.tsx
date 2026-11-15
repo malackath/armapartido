@@ -462,6 +462,7 @@ export default function App() {
                 fillSearches={fillSearches}
                 fillInvites={myFillInvites}
                 userProfile={userProfile}
+                memberships={memberships}
                 onToast={showToast}
                 onNavigate={setActiveTab}
                 onJoinRequest={(preset) => {

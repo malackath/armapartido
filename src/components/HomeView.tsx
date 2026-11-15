@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import type { Booking, Club, Court, FillInvite, FillSearch, MatchRequest, ProposedMatch, Tournament, UserProfile } from '../types/padel';
+import type { Booking, Club, ClubMembership, ClubSponsor, Court, FillInvite, FillSearch, MatchRequest, ProposedMatch, Tournament, UserProfile } from '../types/padel';
 import {
   addDaysISO,
   formatCategory,
@@ -31,6 +31,8 @@ interface HomeViewProps {
   fillSearches?: FillSearch[];
   fillInvites?: FillInvite[];
   userProfile: UserProfile;
+  /** Socios del club: de acá salen las fotos de perfil de los demás jugadores. */
+  memberships?: ClubMembership[];
   onToast: (msg: string) => void;
   onNavigate: (tab: ActiveTab) => void;
   onJoinRequest: (preset: HomeJoinPreset) => void;
@@ -69,10 +71,10 @@ function initials(name: string): string {
     .join('');
 }
 
-const Avatars: React.FC<{ names: string[]; empty?: number }> = ({ names, empty = 0 }) => (
+const Avatars: React.FC<{ names: string[]; empty?: number; photoOf?: (name: string) => string | undefined }> = ({ names, empty = 0, photoOf }) => (
   <div className="flex items-center gap-0.5">
     {names.map((n, i) => (
-      <PlayerAvatar key={`${n}-${i}`} name={n} size={30} />
+      <PlayerAvatar key={`${n}-${i}`} name={n} photoUrl={photoOf?.(n)} size={30} />
     ))}
     {Array.from({ length: empty }).map((_, i) => (
       <span key={`e-${i}`} className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] border-2 border-dashed border-brand/70 text-sm font-semibold text-brand">
@@ -92,11 +94,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
   fillSearches = [],
   fillInvites = [],
   userProfile,
+  memberships = [],
   onToast,
   onNavigate,
   onJoinRequest,
 }) => {
   const today = getTodayISO();
+  const photoMap = useMemo(() => new Map(memberships.filter((m) => m.photoUrl).map((m) => [m.displayName, m.photoUrl as string])), [memberships]);
+  const photoByName = (name?: string) => (name === userProfile.displayName ? userProfile.photoUrl || photoMap.get(name) : name ? photoMap.get(name) : undefined);
   const days = useMemo(() => getUpcomingDays(7), []);
   const [selectedDay, setSelectedDay] = useState(days[0].iso);
   const activeCourts = courts.filter((c) => c.active);
@@ -306,7 +311,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     </span>
                     <span className="mt-2.5 mb-1 flex flex-wrap items-center gap-1">
                       {it.players.map((p, k) => (
-                        <PlayerAvatar key={k} name={p.name} photoUrl={p.name === userProfile.displayName ? userProfile.photoUrl : undefined} size={34} category={p.category} className="mr-1" />
+                        <PlayerAvatar key={k} name={p.name} photoUrl={photoByName(p.name)} size={34} category={p.category} className="mr-1" />
                       ))}
                       {it.kind === 'match' &&
                         Array.from({ length: Math.max(0, 4 - it.players.length) }).map((_, k) => (
@@ -394,7 +399,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       {club.slotDurationMinutes} minutos
                     </p>
                     <div className="flex items-center gap-3">
-                      <Avatars names={names} empty={4 - names.length} />
+                      <Avatars names={names} empty={4 - names.length} photoOf={photoByName} />
                       <button
                         type="button"
                         onClick={() =>
@@ -422,7 +427,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       </div>
-      {(tournament || club.sponsor) && (
+      {(tournament || club.sponsor || club.sponsors?.length) && (
         <aside className="grid min-w-0 gap-4 sm:grid-cols-2 lg:sticky lg:top-24 lg:grid-cols-1">
           {tournament && (() => {
             const photo = '/img/torneo-noche.webp';
@@ -457,9 +462,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   </p>
                   {p1 && p2 && (
                     <div className="mt-3 flex items-center gap-2.5">
-                      <PairAvatar a={{ name: p1.player1Name }} b={{ name: p1.player2Name }} size={36} />
+                      <PairAvatar a={{ name: p1.player1Name, photoUrl: photoByName(p1.player1Name) }} b={{ name: p1.player2Name, photoUrl: photoByName(p1.player2Name) }} size={36} />
                       <span className="text-sm font-bold text-muted">vs</span>
-                      <PairAvatar a={{ name: p2.player1Name }} b={{ name: p2.player2Name }} size={36} />
+                      <PairAvatar a={{ name: p2.player1Name, photoUrl: photoByName(p2.player1Name) }} b={{ name: p2.player2Name, photoUrl: photoByName(p2.player2Name) }} size={36} />
                     </div>
                   )}
                   <div className="mt-2 flex items-center gap-1">
@@ -478,26 +483,50 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </section>
             );
           })()}
-          {club.sponsor && (
-            <a
-              href={club.sponsor.url || undefined}
-              target="_blank"
-              rel="noreferrer"
-              className="block rounded-[20px] border-2 border-dashed border-[#9bb3b6] bg-white/60 p-4"
-            >
-              <p className="mb-2 text-[11px] tracking-widest text-muted uppercase">Auspicia el club</p>
-              {club.sponsor.logoUrl ? (
-                <img src={club.sponsor.logoUrl} alt={club.sponsor.name} className="mb-2 h-16 w-full rounded-xl object-contain" />
-              ) : (
-                <div className="mb-2 rounded-xl bg-ink px-4 py-4 text-center font-display font-extrabold tracking-[.12em] text-white uppercase">{club.sponsor.name}</div>
-              )}
-              <p className="text-sm font-semibold text-ink">{club.sponsor.name}</p>
-              {club.sponsor.tagline && <p className="text-xs text-muted">{club.sponsor.tagline}</p>}
-            </a>
-          )}
+          <SponsorCard sponsors={club.sponsors?.length ? club.sponsors : club.sponsor ? [club.sponsor] : []} />
         </aside>
       )}
       </div>
     </div>
+  );
+};
+
+// Auspiciantes del club: muestra uno y rota cada 8 segundos (pedido de Ber, 15/11/2026).
+const SponsorCard: React.FC<{ sponsors: ClubSponsor[] }> = ({ sponsors }) => {
+  const [i, setI] = React.useState(() => Math.floor(Math.random() * Math.max(1, sponsors.length)));
+  React.useEffect(() => {
+    if (sponsors.length < 2) return;
+    const t = window.setInterval(() => setI((n) => (n + 1) % sponsors.length), 8000);
+    return () => window.clearInterval(t);
+  }, [sponsors.length]);
+  if (!sponsors.length) return null;
+  const s = sponsors[i % sponsors.length];
+  return (
+    <a
+      href={s.url || undefined}
+      target="_blank"
+      rel="noreferrer"
+      className="block overflow-hidden rounded-[20px] border-2 border-dashed border-[#9bb3b6] bg-white/60 p-4"
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[11px] tracking-widest text-muted uppercase">Auspicia el club</p>
+        {sponsors.length > 1 && (
+          <span className="flex gap-1" aria-hidden>
+            {sponsors.map((x, n) => (
+              <span key={x.name} className={`h-1.5 w-1.5 rounded-full ${n === i % sponsors.length ? 'bg-brand' : 'bg-[#c5d6d8]'}`} />
+            ))}
+          </span>
+        )}
+      </div>
+      {s.imageUrl ? (
+        <img key={s.imageUrl} src={s.imageUrl} alt={s.name} className="mb-2 aspect-[16/9] w-full rounded-xl object-cover" loading="lazy" />
+      ) : s.logoUrl ? (
+        <img src={s.logoUrl} alt={s.name} className="mb-2 h-16 w-full rounded-xl object-contain" />
+      ) : (
+        <div className="mb-2 rounded-xl bg-ink px-4 py-4 text-center font-display font-extrabold tracking-[.12em] text-white uppercase">{s.name}</div>
+      )}
+      <p className="text-sm font-semibold text-ink">{s.name}</p>
+      {s.tagline && <p className="text-xs text-muted">{s.tagline}</p>}
+    </a>
   );
 };

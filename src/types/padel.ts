@@ -58,6 +58,15 @@ export interface UserPrivateInfo {
   updatedAt?: unknown;
 }
 
+export interface ClubSponsor {
+  name: string;
+  tagline?: string;
+  logoUrl?: string;
+  /** Foto horizontal del auspiciante (16:9). */
+  imageUrl?: string;
+  url?: string;
+}
+
 export interface Club {
   id: string;
   name: string;
@@ -89,7 +98,9 @@ export interface Club {
   fillEnabled?: boolean;
   fillMaxGap?: 1 | 2;
   /** Auspiciante que el club muestra en Inicio. Si no hay, el espacio no se muestra. */
-  sponsor?: { name: string; tagline?: string; logoUrl?: string; url?: string };
+  sponsor?: ClubSponsor;
+  /** Varios auspiciantes: Inicio muestra uno y rota. Si falta, se usa `sponsor`. */
+  sponsors?: ClubSponsor[];
   courtCount: number;
   /** Plan contratado (para el informe mensual). Sin dato = Estándar. */
   plan?: 'entrada' | 'estandar';
