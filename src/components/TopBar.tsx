@@ -151,9 +151,10 @@ export const TopBar: React.FC<TopBarProps> = ({
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 aria-label="Tu cuenta"
-                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-action text-sm font-semibold text-on-action"
+                className="flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-action bg-cover bg-center text-sm font-semibold text-on-action"
+                style={userProfile.photoUrl ? { backgroundImage: `url(${userProfile.photoUrl})` } : undefined}
               >
-                {initials(userProfile.displayName) || <UserCircle2 className="h-5 w-5" />}
+                {userProfile.photoUrl ? null : initials(userProfile.displayName) || <UserCircle2 className="h-5 w-5" />}
               </button>
               {menuOpen && (
                 <div

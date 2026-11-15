@@ -118,6 +118,8 @@ export interface ClubMembership {
   uid: string;
   clubId: string;
   displayName: string;
+  /** Copia de la foto de perfil del jugador (users/{uid}.photoUrl) para mostrarla en listas. */
+  photoUrl?: string;
   role: ClubRole;
   category: number;
   gender: Gender;
@@ -217,8 +219,6 @@ export interface TournamentPair {
   partnerAccepted: boolean;
   paid: boolean;
   group?: string;
-  /** Foto de la pareja (opcional). En la demo, imágenes hechas con IA. */
-  photoUrl?: string;
 }
 
 export interface TournamentMatch {

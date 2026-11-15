@@ -425,7 +425,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {(tournament || club.sponsor) && (
         <aside className="grid min-w-0 gap-4 sm:grid-cols-2 lg:sticky lg:top-24 lg:grid-cols-1">
           {tournament && (() => {
-            const photo = tournament.pairs.find((p) => p.photoUrl)?.photoUrl ?? '/img/torneo-noche.webp';
+            const photo = '/img/torneo-noche.webp';
             const nextMatch = tournament.matches
               .filter((m) => m.status === 'scheduled' && m.date >= today)
               .sort((a, b) => a.date.localeCompare(b.date) || a.startMinute - b.startMinute)[0];
@@ -457,9 +457,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   </p>
                   {p1 && p2 && (
                     <div className="mt-3 flex items-center gap-2.5">
-                      <PairAvatar a={p1.player1Name} b={p1.player2Name} photoUrl={p1.photoUrl} size={40} />
+                      <PairAvatar a={{ name: p1.player1Name }} b={{ name: p1.player2Name }} size={36} />
                       <span className="text-sm font-bold text-muted">vs</span>
-                      <PairAvatar a={p2.player1Name} b={p2.player2Name} photoUrl={p2.photoUrl} size={40} />
+                      <PairAvatar a={{ name: p2.player1Name }} b={{ name: p2.player2Name }} size={36} />
                     </div>
                   )}
                   <div className="mt-2 flex items-center gap-1">

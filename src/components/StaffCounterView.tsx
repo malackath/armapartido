@@ -803,7 +803,7 @@ const CellPlayers: React.FC<{ players: ClubMembership[]; missing?: number }> = (
   players.length || missing ? (
     <span className="mt-1 flex items-center gap-0.5">
       {players.slice(0, 4).map((m) => (
-        <PlayerAvatar key={m.uid} name={m.displayName} size={24} />
+        <PlayerAvatar key={m.uid} name={m.displayName} photoUrl={m.photoUrl} size={24} />
       ))}
       {Array.from({ length: Math.min(missing, 4 - Math.min(players.length, 4)) }).map((_, i) => (
         <span key={i} className="h-6 w-6 rounded-[7px] border-2 border-dashed border-ink/60" />

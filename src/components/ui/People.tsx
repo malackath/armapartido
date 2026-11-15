@@ -58,7 +58,9 @@ export const PlayerAvatar: React.FC<{
   size?: number;
   category?: number;
   className?: string;
-}> = ({ name, photoUrl, size = 32, category, className = '' }) => (
+  /** Corre las iniciales a la izquierda (se usa en la pareja, donde la otra foto tapa el borde derecho). */
+  shiftLeft?: number;
+}> = ({ name, photoUrl, size = 32, category, className = '', shiftLeft = 0 }) => (
   <span className={`relative inline-flex shrink-0 ${className}`} title={name}>
     <span
       className="grid place-items-center overflow-hidden border-2 border-white bg-avatar bg-cover bg-center font-bold text-brand"
@@ -70,7 +72,7 @@ export const PlayerAvatar: React.FC<{
         backgroundImage: photoUrl ? `url(${photoUrl})` : undefined,
       }}
     >
-      {photoUrl ? null : <span style={category ? { transform: 'translate(-8%,-8%)' } : undefined}>{initialsOf(name)}</span>}
+      {photoUrl ? null : <span style={category ? { transform: 'translate(-8%,-8%)' } : shiftLeft ? { transform: `translateX(-${shiftLeft}px)` } : undefined}>{initialsOf(name)}</span>}
     </span>
     {category ? (
       <span className="absolute -right-2 -bottom-2 z-10 flex rounded-[7px] border-2 border-white">
@@ -80,16 +82,24 @@ export const PlayerAvatar: React.FC<{
   </span>
 );
 
-// Pareja: foto de la pareja si hay, si no las iniciales de los dos en mitades.
-export const PairAvatar: React.FC<{ a?: string; b?: string; photoUrl?: string; size?: number }> = ({ a, b, photoUrl, size = 48 }) =>
-  photoUrl ? (
-    <span className="inline-flex shrink-0 overflow-hidden rounded-[14px] bg-cover bg-center" style={{ width: size, height: size, backgroundImage: `url(${photoUrl})` }} />
-  ) : (
-    <span className="inline-flex shrink-0 overflow-hidden rounded-[14px] bg-avatar font-bold text-brand" style={{ width: size, height: size, fontSize: Math.round(size * 0.28) }}>
-      <i className="grid flex-1 place-items-center not-italic">{initialsOf(a)}</i>
-      <i className="grid flex-1 place-items-center border-l-2 border-white not-italic">{initialsOf(b)}</i>
+// Pareja: las dos fotos de perfil una al lado de la otra, algo solapadas, en un recuadro
+// más ancho que el avatar común (pedido de Ber, 15/11/2026). Sirve igual si la pareja
+// se anotó junta o si la armó el club o la app.
+export interface PairPerson {
+  name?: string;
+  photoUrl?: string;
+}
+export const PairAvatar: React.FC<{ a: PairPerson; b: PairPerson; size?: number; className?: string }> = ({ a, b, size = 48, className = '' }) => {
+  const overlap = Math.round(size * 0.3);
+  return (
+    <span className={`inline-flex shrink-0 items-center ${className}`} style={{ width: size * 2 - overlap }} title={`${a.name ?? ''} y ${b.name ?? ''}`}>
+      <PlayerAvatar name={a.name} photoUrl={a.photoUrl} size={size} shiftLeft={Math.round(overlap / 2)} />
+      <span style={{ marginLeft: -overlap }} className="relative">
+        <PlayerAvatar name={b.name} photoUrl={b.photoUrl} size={size} />
+      </span>
     </span>
   );
+};
 
 export type StatusKind = 'ok' | 'due' | 'wait' | 'fu' | 'live' | 'free' | 'busy' | 'mine' | 'neutral';
 

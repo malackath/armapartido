@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth';
 import { connectFirestoreEmulator, doc, getDocFromServer, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
+import { connectStorageEmulator, getStorage } from 'firebase/storage';
 import appletConfig from '../../firebase-applet-config.json';
 
 // Modo demo local: `npm run dev:demo` levanta los emuladores de Firebase y usa datos de prueba.
@@ -41,7 +42,10 @@ export const db =
 export const auth = getAuth(app);
 // Armado de partidos y reloj: Cloud Functions en São Paulo (functions/src).
 export const functions = getFunctions(app, 'southamerica-east1');
+// Fotos de perfil (avatars/{uid}.webp). Bucket en región de EE. UU. para quedar en la capa sin costo.
+export const storage = getStorage(app);
 if (USE_EMULATORS) {
+  connectStorageEmulator(storage, '127.0.0.1', 9199);
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
   connectFunctionsEmulator(functions, '127.0.0.1', 5001);

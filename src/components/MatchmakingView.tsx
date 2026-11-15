@@ -54,6 +54,7 @@ import {
 } from '../services/firestoreService';
 import { MercadoPagoModal } from './MercadoPagoModal';
 import { BrandIcon } from './BrandIcon';
+import { uploadProfilePhoto } from '../services/photoService';
 import { CategoryBadge, PlayerAvatar, StatusChip } from './ui/People';
 
 export interface MatchInvitePreset {
@@ -100,6 +101,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
   onToast,
 }) => {
   const today = getTodayISO();
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [reqType, setReqType] = useState<'priority' | 'weekly'>('priority');
   const [dateISO, setDateISO] = useState(today);
   const [dayOfWeek, setDayOfWeek] = useState<number>(getDayOfWeekFromISO(today));
@@ -398,7 +400,33 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
         <div className="overflow-hidden rounded-3xl bg-[#ecfcfc] shadow-[0_0_0_2px_#05e2f2] lg:col-span-5">
           {/* Tu ficha: bloque destacado con foto grande (pedido de Ber, 15/11/2026). */}
           <div className="flex items-center gap-5 bg-brand p-5 text-white sm:p-6">
-            <PlayerAvatar name={userProfile.displayName} photoUrl={userProfile.photoUrl} size={96} className="[&>span:first-child]:border-[3px] [&>span:first-child]:border-action" />
+            <label className="relative shrink-0 cursor-pointer" title="Cambiar foto">
+              <PlayerAvatar name={userProfile.displayName} photoUrl={userProfile.photoUrl} size={96} className="[&>span:first-child]:border-[3px] [&>span:first-child]:border-action" />
+              <span className="absolute -bottom-2.5 left-1/2 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-brand shadow">
+                <BrandIcon name="perfil" size={12} />
+                {photoBusy ? 'Subiendo…' : userProfile.photoUrl ? 'Cambiar foto' : 'Poner foto'}
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                disabled={photoBusy}
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!f) return;
+                  setPhotoBusy(true);
+                  try {
+                    await uploadProfilePhoto(userProfile.uid, userProfile.activeClubIds ?? [], f);
+                    onToast('Listo, tu foto quedó en tu ficha.');
+                  } catch (err) {
+                    onToast(err instanceof Error ? err.message : 'No se pudo subir la foto.');
+                  } finally {
+                    setPhotoBusy(false);
+                  }
+                }}
+              />
+            </label>
             <div className="min-w-0">
               <p className="text-xs font-semibold tracking-wider text-[#9fd6da] uppercase">Tu ficha de jugador</p>
               <h2 className="mt-0.5 truncate font-display text-2xl font-bold">{userProfile.displayName}</h2>

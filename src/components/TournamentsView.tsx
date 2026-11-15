@@ -6,7 +6,7 @@ import { formatCategory, formatMinutes, formatUYU, formatDateFriendly} from '../
 import { acceptTournamentPair, registerPairInTournament } from '../services/firestoreService';
 import { MercadoPagoModal } from './MercadoPagoModal';
 import { BrandIcon } from './BrandIcon';
-import { CategoryBadge, PairAvatar, PlayerAvatar, StatusChip } from './ui/People';
+import { CategoryBadge, PairAvatar, StatusChip } from './ui/People';
 
 interface TournamentsViewProps {
   club: Club;
@@ -27,6 +27,9 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
   const [partnerUid, setPartnerUid] = useState('');
   const [mpOpen, setMpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const photoByUid = useMemo(() => new Map(memberships.map((m) => [m.uid, m.photoUrl])), [memberships]);
+  const photoOf = (uid: string) => (uid === userProfile.uid ? userProfile.photoUrl : photoByUid.get(uid));
 
   const partners = useMemo(
     () => memberships.filter((m) => m.uid !== userProfile.uid && !m.blocked),
@@ -176,7 +179,7 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
                     <div className="mt-2 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                       {trn.pairs.map((pair) => (
                         <div key={pair.id} className="flex items-center gap-3 rounded-2xl border border-line bg-white p-2.5">
-                          <PairAvatar a={pair.player1Name} b={pair.player2Name} photoUrl={pair.photoUrl} size={52} />
+                          <PairAvatar a={{ name: pair.player1Name, photoUrl: photoOf(pair.player1Uid) }} b={{ name: pair.player2Name, photoUrl: photoOf(pair.player2Uid) }} size={44} />
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-ink">
                               {pair.player1Name} / {pair.player2Name}
@@ -216,9 +219,8 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
                           return (
                             <div className={`flex items-center gap-2 rounded-xl px-2 py-1.5 ${won ? 'bg-ok-bg' : ''}`}>
                               {p ? (
-                                <span className="flex gap-1">
-                                  <PlayerAvatar name={p.player1Name} size={32} />
-                                  <PlayerAvatar name={p.player2Name} size={32} />
+                                <span className="flex">
+                                  <PairAvatar a={{ name: p.player1Name, photoUrl: photoOf(p.player1Uid) }} b={{ name: p.player2Name, photoUrl: photoOf(p.player2Uid) }} size={32} />
                                 </span>
                               ) : (
                                 <span className="h-[30px] w-[64px] rounded-lg border-2 border-dashed border-line" />
