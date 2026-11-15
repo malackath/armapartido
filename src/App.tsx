@@ -5,7 +5,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth, logoutUser, testFirestoreConnection } from './lib/firebase';
+import { auth, db, DEMO_MODE, logoutUser, testFirestoreConnection } from './lib/firebase';
+import { readDemoUids, resetDemoWorld } from './demo/resetDemo';
 import {
   obtainFcmDeviceToken,
   showServiceWorkerNotification,
@@ -145,7 +146,8 @@ export default function App() {
       }
       try {
         const profile = await ensureUserProfile(fbUser);
-        await seedPilotDataIfNeeded(fbUser, profile);
+        // En la demo publicada los datos los carga el script de demo; no se siembran los clubes del prototipo.
+        if (!DEMO_MODE) await seedPilotDataIfNeeded(fbUser, profile);
         setUserProfile(profile);
       } catch (err) {
         setBootError(err instanceof Error ? err.message : 'Error al inicializar tu cuenta.');
@@ -411,6 +413,22 @@ export default function App() {
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         perspectiveRole={perspectiveRole}
+        onResetDemo={
+          DEMO_MODE && (isPlatformOwner || activeClub?.ownerUid === authUser.uid)
+            ? async () => {
+                if (!window.confirm('¿Reiniciar la demo? Se borra todo lo que se cargó y vuelve el club de ejemplo.')) return;
+                showToast('Reiniciando la demo…');
+                try {
+                  const uids = await readDemoUids(db);
+                  if (!uids) throw new Error('No encuentro las cuentas de la demo.');
+                  await resetDemoWorld(db, uids);
+                  showToast('Demo reiniciada.');
+                } catch (err) {
+                  showToast(err instanceof Error ? err.message : 'No se pudo reiniciar la demo.');
+                }
+              }
+            : undefined
+        }
         canAccessStaff={canAccessStaff}
         canAccessAdmin={canAccessAdmin}
         canAccessPlatform={isPlatformOwner}

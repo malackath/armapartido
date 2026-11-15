@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { LogOut, Shield, Store, UserCircle2, Users, LayoutGrid } from 'lucide-react';
+import { LayoutGrid, LogOut, RotateCcw, Shield, Store, UserCircle2, Users } from 'lucide-react';
 import type { Club, PerspectiveRole, UserProfile } from '../types/padel';
 import { formatCategory } from '../lib/padelUtils';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -30,6 +30,7 @@ interface TopBarProps {
   unreadNotifications: number;
   userProfile: UserProfile;
   onLogout: () => void;
+  onResetDemo?: () => void;
 }
 
 /** Los 5 botones del jugador. Amigos vive dentro de Perfil. */
@@ -63,6 +64,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   unreadNotifications,
   userProfile,
   onLogout,
+  onResetDemo,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -190,6 +192,19 @@ export const TopBar: React.FC<TopBarProps> = ({
                       {managementItems.map((m) => (
                         <MenuItem key={m.id} icon={m.icon} label={m.label} active={activeTab === m.id} onClick={() => go(m.id)} />
                       ))}
+                    </>
+                  )}
+                  {onResetDemo && (
+                    <>
+                      <div className="my-1 border-t border-line" />
+                      <MenuItem
+                        icon={<RotateCcw className="h-4 w-4" />}
+                        label="Reiniciar demo"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          onResetDemo();
+                        }}
+                      />
                     </>
                   )}
                   <div className="my-1 border-t border-line" />

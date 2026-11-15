@@ -4,21 +4,39 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithCredential,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
 } from 'firebase/auth';
 import { connectFirestoreEmulator, doc, getDocFromServer, getFirestore } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import appletConfig from '../../firebase-applet-config.json';
 
 // Modo demo local: `npm run dev:demo` levanta los emuladores de Firebase y usa datos de prueba.
 export const USE_EMULATORS = import.meta.env.VITE_USE_EMULATORS === '1';
 
+// Demo publicada (demo.armapartido.com): entra con mail y contraseña y oculta Google.
+export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === '1';
+
+// Si el build trae la configuración del Firebase propio (variables VITE_FIREBASE_*), se usa esa.
+// Si no, queda el proyecto que creó AI Studio. La configuración web de Firebase es pública por diseño.
+const env = import.meta.env;
+const envConfig = env.VITE_FIREBASE_PROJECT_ID
+  ? {
+      apiKey: env.VITE_FIREBASE_API_KEY,
+      authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
+      projectId: env.VITE_FIREBASE_PROJECT_ID,
+      storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+      appId: env.VITE_FIREBASE_APP_ID,
+    }
+  : null;
+const firebaseConfig = envConfig ?? appletConfig;
+
 export const app = initializeApp(
   USE_EMULATORS ? { ...firebaseConfig, projectId: 'demo-armapartido' } : firebaseConfig
 );
-export const db = USE_EMULATORS
-  ? getFirestore(app)
-  : getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db =
+  USE_EMULATORS || envConfig ? getFirestore(app) : getFirestore(app, appletConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 if (USE_EMULATORS) {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
@@ -105,6 +123,10 @@ export async function signInWithGoogle() {
   }
   googleProvider.setCustomParameters({ prompt: 'select_account' });
   return signInWithPopup(auth, googleProvider);
+}
+
+export async function signInWithEmail(email: string, password: string) {
+  return signInWithEmailAndPassword(auth, email.trim(), password);
 }
 
 export async function logoutUser() {

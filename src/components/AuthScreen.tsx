@@ -1,156 +1,167 @@
 import React, { useState } from 'react';
-import { ArrowRight, CalendarCheck, ShieldCheck, Trophy, Users } from 'lucide-react';
-import { signInWithGoogle } from '../lib/firebase';
-import { PWAInstallButton } from './PWAInstallButton';
+import { DEMO_MODE, signInWithEmail, signInWithGoogle } from '../lib/firebase';
+import { DEMO_ACCOUNTS } from '../demo/demoWorld';
+import { BrandIcon } from './BrandIcon';
 
 interface AuthScreenProps {
   onError?: (msg: string) => void;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
-  const [loading, setLoading] = useState(false);
+function friendlyError(err: unknown): string {
+  const code = (err as { code?: string })?.code || '';
+  if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found'))
+    return 'El mail o la contraseña no coinciden. Revisalos y probá de nuevo.';
+  if (code.includes('too-many-requests')) return 'Demasiados intentos seguidos. Esperá un minuto y probá de nuevo.';
+  if (code.includes('network')) return 'No hay conexión. Revisá internet y probá de nuevo.';
+  if (code.includes('popup-closed')) return 'Cerraste la ventana de Google antes de terminar.';
+  return err instanceof Error ? err.message : 'No se pudo entrar.';
+}
 
-  const handleLogin = async () => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
+    setError(null);
+    try {
+      await signInWithEmail(email, password);
+    } catch (err) {
+      const msg = friendlyError(err);
+      setError(msg);
+      onError?.(msg);
+      setLoading(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    setLoading(true);
+    setError(null);
     try {
       await signInWithGoogle();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'No se pudo iniciar sesión con Google.';
+      const msg = friendlyError(err);
+      setError(msg);
       onError?.(msg);
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="mx-auto flex max-w-6xl items-center justify-between gap-8 border-b border-slate-200 px-6 py-4">
-        <img src="/brand/logo-horizontal-color.svg" alt="Armá Partido" className="h-9 w-auto shrink-0" />
-        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
-          <a href="#reservas" className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0">
-            Reservas
-          </a>
-          <a href="#partidos" className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0">
-            Armado parejo
-          </a>
-          <a href="#torneos" className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0">
-            Torneos
-          </a>
-          <a href="#clubes" className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0">
-            Para clubes
-          </a>
-        </nav>
-        <div className="flex items-center gap-3 shrink-0">
-          <PWAInstallButton />
+    <div className="min-h-screen bg-ink text-white md:grid md:grid-cols-2">
+      <div
+        className="relative flex min-h-[46vh] flex-col bg-ink bg-cover bg-center md:min-h-screen"
+        style={{ backgroundImage: "url('/img/entrada-vertical.webp')" }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-ink/50 via-ink/20 to-ink" />
+        <div className="relative px-5 pt-safe">
+          <img src="/brand/logo-horizontal-sobre-oscuro.svg" alt="Armá Partido" className="mt-6 h-10 w-auto" />
         </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl px-6 py-12 lg:py-20">
-        <div className="grid gap-12 lg:grid-cols-12 lg:items-stretch">
-          <div className="flex flex-col justify-between lg:col-span-7">
-            <div>
-              <p className="text-xs font-semibold tracking-wide text-emerald-700">
-                Uruguay · Marca blanca para clubes de pádel
-              </p>
-              <h1 className="mt-3 font-display text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-                Reservá cancha o dejá que la app arme tu cuarto parejo.
-              </h1>
-              <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-600">
-                Una única cuenta de jugador para todos los clubes adheridos. Cada club personaliza su app con su nombre, canchas, tarifas y Mercado Pago directo, mientras el motor junta a cuatro jugadores de nivel compatible en una cancha libre.
-              </p>
-
-              <div className="mt-8 flex flex-wrap items-center gap-4">
-                <button
-                  type="button"
-                  onClick={handleLogin}
-                  disabled={loading}
-                  className="inline-flex min-h-[48px] items-center gap-3 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60 cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  <span>{loading ? 'Ingresando...' : 'Entrar con Google'}</span>
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-                <span className="text-xs text-slate-500">
-                  Cuenta única para jugador, mostrador y administración
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-12 grid grid-cols-2 gap-6 border-t border-slate-200 pt-8 sm:grid-cols-4">
-              <div>
-                <p className="font-mono text-xl font-semibold text-slate-900 tabular-nums">90 min</p>
-                <p className="mt-1 text-xs text-slate-500">Duración base por turno</p>
-              </div>
-              <div>
-                <p className="font-mono text-xl font-semibold text-slate-900 tabular-nums">1ra–8va</p>
-                <p className="mt-1 text-xs text-slate-500">Tolerancia ±1 categoría</p>
-              </div>
-              <div>
-                <p className="font-mono text-xl font-semibold text-slate-900 tabular-nums">30m / 2h</p>
-                <p className="mt-1 text-xs text-slate-500">Retención hasta confirmar 4</p>
-              </div>
-              <div>
-                <p className="font-mono text-xl font-semibold text-slate-900 tabular-nums">0%</p>
-                <p className="mt-1 text-xs text-slate-500">Comisión sobre reservas</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-5">
-            <div className="flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6">
-              <div>
-                <h2 className="font-display text-lg font-bold text-slate-900">
-                  Todo el club en cuatro módulos reales
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Incluye dos clubes piloto precargados en Montevideo para probar todos los roles desde el primer momento.
-                </p>
-
-                <div className="mt-6 divide-y divide-slate-100">
-                  <div id="reservas" className="flex items-start gap-3.5 py-4 first:pt-0">
-                    <CalendarCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Reservas y mostrador</p>
-                      <p className="mt-0.5 text-xs text-slate-600">
-                        Confirmación al instante, tarifas nocturnas y de fin de semana, pagos en club o Mercado Pago y carga telefónica sin app.
-                      </p>
-                    </div>
-                  </div>
-                  <div id="partidos" className="flex items-start gap-3.5 py-4">
-                    <Users className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Armado de partidos parejos</p>
-                      <p className="mt-0.5 text-xs text-slate-600">
-                        Disponibilidad semanal, pedidos puntuales prioritarios, pareja fija y división automática del pago entre los cuatro.
-                      </p>
-                    </div>
-                  </div>
-                  <div id="torneos" className="flex items-start gap-3.5 py-4">
-                    <Trophy className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Torneos con cuadro automático</p>
-                      <p className="mt-0.5 text-xs text-slate-600">
-                        Eliminación directa o grupos, inscripción en pareja con aceptación del compañero y bloqueo automático de canchas.
-                      </p>
-                    </div>
-                  </div>
-                  <div id="clubes" className="flex items-start gap-3.5 py-4 last:pb-0">
-                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Cuatro roles y PWA instalable</p>
-                      <p className="mt-0.5 text-xs text-slate-600">
-                        Dueño de plataforma, administrador del club, encargado y jugador con avisos push y registro de mails.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
-                Dominio sugerido disponible para verificación: <span className="font-mono font-semibold text-slate-900">armapartido.com</span>
-              </div>
-            </div>
-          </div>
+        <div className="relative mt-auto px-5 pb-6 md:pb-16">
+          <h1 className="max-w-[14ch] font-display text-[34px] font-bold leading-[1.05] tracking-tight md:text-5xl">
+            Reservá cancha y armá partidos parejos.
+          </h1>
+          <ul className="mt-5 grid gap-2.5 text-[15px] text-[#cfe9ea]">
+            <li className="flex items-center gap-2.5">
+              <BrandIcon name="reservar" size={20} className="text-action" /> Reservás gratis y pagás en el club
+            </li>
+            <li className="flex items-center gap-2.5">
+              <BrandIcon name="armar-partido" size={20} className="text-action" /> La app te junta con gente de tu categoría
+            </li>
+            <li className="flex items-center gap-2.5">
+              <BrandIcon name="torneos" size={20} className="text-action" /> Torneos en pareja con avisos
+            </li>
+          </ul>
         </div>
-      </main>
+      </div>
+
+      <div className="flex items-start justify-center bg-surface px-5 py-8 text-ink md:items-center md:py-16">
+        <div className="w-full max-w-sm">
+          <h2 className="text-2xl font-bold">Entrá a tu club</h2>
+          <p className="mt-1 text-sm text-muted">Usá tu mail y tu contraseña.</p>
+
+          <form onSubmit={handleEmail} className="mt-6 grid gap-3">
+            <label className="grid gap-1 text-sm font-medium">
+              Mail
+              <input
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-12 rounded-xl border border-line bg-white px-3.5 text-base font-normal focus:border-emerald-600 focus:outline-none"
+              />
+            </label>
+            <label className="grid gap-1 text-sm font-medium">
+              Contraseña
+              <input
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="h-12 rounded-xl border border-line bg-white px-3.5 text-base font-normal focus:border-emerald-600 focus:outline-none"
+              />
+            </label>
+            {error && (
+              <p role="alert" className="rounded-xl bg-[#fde8e4] px-3 py-2 text-sm text-[#9b2c1b]">
+                {error}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-1 h-12 cursor-pointer rounded-2xl bg-action text-base font-semibold text-on-action hover:brightness-95 disabled:opacity-60"
+            >
+              {loading ? 'Entrando…' : 'Entrar'}
+            </button>
+          </form>
+
+          {!DEMO_MODE && (
+            <button
+              type="button"
+              onClick={handleGoogle}
+              disabled={loading}
+              className="mt-3 h-12 w-full cursor-pointer rounded-2xl border border-line bg-white text-base font-semibold text-ink hover:bg-mist disabled:opacity-60"
+            >
+              Entrar con Google
+            </button>
+          )}
+
+          {DEMO_MODE && (
+            <div className="mt-8 rounded-2xl border border-line bg-white p-4">
+              <p className="text-sm font-semibold">Cuentas de prueba</p>
+              <p className="mt-0.5 text-[13px] text-muted">
+                Tocá una para completar el mail. La contraseña está en el archivo de la demo.
+              </p>
+              <div className="mt-3 grid gap-2">
+                {DEMO_ACCOUNTS.map((a) => (
+                  <button
+                    key={a.key}
+                    type="button"
+                    onClick={() => {
+                      setEmail(a.email);
+                      setError(null);
+                    }}
+                    className={`flex cursor-pointer items-center justify-between rounded-xl border px-3 py-2 text-left text-sm ${
+                      email === a.email ? 'border-emerald-600 bg-mist' : 'border-line hover:bg-surface'
+                    }`}
+                  >
+                    <span>
+                      <span className="block font-semibold">{a.label}</span>
+                      <span className="block text-[12px] text-muted">{a.name}</span>
+                    </span>
+                    <BrandIcon name="perfil" size={18} className="text-brand" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
