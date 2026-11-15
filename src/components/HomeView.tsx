@@ -229,7 +229,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* En escritorio, Inicio usa todo el ancho de la página en dos columnas. */}
-      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
       <section className="rounded-[18px] border border-line bg-white p-4">
         <h2 className="flex items-center gap-2 text-[17px] font-semibold text-ink">
           <BrandIcon name="reservar" className="text-brand" />
