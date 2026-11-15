@@ -996,7 +996,7 @@ export async function markBookingPaidAtCounter(params: {
         clubId: club.id,
         uid: staffUid,
         clubOwnerUid: club.ownerUid,
-        payerName: booking.guestName || 'Mostrador',
+        payerName: booking.guestName.split(' · ')[0] || 'Mostrador',
         referenceId: booking.id,
         amount: remaining,
         method,
@@ -1900,6 +1900,23 @@ export async function addClubCourt(params: {
     });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
+  }
+}
+
+export async function updateClubCourt(
+  clubId: string,
+  courtId: string,
+  updates: Partial<Pick<Court, 'name' | 'roof' | 'surface' | 'hasLights' | 'active'>>
+) {
+  const path = `clubs/${clubId}/courts/${courtId}`;
+  try {
+    await updateDoc(doc(db, 'clubs', clubId, 'courts', courtId), {
+      ...updates,
+      ...(updates.name !== undefined ? { name: updates.name.trim().slice(0, 60) } : {}),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
   }
 }
 

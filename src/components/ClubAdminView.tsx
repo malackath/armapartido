@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Banknote, Palette, Plus, Settings, Trash2, Trophy, Users } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import type {
   Booking,
   Club,
@@ -14,22 +14,18 @@ import type {
   TournamentFormat,
   UserProfile,
 } from '../types/padel';
-import {
-  addDaysISO,
-  formatCategory,
-  formatUYU,
-  getTodayISO,
-  type PlayerLevelSummary,
-} from '../lib/padelUtils';
+import { addDaysISO, formatCategory, formatMinutes, formatUYU, generateDaySlots, getTodayISO, type PlayerLevelSummary } from '../lib/padelUtils';
 import {
   addClubCourt,
   closeRegistrationAndDraw,
   createTournament,
   removeClubCourt,
+  updateClubCourt,
   updateClubSettings,
   updateMembershipByAdmin,
 } from '../services/firestoreService';
-import { ClubRankingSection } from './ClubRankingSection';
+import { BrandIcon, type BrandIconName } from './BrandIcon';
+import { payMethodLabel } from './StaffCounterView';
 
 interface ClubAdminViewProps {
   club: Club;
@@ -46,29 +42,78 @@ interface ClubAdminViewProps {
   onToast: (msg: string) => void;
 }
 
-export const ClubAdminView: React.FC<ClubAdminViewProps> = ({
-  club,
-  courts,
-  memberships,
-  bookings,
-  proposedMatches,
-  tournaments,
-  payments,
-  playerMatchResults,
-  clubMatchResults,
-  playerLevelsMap,
-  userProfile,
-  onToast,
-}) => {
-  const [section, setSection] = useState<'config' | 'courts' | 'tournaments' | 'cash' | 'members' | 'ranking'>('config');
+type Section = 'courts' | 'prices' | 'members' | 'tournaments' | 'cash' | 'club';
+
+const SECTIONS: { id: Section; label: string; icon: BrandIconName; title: string; subtitle: string }[] = [
+  { id: 'courts', label: 'Canchas y horarios', icon: 'cancha', title: 'Canchas y horarios', subtitle: 'Lo que cambies acá se ve al instante en la app de los jugadores y en el Mostrador.' },
+  { id: 'prices', label: 'Precios y reglas', icon: 'pago-en-club', title: 'Precios y reglas', subtitle: 'Precio por turno, cancelación, faltas y Mercado Pago.' },
+  { id: 'members', label: 'Jugadores y encargados', icon: 'pareja', title: 'Jugadores y encargados', subtitle: 'Corregí categorías, nombrá encargados del mostrador y bloqueá a quien falta seguido.' },
+  { id: 'tournaments', label: 'Torneos', icon: 'torneos', title: 'Torneos', subtitle: 'Creá torneos, seguí la inscripción y sorteá el cuadro.' },
+  { id: 'cash', label: 'Caja', icon: 'pago-online', title: 'Caja', subtitle: 'Todo lo cobrado en el club y por Mercado Pago.' },
+  { id: 'club', label: 'Datos del club', icon: 'ubicacion', title: 'Datos del club', subtitle: 'Nombre y color de la app del club.' },
+];
+
+const STATUS_LABEL: Record<Tournament['status'], { text: string; cls: string }> = {
+  registration_open: { text: 'Inscripción abierta', cls: 'bg-green-50 text-green-800' },
+  draw_generated: { text: 'Cuadro sorteado', cls: 'bg-indigo-50 text-indigo-800' },
+  in_progress: { text: 'En juego', cls: 'bg-indigo-50 text-indigo-800' },
+  completed: { text: 'Terminado', cls: 'bg-mist text-muted' },
+};
+
+const KIND_LABEL: Record<PaymentRecord['kind'], string> = {
+  booking_full: 'Turno',
+  booking_deposit: 'Seña de turno',
+  match_share: 'Parte de partido armado',
+  tournament_fee: 'Inscripción a torneo',
+  refund: 'Devolución',
+  platform_subscription: 'Cuota de la plataforma',
+};
+
+const inputCls = 'mt-1.5 w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink tabular-nums';
+const labelCls = 'block text-[12.5px] font-semibold text-ink';
+
+const Card: React.FC<{ title?: React.ReactNode; action?: React.ReactNode; className?: string; children: React.ReactNode }> = ({ title, action, className = '', children }) => (
+  <section className={`rounded-2xl border border-line bg-white p-5 sm:p-6 ${className}`}>
+    {(title || action) && (
+      <div className="mb-4 flex items-center justify-between gap-3">
+        {title && <h2 className="font-display text-[17px] font-bold text-ink">{title}</h2>}
+        {action}
+      </div>
+    )}
+    {children}
+  </section>
+);
+
+const Hint: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p className="mt-3 rounded-xl bg-[#ecfcfc] px-3.5 py-2.5 text-[12.5px] text-muted">{children}</p>
+);
+
+const Toggle: React.FC<{ on: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }> = ({ on, onChange, label, disabled }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={on}
+    aria-label={label}
+    disabled={disabled}
+    onClick={() => onChange(!on)}
+    className={`relative h-6 w-11 shrink-0 rounded-full transition-colors cursor-pointer disabled:opacity-50 ${on ? 'bg-emerald-600' : 'bg-slate-300'}`}
+  >
+    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
+  </button>
+);
+
+const hourOptions = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
+export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memberships, tournaments, payments, userProfile, onToast }) => {
+  const [section, setSection] = useState<Section>('courts');
   const [busy, setBusy] = useState(false);
 
-  // Club settings form state
+  // Configuración del club (se guarda con "Guardar cambios")
   const [clubName, setClubName] = useState(club.name);
   const [primaryColor, setPrimaryColor] = useState(club.primaryColor);
   const [openHour, setOpenHour] = useState(club.openHour);
   const [closeHour, setCloseHour] = useState(club.closeHour);
-  const [slotDuration, setSlotDuration] = useState(club.slotDurationMinutes);
+  const [slotDuration, setSlotDuration] = useState(club.slotDurationMinutes || 90);
   const [basePrice, setBasePrice] = useState(club.basePrice);
   const [nightFrom, setNightFrom] = useState(club.nightFromHour);
   const [nightPrice, setNightPrice] = useState(club.nightPrice);
@@ -79,35 +124,36 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({
   const [mpMode, setMpMode] = useState<'full' | 'deposit'>(club.mpMode);
   const [mpDeposit, setMpDeposit] = useState(club.mpDepositPercent);
 
-  // New Court form
-  const [courtName, setCourtName] = useState('');
-  const [courtRoof, setCourtRoof] = useState<RoofType>('techada');
-  const [courtSurface, setCourtSurface] = useState<SurfaceType>('cristal');
-  const [courtLights, setCourtLights] = useState(true);
+  const dirty =
+    clubName !== club.name ||
+    primaryColor !== club.primaryColor ||
+    openHour !== club.openHour ||
+    closeHour !== club.closeHour ||
+    slotDuration !== (club.slotDurationMinutes || 90) ||
+    basePrice !== club.basePrice ||
+    nightFrom !== club.nightFromHour ||
+    nightPrice !== club.nightPrice ||
+    weekendPrice !== club.weekendPrice ||
+    cancelHours !== club.cancellationHours ||
+    maxNoShows !== club.maxNoShowsBeforeBlock ||
+    mpEnabled !== club.mpEnabled ||
+    mpMode !== club.mpMode ||
+    mpDeposit !== club.mpDepositPercent;
 
-  // New Tournament form
-  const [trnName, setTrnName] = useState('');
-  const [trnStart, setTrnStart] = useState(addDaysISO(getTodayISO(), 4));
-  const [trnEnd, setTrnEnd] = useState(addDaysISO(getTodayISO(), 6));
-  const [trnCat, setTrnCat] = useState(5);
-  const [trnMaxPairs, setTrnMaxPairs] = useState(8);
-  const [trnFee, setTrnFee] = useState(1400);
-  const [trnFormat, setTrnFormat] = useState<TournamentFormat>('groups_knockout');
+  const previewSlots = useMemo(
+    () => generateDaySlots({ ...club, openHour, closeHour, slotDurationMinutes: slotDuration }),
+    [club, openHour, closeHour, slotDuration]
+  );
 
-  const cashTotals = useMemo(() => {
-    const clubPayments = payments.filter((p) => p.kind !== 'platform_subscription');
-    const net = clubPayments.reduce((acc, p) => acc + p.amount, 0);
-    const mp = clubPayments
-      .filter((p) => p.method === 'mercadopago')
-      .reduce((acc, p) => acc + p.amount, 0);
-    const counter = clubPayments
-      .filter((p) => p.method === 'efectivo' || p.method === 'transferencia')
-      .reduce((acc, p) => acc + p.amount, 0);
-    return { net, mp, counter, entries: clubPayments };
-  }, [payments]);
-
-  const handleSaveConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const saveConfig = async () => {
+    if (!clubName.trim()) {
+      onToast('El club necesita un nombre.');
+      return;
+    }
+    if (closeHour <= openHour) {
+      onToast('La hora de cierre tiene que ser después de la de apertura.');
+      return;
+    }
     setBusy(true);
     try {
       await updateClubSettings(club.id, {
@@ -126,83 +172,427 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({
         mpMode,
         mpDepositPercent: mpDeposit,
       });
-      onToast('Configuración del club actualizada.');
+      onToast('Cambios guardados.');
     } finally {
       setBusy(false);
     }
   };
 
-  const handleAddCourt = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!courtName.trim()) return;
-    setBusy(true);
-    try {
-      await addClubCourt({
-        club,
-        currentCourtsCount: courts.length,
-        name: courtName.trim(),
-        roof: courtRoof,
-        surface: courtSurface,
-        hasLights: courtLights,
-      });
-      setCourtName('');
-      onToast('Cancha agregada al club.');
-    } finally {
-      setBusy(false);
-    }
-  };
+  const current = SECTIONS.find((s) => s.id === section)!;
+  const showSave = section === 'courts' || section === 'prices' || section === 'club';
 
-  const handleCreateTournament = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!trnName.trim()) return;
+  return (
+    <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8">
+      {/* Menú de secciones */}
+      <nav aria-label="Secciones de administración" className="-mx-4 mb-5 overflow-x-auto px-4 lg:mx-0 lg:mb-0 lg:overflow-visible lg:px-0">
+        <p className="mb-2 hidden px-3 text-xs font-semibold tracking-wider text-muted uppercase lg:block">Administración</p>
+        <div className="flex gap-2 lg:sticky lg:top-28 lg:flex-col lg:gap-0.5">
+          {SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setSection(s.id)}
+              className={`flex shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2 text-sm font-semibold whitespace-nowrap cursor-pointer lg:py-2.5 ${
+                section === s.id
+                  ? 'bg-brand text-white lg:bg-mist lg:text-brand'
+                  : 'border border-line bg-white text-muted hover:text-ink lg:border-0 lg:bg-transparent'
+              }`}
+            >
+              <BrandIcon name={s.icon} size={18} className="hidden lg:block" />
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <div className="min-w-0 space-y-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Administración del club</p>
+            <h1 className="mt-1 font-display text-2xl font-bold text-ink sm:text-3xl">{current.title}</h1>
+            <p className="mt-1 text-sm text-muted">{current.subtitle}</p>
+          </div>
+          {showSave && (
+            <button
+              type="button"
+              disabled={busy || !dirty}
+              onClick={saveConfig}
+              className="rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-40 cursor-pointer"
+            >
+              {busy ? 'Guardando…' : dirty ? 'Guardar cambios' : 'Sin cambios'}
+            </button>
+          )}
+        </div>
+
+        {section === 'courts' && (
+          <div className="grid items-start gap-5 xl:grid-cols-[1.25fr_1fr]">
+            <CourtsCard club={club} courts={courts} busy={busy} setBusy={setBusy} onToast={onToast} />
+            <Card title="Horario y turnos">
+              <div className="grid grid-cols-3 gap-3">
+                <label className={labelCls}>
+                  Abre
+                  <select value={openHour} onChange={(e) => setOpenHour(Number(e.target.value))} className={inputCls}>
+                    {hourOptions(5, 14).map((h) => (
+                      <option key={h} value={h}>{h}:00</option>
+                    ))}
+                  </select>
+                </label>
+                <label className={labelCls}>
+                  Cierra
+                  <select value={closeHour} onChange={(e) => setCloseHour(Number(e.target.value))} className={inputCls}>
+                    {hourOptions(18, 24).map((h) => (
+                      <option key={h} value={h}>{h === 24 ? '0:00' : `${h}:00`}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className={labelCls}>
+                  Turno
+                  <select value={slotDuration} onChange={(e) => setSlotDuration(Number(e.target.value))} className={inputCls}>
+                    {[60, 90, 120].map((m) => (
+                      <option key={m} value={m}>{m} minutos</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <p className="mt-3 text-[13px] text-muted">
+                {previewSlots.length} turnos por día y por cancha
+                {previewSlots.length > 0 && (
+                  <>: {previewSlots.slice(0, 3).map((s) => formatMinutes(s.startMinute)).join(', ')}
+                    {previewSlots.length > 3 ? ` … ${formatMinutes(previewSlots[previewSlots.length - 1].startMinute)}` : ''}.</>
+                )}
+              </p>
+              <Hint>Si cambiás el horario, las reservas que ya existen no se mueven.</Hint>
+            </Card>
+          </div>
+        )}
+
+        {section === 'prices' && (
+          <div className="grid items-start gap-5 xl:grid-cols-2">
+            <Card title="Precio por turno">
+              <PriceRow label="De día" detail={`Lunes a viernes, hasta las ${nightFrom}:00`} value={basePrice} onChange={setBasePrice} />
+              <PriceRow
+                label="De noche"
+                detail={
+                  <>
+                    Lunes a viernes, desde las{' '}
+                    <select value={nightFrom} onChange={(e) => setNightFrom(Number(e.target.value))} className="rounded-lg border border-line bg-white px-1.5 py-0.5 text-[12.5px]">
+                      {hourOptions(16, 22).map((h) => (
+                        <option key={h} value={h}>{h}:00</option>
+                      ))}
+                    </select>
+                  </>
+                }
+                value={nightPrice}
+                onChange={setNightPrice}
+              />
+              <PriceRow label="Fin de semana" detail="Sábado y domingo" value={weekendPrice} onChange={setWeekendPrice} />
+              <Hint>Precio de la cancha entera. En un partido armado se divide entre los 4.</Hint>
+            </Card>
+
+            <div className="space-y-5">
+              <Card title="Cancelaciones y faltas">
+                <div className="grid grid-cols-2 gap-3">
+                  <label className={labelCls}>
+                    Cancelación gratis hasta
+                    <select value={cancelHours} onChange={(e) => setCancelHours(Number(e.target.value))} className={inputCls}>
+                      {[1, 2, 3, 4, 6, 8, 12, 24, 48].map((h) => (
+                        <option key={h} value={h}>{h} {h === 1 ? 'hora' : 'horas'} antes</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className={labelCls}>
+                    Bloquear después de
+                    <select value={maxNoShows} onChange={(e) => setMaxNoShows(Number(e.target.value))} className={inputCls}>
+                      {[1, 2, 3, 4, 5, 6, 8, 10].map((n) => (
+                        <option key={n} value={n}>{n} {n === 1 ? 'falta' : 'faltas'}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <Hint>Las faltas las marca el encargado en el Mostrador cuando alguien no viene.</Hint>
+              </Card>
+
+              <Card title="Mercado Pago" action={<Toggle on={mpEnabled} onChange={setMpEnabled} label="Activar Mercado Pago" />}>
+                <p className="text-[13px] text-muted">
+                  La reserva es gratis y se paga en el club. Si lo activás, el jugador también puede pagar por Mercado Pago y el dinero le llega directo al club.
+                </p>
+                {mpEnabled && (
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <label className={labelCls}>
+                      Qué cobra
+                      <select value={mpMode} onChange={(e) => setMpMode(e.target.value as 'full' | 'deposit')} className={inputCls}>
+                        <option value="deposit">Una seña</option>
+                        <option value="full">El turno entero</option>
+                      </select>
+                    </label>
+                    {mpMode === 'deposit' && (
+                      <label className={labelCls}>
+                        Seña
+                        <select value={mpDeposit} onChange={(e) => setMpDeposit(Number(e.target.value))} className={inputCls}>
+                          {[10, 20, 25, 30, 40, 50].map((p) => (
+                            <option key={p} value={p}>{p}% del turno</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                )}
+                <Hint>Conectar la cuenta de Mercado Pago del club todavía no está disponible: por ahora el cobro online es de prueba.</Hint>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {section === 'members' && <MembersCard club={club} memberships={memberships} userProfile={userProfile} onToast={onToast} />}
+
+        {section === 'tournaments' && (
+          <TournamentsSection club={club} courts={courts} memberships={memberships} tournaments={tournaments} userProfile={userProfile} busy={busy} setBusy={setBusy} onToast={onToast} />
+        )}
+
+        {section === 'cash' && <CashSection payments={payments} />}
+
+        {section === 'club' && (
+          <Card className="max-w-xl">
+            <label className={labelCls}>
+              Nombre del club en la app
+              <input value={clubName} onChange={(e) => setClubName(e.target.value)} className={inputCls} />
+            </label>
+            <div className="mt-4">
+              <p className={labelCls}>Color del club</p>
+              <div className="mt-1.5 flex items-center gap-3">
+                <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-11 w-16 cursor-pointer rounded-xl border border-line bg-white" />
+                <span className="text-sm text-muted tabular-nums">{primaryColor.toUpperCase()}</span>
+              </div>
+            </div>
+            <p className="mt-4 text-[13px] text-muted">{club.address}{club.neighborhood ? ` · ${club.neighborhood}` : ''} · {club.city}</p>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ---------- Secciones ----------
+
+const PriceRow: React.FC<{ label: string; detail: React.ReactNode; value: number; onChange: (n: number) => void }> = ({ label, detail, value, onChange }) => (
+  <div className="grid grid-cols-[1fr_130px] items-center gap-3 border-t border-[#eef5f5] py-3 first:border-0 first:pt-0">
+    <div>
+      <p className="text-sm font-semibold text-ink">{label}</p>
+      <p className="text-[12.5px] text-muted">{detail}</p>
+    </div>
+    <label className="flex items-center rounded-xl border border-line bg-white px-3">
+      <span className="text-sm text-muted">$</span>
+      <input
+        type="number"
+        min={0}
+        step={50}
+        value={value}
+        onChange={(e) => onChange(Math.max(0, Number(e.target.value)))}
+        aria-label={`Precio ${label}`}
+        className="w-full bg-transparent py-2.5 pl-1.5 text-sm text-ink tabular-nums outline-none"
+      />
+    </label>
+  </div>
+);
+
+const courtLabel = (c: { roof: RoofType; surface: SurfaceType; hasLights: boolean }) =>
+  `${c.roof === 'techada' ? 'Techada' : 'Aire libre'} · ${c.surface === 'cristal' ? 'cristal' : 'muro'} · ${c.hasLights ? 'con luz' : 'sin luz'}`;
+
+const CourtsCard: React.FC<{ club: Club; courts: Court[]; busy: boolean; setBusy: (b: boolean) => void; onToast: (m: string) => void }> = ({ club, courts, busy, setBusy, onToast }) => {
+  const [editing, setEditing] = useState<Court | 'new' | null>(null);
+  const run = async (fn: () => Promise<unknown>, msg: string) => {
     setBusy(true);
     try {
-      await createTournament({
-        club,
-        memberships,
-        creatorUid: userProfile.uid,
-        name: trnName.trim(),
-        startDate: trnStart,
-        endDate: trnEnd,
-        categories: [trnCat, Math.min(8, trnCat + 1)],
-        maxPairs: trnMaxPairs,
-        entryFee: trnFee,
-        format: trnFormat,
-      });
-      setTrnName('');
-      onToast('Torneo creado y notificado a las categorías habilitadas.');
+      await fn();
+      onToast(msg);
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-medium text-emerald-700">Administración del club · {club.name}</p>
-          <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 sm:text-3xl">
-            Panel de gestión del club
-          </h1>
+    <Card
+      title={`Canchas (${courts.length})`}
+      action={
+        <button type="button" onClick={() => setEditing('new')} className="inline-flex items-center gap-1.5 rounded-xl bg-mist px-3.5 py-2 text-sm font-semibold text-brand hover:bg-emerald-100 cursor-pointer">
+          <Plus className="h-4 w-4" /> Agregar cancha
+        </button>
+      }
+    >
+      {courts.length === 0 && <p className="text-sm text-muted">Todavía no cargaste canchas.</p>}
+      <ul>
+        {courts.map((ct) => (
+          <li key={ct.id} className="flex items-center gap-3 border-t border-[#eef5f5] py-3 first:border-0">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-mist text-brand">
+              <BrandIcon name={ct.roof === 'techada' ? 'techada' : 'descubierta'} size={20} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-ink">{ct.name}</span>
+              <span className="block text-[12.5px] text-muted">{courtLabel(ct)}</span>
+            </span>
+            <span className="hidden text-[12.5px] text-muted sm:inline">{ct.active ? 'Habilitada' : 'En mantenimiento'}</span>
+            <Toggle
+              on={ct.active}
+              disabled={busy}
+              label={ct.active ? `Deshabilitar ${ct.name}` : `Habilitar ${ct.name}`}
+              onChange={(v) => run(() => updateClubCourt(club.id, ct.id, { active: v }), v ? `${ct.name} habilitada.` : `${ct.name} en mantenimiento.`)}
+            />
+            <button type="button" onClick={() => setEditing(ct)} aria-label={`Editar ${ct.name}`} className="rounded-lg p-2 text-muted hover:bg-mist cursor-pointer">
+              <Pencil className="h-4 w-4" />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <Hint>Una cancha en mantenimiento no aparece para reservar ni para armar partidos. Las reservas que ya tenía siguen en el Mostrador.</Hint>
+
+      {editing && (
+        <CourtModal
+          court={editing === 'new' ? null : editing}
+          busy={busy}
+          onClose={() => setEditing(null)}
+          onSave={(data) =>
+            run(async () => {
+              if (editing === 'new') {
+                await addClubCourt({ club, currentCourtsCount: courts.length, ...data });
+              } else {
+                await updateClubCourt(club.id, editing.id, data);
+              }
+              setEditing(null);
+            }, editing === 'new' ? `${data.name} agregada.` : 'Cancha actualizada.')
+          }
+          onDelete={
+            editing === 'new'
+              ? undefined
+              : () =>
+                  run(async () => {
+                    await removeClubCourt(club, editing.id, courts.length);
+                    setEditing(null);
+                  }, `${editing.name} eliminada.`)
+          }
+        />
+      )}
+    </Card>
+  );
+};
+
+const CourtModal: React.FC<{
+  court: Court | null;
+  busy: boolean;
+  onClose: () => void;
+  onSave: (d: { name: string; roof: RoofType; surface: SurfaceType; hasLights: boolean }) => void;
+  onDelete?: () => void;
+}> = ({ court, busy, onClose, onSave, onDelete }) => {
+  const [name, setName] = useState(court?.name ?? '');
+  const [roof, setRoof] = useState<RoofType>(court?.roof ?? 'techada');
+  const [surface, setSurface] = useState<SurfaceType>(court?.surface ?? 'cristal');
+  const [hasLights, setHasLights] = useState(court?.hasLights ?? true);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const choice = <T extends string,>(value: T, set: (v: T) => void, options: [T, string, BrandIconName][]) => (
+    <div className="mt-1.5 grid grid-cols-2 gap-2">
+      {options.map(([v, label, icon]) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => set(v)}
+          className={`flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold cursor-pointer ${
+            value === v ? 'border-2 border-emerald-600 bg-emerald-50 text-brand' : 'border-line bg-white text-ink'
+          }`}
+        >
+          <BrandIcon name={icon} size={18} /> {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 backdrop-blur-[2px] sm:items-center sm:p-4" onClick={onClose}>
+      <form
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) onSave({ name: name.trim(), roof, surface, hasLights });
+        }}
+        className="w-full max-w-md rounded-t-3xl border border-line bg-white p-6 shadow-2xl sm:rounded-2xl"
+      >
+        <div className="flex items-start justify-between">
+          <h3 className="font-display text-lg font-bold text-ink">{court ? `Editar ${court.name}` : 'Agregar cancha'}</h3>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-mist cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
         </div>
-        <div className="flex flex-wrap gap-1 rounded-xl bg-slate-200/70 p-1">
+        <label className={`${labelCls} mt-4`}>
+          Nombre
+          <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Cancha 5" className={inputCls} />
+        </label>
+        <p className={`${labelCls} mt-4`}>Techo</p>
+        {choice<RoofType>(roof, setRoof, [['techada', 'Techada', 'techada'], ['aire_libre', 'Aire libre', 'descubierta']])}
+        <p className={`${labelCls} mt-4`}>Paredes</p>
+        {choice<SurfaceType>(surface, setSurface, [['cristal', 'Cristal', 'cristal'], ['muro', 'Muro', 'muro']])}
+        <div className="mt-4 flex items-center justify-between rounded-xl bg-mist px-3.5 py-3">
+          <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <BrandIcon name="luz" size={18} /> Tiene luz
+          </span>
+          <Toggle on={hasLights} onChange={setHasLights} label="Tiene luz" />
+        </div>
+        <div className="mt-5 flex gap-3">
+          <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-line py-3 text-sm font-semibold text-ink hover:bg-mist cursor-pointer">
+            Volver
+          </button>
+          <button type="submit" disabled={busy || !name.trim()} className="flex-1 rounded-xl bg-brand py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer">
+            {court ? 'Guardar' : 'Agregar cancha'}
+          </button>
+        </div>
+        {onDelete && (
+          <div className="mt-4 text-center text-[13px] font-semibold">
+            {confirmDelete ? (
+              <span className="text-muted">
+                ¿Eliminar la cancha para siempre?{' '}
+                <button type="button" disabled={busy} onClick={onDelete} className="text-red-700 hover:underline cursor-pointer">Sí, eliminar</button>{' '}
+                <button type="button" onClick={() => setConfirmDelete(false)} className="hover:underline cursor-pointer">No</button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setConfirmDelete(true)} className="inline-flex items-center gap-1.5 text-red-700 hover:underline cursor-pointer">
+                <Trash2 className="h-4 w-4" /> Eliminar cancha
+              </button>
+            )}
+          </div>
+        )}
+      </form>
+    </div>
+  );
+};
+
+const MembersCard: React.FC<{ club: Club; memberships: ClubMembership[]; userProfile: UserProfile; onToast: (m: string) => void }> = ({ club, memberships, userProfile, onToast }) => {
+  const [q, setQ] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'staff' | 'blocked'>('all');
+  const list = memberships
+    .filter((m) => m.displayName.toLowerCase().includes(q.trim().toLowerCase()))
+    .filter((m) => (roleFilter === 'staff' ? m.role !== 'player' : roleFilter === 'blocked' ? m.blocked : true))
+    .sort((a, b) => Number(b.role !== 'player') - Number(a.role !== 'player') || a.displayName.localeCompare(b.displayName));
+
+  const selectCls = 'rounded-lg border border-line bg-white px-2 py-1.5 text-[13px] text-ink';
+
+  return (
+    <Card>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <label className="flex items-center gap-2 rounded-xl border border-line bg-white px-3 sm:w-72">
+          <Search className="h-4 w-4 text-muted" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre…" className="w-full bg-transparent py-2.5 text-sm outline-none" />
+        </label>
+        <div className="flex rounded-xl bg-mist p-1">
           {(
             [
-              ['config', 'Marca y Reglas'],
-              ['courts', 'Canchas'],
-              ['tournaments', 'Torneos'],
-              ['cash', 'La Caja'],
-              ['members', 'Jugadores y Staff'],
-              ['ranking', 'Ranking'],
+              ['all', `Todos (${memberships.length})`],
+              ['staff', 'Encargados'],
+              ['blocked', `Bloqueados (${memberships.filter((m) => m.blocked).length})`],
             ] as const
           ).map(([id, label]) => (
             <button
               key={id}
               type="button"
-              onClick={() => setSection(id)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer ${
-                section === id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
+              onClick={() => setRoleFilter(id)}
+              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-semibold cursor-pointer ${roleFilter === id ? 'bg-white text-ink shadow-xs' : 'text-muted'}`}
             >
               {label}
             </button>
@@ -210,557 +600,347 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({
         </div>
       </div>
 
-      {section === 'config' && (
-        <form onSubmit={handleSaveConfig} className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-              <Palette className="h-4 w-4 text-emerald-600" />
-              <h2 className="font-display text-lg font-bold text-slate-900">Marca blanca y horarios</h2>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700">Nombre visible de la app del club</label>
-              <input
-                type="text"
-                value={clubName}
-                onChange={(e) => setClubName(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700">Color principal del club</label>
-              <div className="mt-1 flex items-center gap-3">
-                <input
-                  type="color"
-                  value={primaryColor}
-                  onChange={(e) => setPrimaryColor(e.target.value)}
-                  className="h-10 w-14 cursor-pointer rounded-lg border border-slate-200"
-                />
-                <span className="font-mono text-xs text-slate-600">{primaryColor}</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Abre (hs)</label>
-                <input
-                  type="number"
-                  min={5}
-                  max={14}
-                  value={openHour}
-                  onChange={(e) => setOpenHour(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm tabular-nums"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Cierra (hs)</label>
-                <input
-                  type="number"
-                  min={18}
-                  max={24}
-                  value={closeHour}
-                  onChange={(e) => setCloseHour(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm tabular-nums"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Turno (min)</label>
-                <input
-                  type="number"
-                  min={60}
-                  max={120}
-                  step={30}
-                  value={slotDuration}
-                  onChange={(e) => setSlotDuration(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm tabular-nums"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-              <Settings className="h-4 w-4 text-emerald-600" />
-              <h2 className="font-display text-lg font-bold text-slate-900">Tarifas, faltas y Mercado Pago</h2>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Precio base (UYU)</label>
-                <input
-                  type="number"
-                  value={basePrice}
-                  onChange={(e) => setBasePrice(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm tabular-nums"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Nocturno desde (hs)</label>
-                <input
-                  type="number"
-                  value={nightFrom}
-                  onChange={(e) => setNightFrom(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm tabular-nums"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Precio noche (UYU)</label>
-                <input
-                  type="number"
-                  value={nightPrice}
-                  onChange={(e) => setNightPrice(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm tabular-nums"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Precio finde (UYU)</label>
-                <input
-                  type="number"
-                  value={weekendPrice}
-                  onChange={(e) => setWeekendPrice(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm tabular-nums"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Cancelación gratis (hs antes)</label>
-                <input
-                  type="number"
-                  value={cancelHours}
-                  onChange={(e) => setCancelHours(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm tabular-nums"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Faltas para bloqueo</label>
-                <input
-                  type="number"
-                  value={maxNoShows}
-                  onChange={(e) => setMaxNoShows(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm tabular-nums"
-                />
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-slate-50 p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-800">Mercado Pago directo al club activado</span>
-                <input
-                  type="checkbox"
-                  checked={mpEnabled}
-                  onChange={(e) => setMpEnabled(e.target.checked)}
-                  className="h-4 w-4 accent-emerald-600"
-                />
-              </div>
-              {mpEnabled && (
-                <div className="grid grid-cols-2 gap-3">
-                  <select
-                    value={mpMode}
-                    onChange={(e) => setMpMode(e.target.value as 'full' | 'deposit')}
-                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium"
-                  >
-                    <option value="deposit">Cobrar seña (%)</option>
-                    <option value="full">Cobrar turno entero (100%)</option>
-                  </select>
-                  {mpMode === 'deposit' && (
-                    <input
-                      type="number"
-                      min={10}
-                      max={100}
-                      value={mpDeposit}
-                      onChange={(e) => setMpDeposit(Number(e.target.value))}
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs tabular-nums"
-                    />
-                  )}
-                </div>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              disabled={busy}
-              className="w-full min-h-[44px] rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 cursor-pointer"
-            >
-              {busy ? 'Guardando...' : 'Guardar configuración del club'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {section === 'courts' && (
-        <div className="grid gap-6 lg:grid-cols-12">
-          <form onSubmit={handleAddCourt} className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 lg:col-span-5">
-            <h2 className="font-display text-lg font-bold text-slate-900">Agregar cancha</h2>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700">Nombre</label>
-              <input
-                type="text"
-                required
-                value={courtName}
-                onChange={(e) => setCourtName(e.target.value)}
-                placeholder="Ej. Cancha 5 · Panorámica"
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Techo</label>
-                <select
-                  value={courtRoof}
-                  onChange={(e) => setCourtRoof(e.target.value as RoofType)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                >
-                  <option value="techada">Techada</option>
-                  <option value="aire_libre">Al aire libre</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Pared</label>
-                <select
-                  value={courtSurface}
-                  onChange={(e) => setCourtSurface(e.target.value as SurfaceType)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                >
-                  <option value="cristal">Cristal</option>
-                  <option value="muro">Muro</option>
-                </select>
-              </div>
-            </div>
-            <label className="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-700">
-              <span>Tiene iluminación artificial</span>
-              <input
-                type="checkbox"
-                checked={courtLights}
-                onChange={(e) => setCourtLights(e.target.checked)}
-                className="h-4 w-4 accent-emerald-600"
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={busy}
-              className="inline-flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 cursor-pointer"
-            >
-              <Plus className="h-4 w-4" />
-              Crear cancha
-            </button>
-          </form>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:col-span-7">
-            <h2 className="font-display text-lg font-bold text-slate-900">
-              Canchas configuradas ({courts.length})
-            </h2>
-            <div className="mt-4 divide-y divide-slate-100">
-              {courts.map((ct) => (
-                <div key={ct.id} className="flex items-center justify-between py-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{ct.name}</p>
-                    <p className="text-xs text-slate-500">
-                      {ct.roof === 'techada' ? 'Techada' : 'Al aire libre'} ·{' '}
-                      {ct.surface === 'cristal' ? 'Cristal' : 'Muro'} ·{' '}
-                      {ct.hasLights ? 'Con luz' : 'Sin luz'}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => removeClubCourt(club, ct.id, courts.length)}
-                    className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 cursor-pointer"
-                    aria-label="Eliminar cancha"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {section === 'tournaments' && (
-        <div className="grid gap-6 lg:grid-cols-12">
-          <form onSubmit={handleCreateTournament} className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 lg:col-span-5">
-            <div className="flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-emerald-600" />
-              <h2 className="font-display text-lg font-bold text-slate-900">Crear torneo</h2>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700">Nombre del torneo</label>
-              <input
-                type="text"
-                required
-                value={trnName}
-                onChange={(e) => setTrnName(e.target.value)}
-                placeholder="Ej. Torneo Primavera 5ta"
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Inicio</label>
-                <input
-                  type="date"
-                  value={trnStart}
-                  onChange={(e) => setTrnStart(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Cierre</label>
-                <input
-                  type="date"
-                  value={trnEnd}
-                  onChange={(e) => setTrnEnd(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Categoría base</label>
-                <select
-                  value={trnCat}
-                  onChange={(e) => setTrnCat(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
-                    <option key={c} value={c}>
-                      {formatCategory(c)} y {formatCategory(Math.min(8, c + 1))}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Cupo parejas</label>
-                <input
-                  type="number"
-                  min={4}
-                  max={32}
-                  value={trnMaxPairs}
-                  onChange={(e) => setTrnMaxPairs(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Inscripción (UYU)</label>
-                <input
-                  type="number"
-                  value={trnFee}
-                  onChange={(e) => setTrnFee(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Formato</label>
-                <select
-                  value={trnFormat}
-                  onChange={(e) => setTrnFormat(e.target.value as TournamentFormat)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
-                >
-                  <option value="groups_knockout">Grupos + Eliminación</option>
-                  <option value="knockout">Eliminación directa</option>
-                </select>
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={busy}
-              className="w-full min-h-[44px] rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 cursor-pointer"
-            >
-              Publicar torneo y avisar jugadores
-            </button>
-          </form>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:col-span-7 space-y-4">
-            <h2 className="font-display text-lg font-bold text-slate-900">Torneos del club</h2>
-            {tournaments.map((trn) => (
-              <div key={trn.id} className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-bold text-slate-900">{trn.name}</p>
-                  <p className="text-xs text-slate-500">
-                    {trn.pairs.filter((p) => p.partnerAccepted).length} parejas confirmadas · Estado: {trn.status}
-                  </p>
-                </div>
-                {trn.status === 'registration_open' && (
-                  <button
-                    type="button"
-                    disabled={busy || trn.pairs.filter((p) => p.partnerAccepted).length < 2}
-                    onClick={async () => {
-                      setBusy(true);
-                      try {
-                        await closeRegistrationAndDraw({
-                          club,
-                          tournament: trn,
-                          courts,
-                          adminUid: userProfile.uid,
-                        });
-                        onToast('Inscripción cerrada, cuadro sorteado y canchas bloqueadas.');
-                      } finally {
-                        setBusy(false);
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[620px] text-left text-sm">
+          <thead>
+            <tr className="border-b border-line text-xs text-muted">
+              <th className="py-2 pr-3 font-semibold">Persona</th>
+              <th className="py-2 pr-3 font-semibold">Rol</th>
+              <th className="py-2 pr-3 font-semibold">Categoría</th>
+              <th className="py-2 pr-3 font-semibold">Faltas</th>
+              <th className="py-2 font-semibold" />
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((m) => {
+              const isOwner = m.uid === club.ownerUid;
+              const isMe = m.uid === userProfile.uid;
+              const near = !m.blocked && m.noShowCount > 0 && m.noShowCount >= club.maxNoShowsBeforeBlock - 1;
+              return (
+                <tr key={m.uid} className="border-b border-[#eef5f5] last:border-0">
+                  <td className="py-2.5 pr-3 whitespace-nowrap">
+                    <span className="mr-2.5 inline-grid h-8 w-8 place-items-center rounded-full bg-mist align-middle text-xs font-bold text-brand">
+                      {m.displayName.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
+                    </span>
+                    <span className="font-semibold text-ink">{m.displayName}</span>
+                    {isOwner && <span className="ml-2 text-xs text-muted">dueño</span>}
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    <select
+                      value={m.role}
+                      disabled={isOwner || isMe}
+                      onChange={(e) =>
+                        updateMembershipByAdmin(club.id, m.uid, { role: e.target.value as ClubMembership['role'] }).then(() =>
+                          onToast(`${m.displayName}: ahora es ${e.target.value === 'staff' ? 'encargado' : e.target.value === 'admin' ? 'administrador' : 'jugador'}.`)
+                        )
                       }
-                    }}
-                    className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
-                  >
-                    Cerrar inscripción y sortear cuadro
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {section === 'cash' && (
-        <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <p className="text-xs font-medium text-slate-500">Total neto en caja</p>
-              <p className="mt-1 font-mono text-2xl font-bold text-slate-900 tabular-nums">
-                {formatUYU(cashTotals.net)}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <p className="text-xs font-medium text-slate-500">Mercado Pago (directo)</p>
-              <p className="mt-1 font-mono text-2xl font-bold text-sky-700 tabular-nums">
-                {formatUYU(cashTotals.mp)}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <p className="text-xs font-medium text-slate-500">Efectivo y transferencias</p>
-              <p className="mt-1 font-mono text-2xl font-bold text-emerald-700 tabular-nums">
-                {formatUYU(cashTotals.counter)}
-              </p>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
-                  <th className="px-4 py-3 font-semibold">Detalle / Pagador</th>
-                  <th className="px-4 py-3 font-semibold">Concepto</th>
-                  <th className="px-4 py-3 font-semibold">Medio</th>
-                  <th className="px-4 py-3 text-right font-semibold">Monto</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {cashTotals.entries.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
-                      Sin movimientos registrados todavía.
-                    </td>
-                  </tr>
-                ) : (
-                  cashTotals.entries.map((p) => (
-                    <tr key={p.id}>
-                      <td className="px-4 py-3 font-medium text-slate-900">{p.payerName}</td>
-                      <td className="px-4 py-3 text-slate-600">{p.kind}</td>
-                      <td className="px-4 py-3 text-slate-600 capitalize">{p.method}</td>
-                      <td className={`px-4 py-3 text-right font-mono font-semibold tabular-nums ${p.amount < 0 ? 'text-red-600' : 'text-slate-900'}`}>
-                        {formatUYU(p.amount)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {section === 'members' && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
-            <Users className="h-4 w-4 text-emerald-600" />
-            <h2 className="font-display text-lg font-bold text-slate-900">
-              Jugadores, corrección de categoría y encargados
-            </h2>
-          </div>
-
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-500">
-                  <th className="py-2.5 pr-4 font-semibold">Persona</th>
-                  <th className="py-2.5 pr-4 font-semibold">Rol en el club</th>
-                  <th className="py-2.5 pr-4 font-semibold">Categoría</th>
-                  <th className="py-2.5 pr-4 font-semibold">Ausencias</th>
-                  <th className="py-2.5 font-semibold">Acceso</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {memberships.map((m) => (
-                  <tr key={m.uid}>
-                    <td className="py-3 pr-4 font-semibold text-slate-900">{m.displayName}</td>
-                    <td className="py-3 pr-4">
-                      <select
-                        value={m.role}
-                        onChange={(e) =>
-                          updateMembershipByAdmin(club.id, m.uid, {
-                            role: e.target.value as ClubMembership['role'],
-                          }).then(() => onToast(`Rol actualizado para ${m.displayName}.`))
-                        }
-                        className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
-                      >
-                        <option value="player">Jugador</option>
-                        <option value="staff">Encargado</option>
-                        <option value="admin">Administrador</option>
-                      </select>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <select
-                        value={m.category}
-                        onChange={(e) =>
-                          updateMembershipByAdmin(club.id, m.uid, {
-                            category: Number(e.target.value),
-                          }).then(() => onToast(`Categoría corregida para ${m.displayName}.`))
-                        }
-                        className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
-                      >
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
-                          <option key={c} value={c}>
-                            {formatCategory(c)}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="py-3 pr-4 font-mono tabular-nums text-slate-700">{m.noShowCount}</td>
-                    <td className="py-3">
+                      className={`${selectCls} disabled:opacity-60`}
+                    >
+                      <option value="player">Jugador</option>
+                      <option value="staff">Encargado</option>
+                      <option value="admin">Administrador</option>
+                    </select>
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    <select
+                      value={m.category}
+                      onChange={(e) =>
+                        updateMembershipByAdmin(club.id, m.uid, { category: Number(e.target.value) }).then(() =>
+                          onToast(`Categoría de ${m.displayName}: ${formatCategory(Number(e.target.value))}.`)
+                        )
+                      }
+                      className={selectCls}
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
+                        <option key={c} value={c}>{formatCategory(c)}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className={`py-2.5 pr-3 tabular-nums ${m.blocked ? 'font-bold text-red-700' : near ? 'font-bold text-amber-700' : 'text-ink'}`}>
+                    {m.noShowCount} de {club.maxNoShowsBeforeBlock}
+                  </td>
+                  <td className="py-2.5 text-right whitespace-nowrap">
+                    {!isOwner && !isMe && (
                       <button
                         type="button"
                         onClick={() =>
-                          updateMembershipByAdmin(club.id, m.uid, {
-                            blocked: !m.blocked,
-                            noShowCount: m.blocked ? 0 : m.noShowCount,
-                          }).then(() =>
-                            onToast(m.blocked ? `${m.displayName} desbloqueado.` : `${m.displayName} bloqueado.`)
+                          updateMembershipByAdmin(club.id, m.uid, { blocked: !m.blocked, noShowCount: m.blocked ? 0 : m.noShowCount }).then(() =>
+                            onToast(m.blocked ? `${m.displayName} desbloqueado. Sus faltas vuelven a cero.` : `${m.displayName} bloqueado.`)
                           )
                         }
-                        className={`rounded-lg px-2.5 py-1 text-xs font-semibold cursor-pointer ${
-                          m.blocked
-                            ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        className={`rounded-full px-3 py-1 text-xs font-semibold cursor-pointer ${
+                          m.blocked ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'border border-line text-muted hover:bg-mist'
                         }`}
                       >
-                        {m.blocked ? 'Bloqueado (Desbloquear)' : 'Activo (Bloquear)'}
+                        {m.blocked ? 'Bloqueado · desbloquear' : 'Bloquear'}
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {list.length === 0 && (
+              <tr>
+                <td colSpan={5} className="py-6 text-center text-sm text-muted">No hay nadie con ese filtro.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <Hint>Los encargados ven el Mostrador; los administradores, además, esta pantalla. La categoría la declara cada jugador y el club la puede corregir.</Hint>
+    </Card>
+  );
+};
 
-      {section === 'ranking' && (
-        <ClubRankingSection
-          club={club}
-          memberships={memberships}
-          bookings={bookings}
-          proposedMatches={proposedMatches}
-          tournaments={tournaments}
-          playerMatchResults={playerMatchResults}
-          clubMatchResults={clubMatchResults}
-          playerLevelsMap={playerLevelsMap}
-          userProfile={userProfile}
-          onToast={onToast}
-        />
-      )}
+const TournamentsSection: React.FC<{
+  club: Club;
+  courts: Court[];
+  memberships: ClubMembership[];
+  tournaments: Tournament[];
+  userProfile: UserProfile;
+  busy: boolean;
+  setBusy: (b: boolean) => void;
+  onToast: (m: string) => void;
+}> = ({ club, courts, memberships, tournaments, userProfile, busy, setBusy, onToast }) => {
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState('');
+  const [start, setStart] = useState(addDaysISO(getTodayISO(), 7));
+  const [end, setEnd] = useState(addDaysISO(getTodayISO(), 9));
+  const [cats, setCats] = useState<number[]>([5, 6]);
+  const [maxPairs, setMaxPairs] = useState(16);
+  const [fee, setFee] = useState(1400);
+  const [format, setFormat] = useState<TournamentFormat>('groups_knockout');
+
+  const create = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || cats.length === 0) return;
+    setBusy(true);
+    try {
+      await createTournament({
+        club,
+        memberships,
+        creatorUid: userProfile.uid,
+        name: name.trim(),
+        startDate: start,
+        endDate: end,
+        categories: [...cats].sort((a, b) => a - b),
+        maxPairs,
+        entryFee: fee,
+        format,
+      });
+      onToast('Torneo publicado. Se avisó a los jugadores de esas categorías.');
+      setName('');
+      setCreating(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sorted = [...tournaments].sort((a, b) => (a.status === 'completed' ? 1 : 0) - (b.status === 'completed' ? 1 : 0) || a.startDate.localeCompare(b.startDate));
+  const fmtDate = (iso: string) => {
+    const [, m, d] = iso.split('-').map(Number);
+    return `${d}/${m}`;
+  };
+
+  return (
+    <div className="grid items-start gap-5 xl:grid-cols-[1fr_400px]">
+      <Card
+        title={`Torneos del club (${tournaments.length})`}
+        action={
+          !creating && (
+            <button type="button" onClick={() => setCreating(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-mist px-3.5 py-2 text-sm font-semibold text-brand hover:bg-emerald-100 cursor-pointer xl:hidden">
+              <Plus className="h-4 w-4" /> Crear torneo
+            </button>
+          )
+        }
+      >
+        {sorted.length === 0 && <p className="text-sm text-muted">Todavía no hay torneos.</p>}
+        <div className="space-y-3">
+          {sorted.map((t) => {
+            const confirmed = t.pairs.filter((p) => p.partnerAccepted).length;
+            const st = STATUS_LABEL[t.status];
+            const done = t.matches.filter((m) => m.status === 'completed').length;
+            return (
+              <div key={t.id} className="rounded-2xl border border-line p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-ink">{t.name}</p>
+                    <p className="mt-0.5 text-[12.5px] text-muted">
+                      {fmtDate(t.startDate)} al {fmtDate(t.endDate)} · {t.categories.map(formatCategory).join(' y ')} ·{' '}
+                      {t.format === 'knockout' ? 'eliminación directa' : 'grupos y eliminación'} · {formatUYU(t.entryFee)} por pareja
+                    </p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${st.cls}`}>{st.text}</span>
+                </div>
+                {t.status === 'registration_open' ? (
+                  <>
+                    <div className="mt-3 h-1.5 rounded-full bg-mist">
+                      <div className="h-full rounded-full bg-emerald-600" style={{ width: `${Math.min(100, (confirmed / t.maxPairs) * 100)}%` }} />
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
+                      <span className="text-muted">
+                        {confirmed} de {t.maxPairs} parejas confirmadas
+                        {t.pairs.length > confirmed ? ` · ${t.pairs.length - confirmed} esperando a su compañero` : ''}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={busy || confirmed < 2}
+                        onClick={async () => {
+                          setBusy(true);
+                          try {
+                            await closeRegistrationAndDraw({ club, tournament: t, courts, adminUid: userProfile.uid });
+                            onToast('Inscripción cerrada. Se sorteó el cuadro y se reservaron las canchas.');
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                        className="font-semibold text-emerald-700 hover:underline disabled:text-muted disabled:no-underline cursor-pointer"
+                      >
+                        Cerrar inscripción y sortear cuadro
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="mt-2 text-[12.5px] text-muted">
+                    {confirmed} parejas · {done} de {t.matches.length} partidos jugados
+                    {t.status !== 'completed' ? ' · los resultados se cargan en el Mostrador' : ''}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <form onSubmit={create} className={`${creating ? '' : 'hidden xl:block'}`}>
+        <Card title="Crear torneo">
+          <label className={labelCls}>
+            Nombre
+            <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Torneo de Verano" className={inputCls} />
+          </label>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <label className={labelCls}>
+              Empieza
+              <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className={inputCls} />
+            </label>
+            <label className={labelCls}>
+              Termina
+              <input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} className={inputCls} />
+            </label>
+          </div>
+          <p className={`${labelCls} mt-3`}>Categorías que juegan</p>
+          <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => {
+              const on = cats.includes(c);
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCats((p) => (on ? p.filter((x) => x !== c) : [...p, c]))}
+                  className={`rounded-lg border py-2 text-[13px] font-semibold cursor-pointer ${on ? 'border-brand bg-brand text-white' : 'border-line bg-white text-ink'}`}
+                >
+                  {formatCategory(c)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <label className={labelCls}>
+              Cupo
+              <select value={maxPairs} onChange={(e) => setMaxPairs(Number(e.target.value))} className={inputCls}>
+                {[4, 8, 12, 16, 24, 32].map((n) => (
+                  <option key={n} value={n}>{n} parejas</option>
+                ))}
+              </select>
+            </label>
+            <label className={labelCls}>
+              Inscripción por pareja
+              <input type="number" min={0} step={100} value={fee} onChange={(e) => setFee(Math.max(0, Number(e.target.value)))} className={inputCls} />
+            </label>
+          </div>
+          <label className={`${labelCls} mt-3`}>
+            Formato
+            <select value={format} onChange={(e) => setFormat(e.target.value as TournamentFormat)} className={inputCls}>
+              <option value="groups_knockout">Grupos y después eliminación</option>
+              <option value="knockout">Eliminación directa</option>
+            </select>
+          </label>
+          <div className="mt-5 flex gap-3">
+            {creating && (
+              <button type="button" onClick={() => setCreating(false)} className="flex-1 rounded-xl border border-line py-3 text-sm font-semibold text-ink xl:hidden cursor-pointer">
+                Volver
+              </button>
+            )}
+            <button type="submit" disabled={busy || !name.trim() || cats.length === 0} className="flex-1 rounded-xl bg-brand py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer">
+              Publicar y avisar a los jugadores
+            </button>
+          </div>
+          <Hint>Les llega un aviso a los jugadores de las categorías elegidas. Se inscriben en pareja desde la app.</Hint>
+        </Card>
+      </form>
+    </div>
+  );
+};
+
+const CashSection: React.FC<{ payments: PaymentRecord[] }> = ({ payments }) => {
+  const entries = payments.filter((p) => p.kind !== 'platform_subscription');
+  const sum = (f: (p: PaymentRecord) => boolean) => entries.filter(f).reduce((a, p) => a + p.amount, 0);
+  const tiles = [
+    { t: 'Total', v: sum(() => true) },
+    { t: 'Efectivo', v: sum((p) => p.method === 'efectivo') },
+    { t: 'Transferencia y tarjeta', v: sum((p) => p.method === 'transferencia' || p.method === 'debito_club') },
+    { t: 'Mercado Pago', v: sum((p) => p.method === 'mercadopago') },
+  ];
+  const dateOf = (v: unknown) => {
+    const d = v && typeof v === 'object' && 'toDate' in v ? (v as { toDate: () => Date }).toDate() : null;
+    return d ? `${d.getDate()}/${d.getMonth() + 1} ${formatMinutes(d.getHours() * 60 + d.getMinutes())}` : '';
+  };
+  const sorted = [...entries].sort((a, b) => {
+    const ta = a.createdAt && typeof a.createdAt === 'object' && 'toMillis' in a.createdAt ? (a.createdAt as { toMillis: () => number }).toMillis() : 0;
+    const tb = b.createdAt && typeof b.createdAt === 'object' && 'toMillis' in b.createdAt ? (b.createdAt as { toMillis: () => number }).toMillis() : 0;
+    return tb - ta;
+  });
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {tiles.map((x) => (
+          <div key={x.t} className="rounded-2xl border border-line bg-white px-5 py-4">
+            <p className="text-[11px] font-semibold tracking-wider text-muted uppercase">{x.t}</p>
+            <p className="mt-1 font-display text-2xl font-bold tabular-nums text-ink">{formatUYU(x.v)}</p>
+          </div>
+        ))}
+      </div>
+      <Card title="Movimientos">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-line text-xs text-muted">
+                <th className="py-2 pr-3 font-semibold">Fecha</th>
+                <th className="py-2 pr-3 font-semibold">Quién</th>
+                <th className="py-2 pr-3 font-semibold">Concepto</th>
+                <th className="py-2 pr-3 font-semibold">Medio</th>
+                <th className="py-2 text-right font-semibold">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-6 text-center text-muted">Todavía no hay movimientos.</td>
+                </tr>
+              )}
+              {sorted.map((p) => (
+                <tr key={p.id} className="border-b border-[#eef5f5] last:border-0">
+                  <td className="py-2.5 pr-3 whitespace-nowrap text-muted tabular-nums">{dateOf(p.createdAt)}</td>
+                  <td className="py-2.5 pr-3 font-semibold text-ink">{p.payerName}</td>
+                  <td className="py-2.5 pr-3 text-muted">{KIND_LABEL[p.kind] ?? p.kind}</td>
+                  <td className="py-2.5 pr-3 text-muted">{payMethodLabel(p.method)}</td>
+                  <td className={`py-2.5 text-right font-semibold tabular-nums ${p.amount < 0 ? 'text-red-700' : 'text-ink'}`}>{formatUYU(p.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 };
