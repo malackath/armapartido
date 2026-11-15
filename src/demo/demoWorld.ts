@@ -24,6 +24,7 @@ import type {
   UserProfile,
 } from '../types/padel';
 import { addDaysISO, getDayOfWeekFromISO, getTodayISO } from '../lib/padelUtils';
+import { addCantinaDemo } from './demoCantina';
 
 export const DEMO_CLUB_ID = 'los_jacarandas';
 export const DEMO_EMAIL_DOMAIN = 'demo.armapartido.com';
@@ -78,6 +79,12 @@ export const DEMO_CLUB_SUBCOLLECTIONS = [
   'notifications',
   'matchResults',
   'waitlist',
+  'products',
+  'consumptions',
+  'cashDays',
+  'fixedBookings',
+  'recoveries',
+  'monthlyReports',
 ];
 
 const SLOT = 90;
@@ -183,7 +190,9 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
       blocked: false,
       isDiscoverable: true,
     };
-    put(`${base}/memberships/${p.uid}`, membership);
+    // Antigüedad en el club (para "jugadores nuevos" del informe): 4 entraron esta semana, el resto hace 2 meses.
+    const joined = ['demo-p03', 'demo-p08', 'demo-p15', 'demo-p17'].includes(p.uid) ? day(-4 - (i % 3)) : day(-60 - i);
+    put(`${base}/memberships/${p.uid}`, { ...membership, createdAt: new Date(`${joined}T12:00:00`) });
   });
   const acct = DEMO_ACCOUNTS.find((a) => a.key === 'jugador')!;
   put(`users/${uids.jugador}/private/info`, { uid: uids.jugador, email: acct.email, phone: '' });
@@ -456,9 +465,15 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
   const methods: PaymentRecord['method'][] = ['efectivo', 'transferencia', 'debito_club', 'efectivo'];
   bookings
     .filter((b) => b.paymentStatus === 'paid')
-    .forEach((b, i) => put(`${base}/payments/demo_pay_x${i}`, pay(b.createdByUid, b.id, b.totalPrice, b.paymentMethod === 'mercadopago' ? 'mercadopago' : methods[i % 4], 'booking_full')));
-  pairs.forEach((p) => put(`${base}/payments/demo_pay_t_${p.id}`, pay(p.player1Uid, copa.id, copa.entryFee * 2, 'efectivo', 'tournament_fee')));
-  put(`${base}/payments/demo_pay_share`, pay('demo-p09', confirmed.id, confirmed.pricePerPlayer, 'mercadopago', 'match_share'));
+    .forEach((b, i) =>
+      put(`${base}/payments/demo_pay_x${i}`, {
+        ...pay(b.createdByUid, b.id, b.totalPrice, b.paymentMethod === 'mercadopago' ? 'mercadopago' : methods[i % 4], 'booking_full'),
+        day: b.date < today ? b.date : day(-1),
+        staffName: b.paymentMethod === 'mercadopago' ? '' : 'Diego Fernández',
+      })
+    );
+  pairs.forEach((p) => put(`${base}/payments/demo_pay_t_${p.id}`, { ...pay(p.player1Uid, copa.id, copa.entryFee * 2, 'efectivo', 'tournament_fee'), day: day(-8) }));
+  put(`${base}/payments/demo_pay_share`, { ...pay('demo-p09', confirmed.id, confirmed.pricePerPlayer, 'mercadopago', 'match_share'), day: day(-1) });
 
   // ---------- Avisos ----------
   const notif = (id: string, uid: string, eventType: NotificationItem['eventType'], title: string, body: string, read = false): NotificationItem => ({
@@ -504,5 +519,8 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
 
   // Martín reservó mañana: queda como su próxima reserva
   void martinBooking;
+
+  // Caja, cantina, turnos fijos, seña retenida, turnos recuperados e informe del mes pasado
+  addCantinaDemo(docs, { base, clubId: C, today, uids, nameOf, catOf, genOf, price, ownerUid: uids.dueno });
   return docs;
 }

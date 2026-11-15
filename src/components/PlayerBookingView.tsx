@@ -46,6 +46,7 @@ import {
 } from '../services/firestoreService';
 import { ClubRankingSection } from './ClubRankingSection';
 import { MercadoPagoModal } from './MercadoPagoModal';
+import { depositFor } from '../lib/caja';
 
 interface PlayerBookingViewProps {
   club: Club;
@@ -215,6 +216,8 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
     onToast(`Se exportaron ${confirmedBookings.length} reservas confirmadas a iCal (.ics).`);
   };
 
+  const slotDeposit = selectedSlot ? depositFor(club, selectedDate, selectedSlot.startMinute) : 0;
+
   const handleConfirmBooking = async (paymentChoice: 'club' | 'mercadopago') => {
     if (!selectedSlot) return;
     setBusy(true);
@@ -228,6 +231,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
         userUid: userProfile.uid,
         userName: userProfile.displayName,
         paymentChoice,
+        peakDeposit: depositFor(club, selectedDate, selectedSlot.startMinute),
       });
       onToast(`Reserva confirmada en ${selectedSlot.court.name} (${formatMinutes(selectedSlot.startMinute)} hs).`);
       setSelectedSlot(null);
@@ -713,12 +717,19 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                   {formatUYU(selectedSlot.price)}
                 </span>
               </div>
-              <p className="mt-2 text-xs text-slate-500">
-                La reserva queda confirmada al instante sin pagar nada por adelantado, o podés abonar por Mercado Pago si lo preferís.
-              </p>
+              {slotDeposit > 0 ? (
+                <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  Este horario pide una <b>seña de {formatUYU(slotDeposit)}</b> por Mercado Pago. Se descuenta de tu parte. Tenés {club.deposit?.holdMinutes ?? 15} minutos para pagarla. Si cancelás con {club.cancellationHours} h de anticipación se te devuelve; si no venís, queda para el club.
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-slate-500">
+                  La reserva queda confirmada al instante sin pagar nada por adelantado, o podés abonar por Mercado Pago si lo preferís.
+                </p>
+              )}
             </div>
 
             <div className="mt-5 space-y-2.5">
+              {slotDeposit === 0 && (
               <button
                 type="button"
                 disabled={busy}
@@ -727,8 +738,9 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
               >
                 {busy ? 'Confirmando...' : 'Confirmar y pagar en el club'}
               </button>
+              )}
 
-              {club.mpEnabled && (
+              {(club.mpEnabled || slotDeposit > 0) && (
                 <button
                   type="button"
                   disabled={busy}
@@ -736,7 +748,9 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                   className="inline-flex w-full min-h-[48px] items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 py-3 text-sm font-semibold text-sky-800 transition-colors hover:bg-sky-100 cursor-pointer"
                 >
                   <CreditCard className="h-4 w-4" />
-                  {club.mpMode === 'deposit'
+                  {slotDeposit > 0
+                    ? `Pagar la seña con Mercado Pago (${formatUYU(slotDeposit)})`
+                    : club.mpMode === 'deposit'
                     ? `Pagar seña (${club.mpDepositPercent}%): ${formatUYU(Math.round((selectedSlot.price * club.mpDepositPercent) / 100))}`
                     : `Pagar turno completo con Mercado Pago (${formatUYU(selectedSlot.price)})`}
                 </button>
@@ -840,7 +854,9 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
         }
         amount={
           selectedSlot
-            ? club.mpMode === 'deposit'
+            ? slotDeposit > 0
+              ? slotDeposit
+              : club.mpMode === 'deposit'
               ? Math.round((selectedSlot.price * club.mpDepositPercent) / 100)
               : selectedSlot.price
             : 0

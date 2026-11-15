@@ -26,6 +26,8 @@ import {
 } from '../services/firestoreService';
 import { BrandIcon, type BrandIconName } from './BrandIcon';
 import { payMethodLabel } from './StaffCounterView';
+import { ClubOpsContext, useClubOps } from './caja/ops';
+import { CantinaAdmin, CashDaysCard, DepositCard, FixedAdmin, MonthlyReportAdmin } from './caja/AdminSections';
 
 interface ClubAdminViewProps {
   club: Club;
@@ -42,14 +44,17 @@ interface ClubAdminViewProps {
   onToast: (msg: string) => void;
 }
 
-type Section = 'courts' | 'prices' | 'members' | 'tournaments' | 'cash' | 'club';
+type Section = 'courts' | 'prices' | 'members' | 'tournaments' | 'cash' | 'cantina' | 'fixed' | 'report' | 'club';
 
 const SECTIONS: { id: Section; label: string; icon: BrandIconName; title: string; subtitle: string }[] = [
   { id: 'courts', label: 'Canchas y horarios', icon: 'cancha', title: 'Canchas y horarios', subtitle: 'Lo que cambies acá se ve al instante en la app de los jugadores y en el Mostrador.' },
   { id: 'prices', label: 'Precios y reglas', icon: 'pago-en-club', title: 'Precios y reglas', subtitle: 'Precio por turno, cancelación, faltas y Mercado Pago.' },
   { id: 'members', label: 'Jugadores y encargados', icon: 'pareja', title: 'Jugadores y encargados', subtitle: 'Corregí categorías, nombrá encargados del mostrador y bloqueá a quien falta seguido.' },
   { id: 'tournaments', label: 'Torneos', icon: 'torneos', title: 'Torneos', subtitle: 'Creá torneos, seguí la inscripción y sorteá el cuadro.' },
-  { id: 'cash', label: 'Caja', icon: 'pago-online', title: 'Caja', subtitle: 'Todo lo cobrado en el club y por Mercado Pago.' },
+  { id: 'cash', label: 'Caja', icon: 'pago-online', title: 'Caja', subtitle: 'Cierres de cada día y todo lo cobrado en el club y por Mercado Pago.' },
+  { id: 'cantina', label: 'Cantina', icon: 'paleta', title: 'Cantina', subtitle: 'Productos, precios y cuántos quedan. Se venden desde el Mostrador, pegados al turno.' },
+  { id: 'fixed', label: 'Turnos fijos', icon: 'horario', title: 'Turnos fijos', subtitle: 'Reservas que se repiten todas las semanas.' },
+  { id: 'report', label: 'Informe del mes', icon: 'resultado', title: 'Lo que ganaste con Armá Partido', subtitle: 'Los turnos que llenaron nuestros avisos, en pesos, al lado de la cuota. Llega por mail el día 1.' },
   { id: 'club', label: 'Datos del club', icon: 'ubicacion', title: 'Datos del club', subtitle: 'Nombre y color de la app del club.' },
 ];
 
@@ -67,6 +72,9 @@ const KIND_LABEL: Record<PaymentRecord['kind'], string> = {
   tournament_fee: 'Inscripción a torneo',
   refund: 'Devolución',
   platform_subscription: 'Cuota de la plataforma',
+  cantina: 'Cantina',
+  retiro: 'Retiro de caja',
+  anulacion: 'Anulación',
 };
 
 const inputCls = 'mt-1.5 w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink tabular-nums';
@@ -104,7 +112,8 @@ const Toggle: React.FC<{ on: boolean; onChange: (v: boolean) => void; label: str
 
 const hourOptions = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
 
-export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memberships, tournaments, payments, userProfile, onToast }) => {
+export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memberships, bookings, proposedMatches, tournaments, payments, userProfile, onToast }) => {
+  const ops = useClubOps(club.id);
   const [section, setSection] = useState<Section>('courts');
   const [busy, setBusy] = useState(false);
 
@@ -182,6 +191,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
   const showSave = section === 'courts' || section === 'prices' || section === 'club';
 
   return (
+    <ClubOpsContext.Provider value={ops}>
     <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8">
       {/* Menú de secciones */}
       <nav aria-label="Secciones de administración" className="-mx-4 mb-5 overflow-x-auto px-4 lg:mx-0 lg:mb-0 lg:overflow-visible lg:px-0">
@@ -312,6 +322,8 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
                 <Hint>Las faltas las marca el encargado en el Mostrador cuando alguien no viene.</Hint>
               </Card>
 
+              <DepositCard club={club} onToast={onToast} />
+
               <Card title="Mercado Pago" action={<Toggle on={mpEnabled} onChange={setMpEnabled} label="Activar Mercado Pago" />}>
                 <p className="text-[13px] text-muted">
                   La reserva es gratis y se paga en el club. Si lo activás, el jugador también puede pagar por Mercado Pago y el dinero le llega directo al club.
@@ -349,7 +361,20 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
           <TournamentsSection club={club} courts={courts} memberships={memberships} tournaments={tournaments} userProfile={userProfile} busy={busy} setBusy={setBusy} onToast={onToast} />
         )}
 
-        {section === 'cash' && <CashSection payments={payments} />}
+        {section === 'cash' && (
+          <div className="space-y-5">
+            <CashDaysCard />
+            <CashSection payments={ops.ready ? ops.allPayments : payments} />
+          </div>
+        )}
+
+        {section === 'cantina' && <CantinaAdmin club={club} onToast={onToast} />}
+
+        {section === 'fixed' && <FixedAdmin club={club} courts={courts} bookings={bookings} userProfile={userProfile} onToast={onToast} />}
+
+        {section === 'report' && (
+          <MonthlyReportAdmin club={club} courts={courts} bookings={bookings} matches={proposedMatches} memberships={memberships} userProfile={userProfile} onToast={onToast} />
+        )}
 
         {section === 'club' && (
           <Card className="max-w-xl">
@@ -369,6 +394,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
         )}
       </div>
     </div>
+    </ClubOpsContext.Provider>
   );
 };
 

@@ -23,6 +23,16 @@ Cada club tiene su app marca blanca sobre una sola plataforma multi-club. Jugado
 - Verificar: `CHANNEL=chrome node scripts/verify-roles.cjs <url> <contraseña> <carpeta>` y `scripts/verify-demo.cjs` (reserva, refresco, cierre de sesión, reinicio).
 - El proyecto Pages "armapartido" es la página Muy pronto: no tocarlo desde la demo. Con wrangler 4, `pages project create` necesita `--force`.
 
+## Caja, cantina, informe del mes y migración (rama claude/project-thread-ebev8y)
+- Especificación: Paddle.URU/docs/especificacion-informe-caja-cantina-migracion.md.
+- Lógica pura: `src/lib/caja.ts` (dividir, seña en pico, cuenta del turno, caja del día, deudas, informe del mes), `src/lib/informeMail.ts` (mail del día 1), `src/lib/migracion.ts` (limpiar planillas de Wona/ATC/propias).
+- Servicio: `src/services/cajaService.ts`. Pantallas: `src/components/caja/` (TurnAccount y CashPanel en el Mostrador; Cantina, Seña, Turnos fijos, Cierres e Informe en el Admin; MyAccount en el perfil del jugador).
+- Colecciones nuevas en `clubs/{clubId}`: products, consumptions, cashDays (id = fecha), fixedBookings, recoveries y monthlyReports (solo servidor), migrations (solo script).
+- `recoveries` lo escribe el servidor de "Falta uno" (forma acordada en docs/falta-uno-automatico.md). El informe suma solo recuperados contados y señas retenidas.
+- Pruebas: `npx tsx scripts/test-caja.ts <carpeta>` (8 pruebas; deja el mail del informe en HTML).
+- Migración: `npx tsx scripts/importar-jugadores.ts --archivo <csv> --club <id> --salida <carpeta>` hace la prueba en seco. Cargar: sumar `--cargar --permiso "<quién del club autorizó y cuándo>"` (ley 18.331); `FIREBASE_EMULATORS=1` para emuladores. No manda mails. Plantilla: `scripts/migracion/plantilla-jugadores.csv`.
+- Sin hacer todavía: envío real de mails (informe y bienvenida), tareas del servidor (foto del día 1, vencimiento de la seña), Mercado Pago real, tope del fiado, aviso al cerrar la caja.
+
 ## Reglas
 - Nada de afiliaciones FIP/AAP/Federación ni nivel decimal en la UI: solo categoría.
 - Español de Uruguay: "cancha", nunca "pista".

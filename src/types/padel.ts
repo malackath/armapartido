@@ -1,3 +1,5 @@
+import type { DepositRule } from './caja';
+
 export type Gender = 'masculino' | 'femenino';
 export type Modality = 'masculino' | 'femenino' | 'mixto';
 export type ClubRole = 'admin' | 'staff' | 'player';
@@ -80,6 +82,12 @@ export interface Club {
   trialEndsAt?: string;
   monthlyPricePerCourt: number;
   courtCount: number;
+  /** Plan contratado (para el informe mensual). Sin dato = Estándar. */
+  plan?: 'entrada' | 'estandar';
+  /** Seña en horario pico. Sin dato = apagada. */
+  deposit?: DepositRule;
+  /** Mails que reciben el informe mensual además del dueño. */
+  reportEmails?: string[];
   active: boolean;
   createdAt?: unknown;
   updatedAt?: unknown;
@@ -251,8 +259,23 @@ export interface PaymentRecord {
     | 'match_share'
     | 'tournament_fee'
     | 'refund'
-    | 'platform_subscription';
+    | 'platform_subscription'
+    | 'cantina'
+    | 'retiro'
+    | 'anulacion';
   status: 'completed' | 'refunded';
+  /** Día de caja al que corresponde (YYYY-MM-DD). Los cobros viejos no lo tienen y se toma createdAt. */
+  day?: string;
+  /** Quién cobró (encargado), para la caja. */
+  staffName?: string;
+  /** Motivo de un retiro o una anulación. */
+  note?: string;
+  /** Este cobro fue anulado (no se borra). */
+  voided?: boolean;
+  /** En una anulación: el id del cobro anulado. */
+  voidOfId?: string;
+  /** Cobro hecho con la caja de ese día ya cerrada. */
+  afterClose?: boolean;
   createdAt?: unknown;
 }
 

@@ -47,7 +47,7 @@ export async function resetDemoWorld(db: Firestore, uids: DemoUids, onProgress?:
     const batch = writeBatch(db);
     docs.slice(i, i + 400).forEach((d) => {
       const parts = d.path.split('/');
-      batch.set(doc(db, parts[0], ...parts.slice(1)), { ...d.data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      batch.set(doc(db, parts[0], ...parts.slice(1)), { createdAt: serverTimestamp(), ...d.data, updatedAt: serverTimestamp() });
     });
     await batch.commit();
   }

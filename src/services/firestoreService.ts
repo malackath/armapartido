@@ -760,13 +760,18 @@ export async function createDirectBooking(params: {
   userUid: string;
   userName: string;
   paymentChoice: 'club' | 'mercadopago';
+  /** Seña en horario pico (regla del club). Si viene, se cobra solo esto por Mercado Pago. */
+  peakDeposit?: number;
 }): Promise<Booking> {
-  const { club, court, date, startMinute, endMinute, userUid, userName, paymentChoice } = params;
+  const { club, court, date, startMinute, endMinute, userUid, userName, paymentChoice, peakDeposit = 0 } = params;
   const bookingId = makeId('bk');
   const totalPrice = calculateSlotPrice(club, date, startMinute);
+  const isDeposit = paymentChoice === 'mercadopago' && (peakDeposit > 0 || club.mpMode === 'deposit');
   const mpAmount =
     paymentChoice === 'mercadopago'
-      ? club.mpMode === 'deposit'
+      ? peakDeposit > 0
+        ? Math.min(peakDeposit, totalPrice)
+        : club.mpMode === 'deposit'
         ? Math.round((totalPrice * club.mpDepositPercent) / 100)
         : totalPrice
       : 0;
@@ -787,12 +792,7 @@ export async function createDirectBooking(params: {
     totalPrice,
     paidAmount: mpAmount,
     paymentMethod: paymentChoice,
-    paymentStatus:
-      paymentChoice === 'mercadopago'
-        ? club.mpMode === 'deposit'
-          ? 'deposit_paid'
-          : 'paid'
-        : 'pending',
+    paymentStatus: paymentChoice === 'mercadopago' ? (isDeposit ? 'deposit_paid' : 'paid') : 'pending',
     holdExpiresAt: '',
   };
 
@@ -815,7 +815,7 @@ export async function createDirectBooking(params: {
         referenceId: bookingId,
         amount: mpAmount,
         method: 'mercadopago',
-        kind: club.mpMode === 'deposit' ? 'booking_deposit' : 'booking_full',
+        kind: isDeposit ? 'booking_deposit' : 'booking_full',
         status: 'completed',
         createdAt: serverTimestamp(),
       });
