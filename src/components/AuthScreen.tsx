@@ -37,6 +37,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
     }
   };
 
+  // Demo: un toque entra con la cuenta de prueba. La clave de demo llega por variable de build
+  // (VITE_DEMO_PASSWORD, fuera del repo) y solo existe en el proyecto Firebase de la demo.
+  const handleDemo = async (demoEmail: string) => {
+    setLoading(true);
+    setError(null);
+    setEmail(demoEmail);
+    try {
+      await signInWithEmail(demoEmail, import.meta.env.VITE_DEMO_PASSWORD ?? '');
+    } catch (err) {
+      const msg = friendlyError(err);
+      setError(msg);
+      onError?.(msg);
+      setLoading(false);
+    }
+  };
+
   const handleGoogle = async () => {
     setLoading(true);
     setError(null);
@@ -80,9 +96,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
 
       <div className="flex items-start justify-center bg-surface px-5 py-8 text-ink md:items-center md:py-16">
         <div className="w-full max-w-sm">
-          <h2 className="text-2xl font-bold">Entrá a tu club</h2>
-          <p className="mt-1 text-sm text-muted">Usá tu mail y tu contraseña.</p>
+          <h2 className="text-2xl font-bold">{DEMO_MODE ? 'Probá la demo' : 'Entrá a tu club'}</h2>
+          <p className="mt-1 text-sm text-muted">
+            {DEMO_MODE
+              ? 'Elegí con quién entrar. Es el club ficticio Los Jacarandás, podés tocar todo.'
+              : 'Usá tu mail y tu contraseña.'}
+          </p>
 
+          {!DEMO_MODE && (
           <form onSubmit={handleEmail} className="mt-6 grid gap-3">
             <label className="grid gap-1 text-sm font-medium">
               Mail
@@ -119,6 +140,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
               {loading ? 'Entrando…' : 'Entrar'}
             </button>
           </form>
+          )}
 
           {!DEMO_MODE && (
             <button
@@ -132,32 +154,31 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
           )}
 
           {DEMO_MODE && (
-            <div className="mt-8 rounded-2xl border border-line bg-white p-4">
-              <p className="text-sm font-semibold">Cuentas de prueba</p>
-              <p className="mt-0.5 text-[13px] text-muted">
-                Tocá una para completar el mail. La contraseña está en el archivo de la demo.
-              </p>
-              <div className="mt-3 grid gap-2">
-                {DEMO_ACCOUNTS.map((a) => (
-                  <button
-                    key={a.key}
-                    type="button"
-                    onClick={() => {
-                      setEmail(a.email);
-                      setError(null);
-                    }}
-                    className={`flex cursor-pointer items-center justify-between rounded-xl border px-3 py-2 text-left text-sm ${
-                      email === a.email ? 'border-emerald-600 bg-mist' : 'border-line hover:bg-surface'
-                    }`}
-                  >
-                    <span>
-                      <span className="block font-semibold">{a.label}</span>
-                      <span className="block text-[12px] text-muted">{a.name}</span>
-                    </span>
-                    <BrandIcon name="perfil" size={18} className="text-brand" />
-                  </button>
-                ))}
-              </div>
+            <div className="mt-6 grid gap-2.5">
+              {[...DEMO_ACCOUNTS].reverse().map((a) => (
+                <button
+                  key={a.key}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleDemo(a.email)}
+                  className={`flex min-h-[60px] cursor-pointer items-center justify-between rounded-2xl border bg-white px-4 py-2.5 text-left hover:bg-mist disabled:opacity-60 ${
+                    loading && email === a.email ? 'border-emerald-600' : 'border-line'
+                  }`}
+                >
+                  <span>
+                    <span className="block text-[15px] font-semibold">Entrar como {a.label.toLowerCase()}</span>
+                    <span className="block text-[13px] text-muted">{a.name}</span>
+                  </span>
+                  <span className="text-sm font-semibold text-brand">
+                    {loading && email === a.email ? 'Entrando…' : <BrandIcon name="perfil" size={20} className="text-brand" />}
+                  </span>
+                </button>
+              ))}
+              {error && (
+                <p role="alert" className="rounded-xl bg-[#fde8e4] px-3 py-2 text-sm text-[#9b2c1b]">
+                  {error}
+                </p>
+              )}
             </div>
           )}
         </div>
