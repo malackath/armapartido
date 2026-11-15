@@ -522,7 +522,9 @@ export default function App() {
                 courts={courts}
                 bookings={bookings}
                 memberships={memberships}
+                proposedMatches={proposedMatches}
                 tournaments={tournaments}
+                payments={payments}
                 userProfile={userProfile}
                 onToast={showToast}
               />

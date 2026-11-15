@@ -702,6 +702,8 @@ service cloud.firestore {
           && (
             isPlatformAdmin() ||
             isClubAdmin(clubId) ||
+            // El encargado del mostrador solo puede marcar quién pagó su parte.
+            (isClubStaffOrAdmin(clubId) && incoming().diff(existing()).affectedKeys().hasOnly(['slots', 'updatedAt'])) ||
             (existing().status == 'pending' && isClubMember(clubId) && (
               request.auth.uid in existing().playerUids || existing().createdByUid == request.auth.uid
             ) && incoming().diff(existing()).affectedKeys().hasOnly([

@@ -843,6 +843,9 @@ export async function createDirectBooking(params: {
   }
 }
 
+/** Medios de cobro en el mostrador: efectivo, transferencia o tarjeta (POS del club). */
+export type CounterPaymentMethod = 'efectivo' | 'transferencia' | 'debito_club';
+
 export async function cancelBooking(params: {
   club: Club;
   booking: Booking;
@@ -913,10 +916,16 @@ export async function createCounterBooking(params: {
   endMinute: number;
   staffUid: string;
   guestName: string;
+  phone?: string;
   paidNow: boolean;
-  method: 'efectivo' | 'transferencia' | 'mercadopago';
+  method: CounterPaymentMethod | 'mercadopago';
 }) {
-  const { club, court, date, startMinute, endMinute, staffUid, guestName, paidNow, method } = params;
+  const { club, court, date, startMinute, endMinute, staffUid, guestName, phone, paidNow, method } = params;
+  // El teléfono (si lo hay) se guarda junto al nombre: "Nombre · 099 123 456".
+  const cleanPhone = (phone || '').trim().slice(0, 20);
+  const storedName = cleanPhone
+    ? `${guestName.trim().slice(0, 55)} · ${cleanPhone}`
+    : guestName.trim().slice(0, 78);
   const bookingId = makeId('bk');
   const totalPrice = calculateSlotPrice(club, date, startMinute);
   const path = `clubs/${club.id}/bookings/${bookingId}`;
@@ -934,7 +943,7 @@ export async function createCounterBooking(params: {
       status: 'confirmed',
       createdByUid: staffUid,
       playerUids: [],
-      guestName: `${guestName.trim().slice(0, 65)} (Mostrador)`,
+      guestName: storedName,
       totalPrice,
       paidAmount: paidNow ? totalPrice : 0,
       paymentMethod: method === 'mercadopago' ? 'mercadopago' : 'club',
@@ -969,7 +978,7 @@ export async function markBookingPaidAtCounter(params: {
   club: Club;
   booking: Booking;
   staffUid: string;
-  method: 'efectivo' | 'transferencia';
+  method: CounterPaymentMethod;
 }) {
   const { club, booking, staffUid, method } = params;
   const remaining = Math.max(0, booking.totalPrice - booking.paidAmount);
@@ -1383,7 +1392,7 @@ export async function payMatchShare(params: {
   booking?: Booking;
   payerUid: string;
   payerName: string;
-  method: 'mercadopago' | 'efectivo';
+  method: 'mercadopago' | CounterPaymentMethod;
 }) {
   const { club, match, booking, payerUid, payerName, method } = params;
   const path = `clubs/${club.id}/proposedMatches/${match.id}`;
@@ -1417,6 +1426,54 @@ export async function payMatchShare(params: {
       status: 'completed',
       createdAt: serverTimestamp(),
     });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+/** Mostrador: marca como pagas las partes de varios jugadores de un partido armado, en una sola escritura. */
+export async function markMatchSharesPaidAtCounter(params: {
+  club: Club;
+  match: ProposedMatch;
+  booking?: Booking;
+  payerUids: string[];
+  staffUid: string;
+  method: CounterPaymentMethod;
+}) {
+  const { club, match, booking, payerUids, staffUid, method } = params;
+  const path = `clubs/${club.id}/proposedMatches/${match.id}`;
+  const toPay = match.slots.filter((s) => payerUids.includes(s.uid) && !s.paid);
+  if (toPay.length === 0) return;
+  try {
+    const nextSlots = match.slots.map((s) => (payerUids.includes(s.uid) ? { ...s, paid: true } : s));
+    await updateDoc(doc(db, 'clubs', club.id, 'proposedMatches', match.id), {
+      slots: nextSlots,
+      updatedAt: serverTimestamp(),
+    });
+    const paidCount = nextSlots.filter((s) => s.paid).length;
+    if (booking) {
+      await updateDoc(doc(db, 'clubs', club.id, 'bookings', booking.id), {
+        paidAmount: Math.min(booking.totalPrice, paidCount * match.pricePerPlayer),
+        paymentStatus: paidCount >= nextSlots.length ? 'paid' : 'deposit_paid',
+        updatedAt: serverTimestamp(),
+      });
+    }
+    for (const slot of toPay) {
+      const payId = makeId('pay');
+      await setDoc(doc(db, 'clubs', club.id, 'payments', payId), {
+        id: payId,
+        clubId: club.id,
+        uid: staffUid,
+        clubOwnerUid: club.ownerUid,
+        payerName: slot.displayName.slice(0, 80) || 'Jugador',
+        referenceId: match.id,
+        amount: match.pricePerPlayer,
+        method,
+        kind: 'match_share',
+        status: 'completed',
+        createdAt: serverTimestamp(),
+      });
+    }
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, path);
   }
