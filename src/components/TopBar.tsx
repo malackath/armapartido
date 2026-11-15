@@ -39,8 +39,8 @@ export const TopBar: React.FC<TopBarProps> = ({
 }) => {
   const brandTitle =
     perspectiveRole === 'platform_owner'
-      ? 'Sumate'
-      : activeClub?.name || 'Sumate';
+      ? 'Armá Partido'
+      : activeClub?.name || 'Armá Partido';
 
   const navItems: { id: ActiveTab; label: string }[] = [
     { id: 'bookings', label: 'Reservas' },

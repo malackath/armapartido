@@ -381,7 +381,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       await logPlayerMatchResult({
         uid: userProfile.uid,
         clubId: selectedClub?.id || 'pocitos_padel',
-        clubName: selectedClub?.name || 'Club Sumate',
+        clubName: selectedClub?.name || 'Club Armá Partido',
         date: resultDate,
         outcome: resultOutcome,
         score: resultScore.trim() || (resultOutcome === 'win' ? '6-4 / 6-3' : '4-6 / 3-6'),

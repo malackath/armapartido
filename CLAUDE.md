@@ -1,6 +1,6 @@
 # padel-uy
 
-SaaS para clubes de pádel en Uruguay Marca: **Sumate** (sumatepadel.com).
+SaaS para clubes de pádel en Uruguay Marca: **Armá Partido** (armapartido.com).
 Cada club tiene su app marca blanca sobre una sola plataforma multi-club. Jugador con cuenta y categoría (1ra a 8va) únicas.
 
 ## Origen

@@ -80,7 +80,7 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
     <div className="space-y-8">
       <div>
         <p className="text-xs font-medium text-emerald-700">
-          Consola SaaS · Sumate (sumatepadel.com)
+          Consola SaaS · Armá Partido (armapartido.com)
         </p>
         <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 sm:text-3xl">
           Dueño de la plataforma
@@ -298,7 +298,7 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
             : ''
         }
         amount={debitTarget ? debitTarget.courtCount * debitTarget.monthlyPricePerCourt : 0}
-        receiverName="Sumate Plataforma"
+        receiverName="Armá Partido Plataforma"
         onConfirm={async () => {
           if (!debitTarget) return;
           await processClubSubscriptionCharge(debitTarget, userProfile.uid);

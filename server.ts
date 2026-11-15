@@ -122,7 +122,7 @@ async function startServer() {
       const recipientUids = Array.isArray(payload.recipientUids)
         ? payload.recipientUids.filter((u) => typeof u === 'string' && /^[a-zA-Z0-9_\-]+$/.test(u)).slice(0, 20)
         : [];
-      const title = String(payload.title || 'Sumate').slice(0, 120);
+      const title = String(payload.title || 'Armá Partido').slice(0, 120);
       const body = String(payload.body || 'Tenés un nuevo aviso en tu club.').slice(0, 320);
       const clubId = String(payload.clubId || '').slice(0, 128);
       const eventType = String(payload.eventType || 'match_confirmed').slice(0, 64);
@@ -258,7 +258,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Sumate server listening on http://0.0.0.0:${PORT}`);
+    console.log(`Armá Partido server listening on http://0.0.0.0:${PORT}`);
   });
 }
 

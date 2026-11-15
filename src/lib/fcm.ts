@@ -177,7 +177,7 @@ export async function subscribeForegroundFcmMessages(
   try {
     const messaging = getMessaging(app);
     return onMessage(messaging, (payload: MessagePayload) => {
-      const title = payload.notification?.title || payload.data?.title || 'Sumate';
+      const title = payload.notification?.title || payload.data?.title || 'Armá Partido';
       const body =
         payload.notification?.body ||
         payload.data?.body ||

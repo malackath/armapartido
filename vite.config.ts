@@ -14,8 +14,8 @@ export default defineConfig(() => {
         includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
         manifest: {
           id: '/',
-          name: 'Sumate',
-          short_name: 'Sumate',
+          name: 'Armá Partido',
+          short_name: 'ArmáPartido',
           description: 'Reservas instantáneas, armado de partidos parejos y torneos para clubes de pádel en Uruguay.',
           theme_color: '#059669',
           background_color: '#F8FAFC',

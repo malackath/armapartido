@@ -1,4 +1,4 @@
-# Security Specification — Sumate
+# Security Specification — Armá Partido
 
 ## 1. Data Invariants
 1. **Identity & Verification**: All writes require `request.auth != null` and `request.auth.token.email_verified == true`.
