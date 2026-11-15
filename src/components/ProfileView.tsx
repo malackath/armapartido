@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import PhotoHeader from './PhotoHeader';
+import { AlertPrefsSection } from './FaltaUno';
 import {
   Activity,
   BarChart3,
@@ -433,6 +434,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         title={userProfile.displayName}
         subtitle={`${formatCategory(userProfile.category)} categoría · tu cuenta sirve en todos los clubes de Armá Partido`}
       />
+
+      <AlertPrefsSection userProfile={userProfile} onProfileUpdated={onProfileUpdated} onToast={onToast} />
 
       {/* Player Performance Analytics Section (Recharts) */}
       <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6">

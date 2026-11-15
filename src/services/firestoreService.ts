@@ -43,6 +43,11 @@ import type {
   MatchRequest,
   Modality,
   NotificationEventType,
+  FillChoice,
+  FillInvite,
+  FillSearch,
+  AlertPrefs,
+  RecoveryRecord,
   NotificationItem,
   PaymentRecord,
   PlayerMatchResult,
@@ -638,6 +643,8 @@ export function subscribeClubData(
     onNotifications: (notifications: NotificationItem[]) => void;
     onMatchResults?: (results: PlayerMatchResult[]) => void;
     onWaitlist?: (waitlist: CourtWaitlistEntry[]) => void;
+    onFillSearches?: (searches: FillSearch[]) => void;
+    onMyFillInvites?: (invites: FillInvite[]) => void;
   }
 ): Unsubscribe[] {
   const unsubs: Unsubscribe[] = [];
@@ -739,6 +746,28 @@ export function subscribeClubData(
         query(collection(db, 'clubs', clubId, 'matchResults'), where('clubId', '==', clubId)),
         (snap) => onClubResults(snap.docs.map((d) => d.data() as PlayerMatchResult)),
         (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/matchResults`)
+      )
+    );
+  }
+
+  if (callbacks.onFillSearches) {
+    const cb = callbacks.onFillSearches;
+    unsubs.push(
+      onSnapshot(
+        query(collection(db, 'clubs', clubId, 'fillSearches'), where('clubId', '==', clubId)),
+        (snap) => cb(snap.docs.map((d) => d.data() as FillSearch)),
+        (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/fillSearches`)
+      )
+    );
+  }
+
+  if (callbacks.onMyFillInvites) {
+    const cb = callbacks.onMyFillInvites;
+    unsubs.push(
+      onSnapshot(
+        query(collection(db, 'clubs', clubId, 'fillInvites'), where('uid', '==', currentUid)),
+        (snap) => cb(snap.docs.map((d) => d.data() as FillInvite)),
+        (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/fillInvites`)
       )
     );
   }
@@ -1548,6 +1577,8 @@ export async function updateClubSettings(
       | 'mpMode'
       | 'mpDepositPercent'
       | 'courtCount'
+      | 'fillEnabled'
+      | 'fillMaxGap'
     >
   >
 ) {
@@ -2162,3 +2193,51 @@ export async function notifyWaitlistForFreedSlot(params: {
   }
 }
 
+
+// -----------------------------------------------------------------------------
+// "Falta uno" automático (el trabajo lo hace el servidor: functions/src/fill.ts)
+// -----------------------------------------------------------------------------
+
+export async function dropFromMatch(club: Club, match: ProposedMatch, uid?: string) {
+  return callArmado<{ status: 'searching' | 'cancelled' | 'no_search'; late?: boolean }>(
+    'faltaUnoBajarme', { clubId: club.id, matchId: match.id, uid: uid ?? '' }, `clubs/${club.id}/proposedMatches/${match.id}`
+  );
+}
+
+export async function claimFillSeat(club: Club, searchId: string) {
+  const res = await callArmado<{ result: 'won' | 'late' | 'closed' | 'busy' }>(
+    'faltaUnoMeSumo', { clubId: club.id, searchId }, `clubs/${club.id}/fillSearches/${searchId}`
+  );
+  return res.result;
+}
+
+export async function declineFillInvite(club: Club, searchId: string) {
+  await callArmado('faltaUnoNoPuedo', { clubId: club.id, searchId }, `clubs/${club.id}/fillSearches/${searchId}`);
+}
+
+export async function chooseFillOutcome(club: Club, searchId: string, choice: FillChoice) {
+  return callArmado<{ result: 'ok' | 'already_decided'; choice: FillChoice | '' }>(
+    'faltaUnoElegir', { clubId: club.id, searchId, choice }, `clubs/${club.id}/fillSearches/${searchId}`
+  );
+}
+
+export async function stopFillSearch(club: Club, searchId: string) {
+  await callArmado('faltaUnoDejarDeBuscar', { clubId: club.id, searchId }, `clubs/${club.id}/fillSearches/${searchId}`);
+}
+
+export async function updateAlertPrefs(uid: string, prefs: AlertPrefs) {
+  const path = `users/${uid}`;
+  try {
+    await setDoc(doc(db, 'users', uid), { alertPrefs: prefs, updatedAt: serverTimestamp() }, { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+export function subscribeRecoveries(clubId: string, onData: (r: RecoveryRecord[]) => void): Unsubscribe {
+  return onSnapshot(
+    query(collection(db, 'clubs', clubId, 'recoveries'), where('clubId', '==', clubId)),
+    (snap) => onData(snap.docs.map((d) => d.data() as RecoveryRecord)),
+    (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/recoveries`)
+  );
+}

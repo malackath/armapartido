@@ -26,9 +26,9 @@ Cada club tiene su app marca blanca sobre una sola plataforma multi-club. Jugado
 ## Armado en el servidor (Cloud Functions, `functions/`)
 - El armado de partidos ya no corre en el celular: `functions/src` (callables `armadoCrearPedido`, `armadoBuscar`, `armadoResponder`, `armadoAceptarPareja` y el reloj `armadoReloj` cada minuto), región southamerica-east1, hora America/Montevideo. Usa `src/lib/padelUtils.ts` (se empaqueta con esbuild).
 - El reloj libera propuestas y canchas retenidas vencidas, manda el aviso 1 h antes de los pedidos del mismo día y vence pedidos puntuales pasados.
-- Prueba de punta a punta en emuladores: `cd functions && npm install && npm test` (9 casos: armado, aceptaciones simultáneas, carrera, rechazo, permisos, reloj).
+- Prueba de punta a punta en emuladores: `cd functions && npm install && npm test` (armado 10 casos + falta uno 12 casos).
 - Publicar en la demo (Blaze desde 15/11/2026, alerta US$5): `cd functions && npm install && cd .. && npx firebase-tools@15 deploy --only functions --project armapartido-demo`.
-- Especificación de "Falta uno" (siguiente paso): Paddle.URU/docs/falta-uno-automatico.md.
+- "Falta uno" (especificación: Paddle.URU/docs/falta-uno-automatico.md): `functions/src/fill.ts` y `fillRules.ts`, callables `faltaUnoBajarme`, `faltaUnoMeSumo`, `faltaUnoNoPuedo`, `faltaUnoElegir`, `faltaUnoDejarDeBuscar`; el reloj manda las tandas, cierra búsquedas y cuenta turnos recuperados. Colecciones `fillSearches`, `fillInvites`, `recoveries` (solo las escribe el servidor). Pantallas en `src/components/FaltaUno.tsx` (Inicio, Armar partido, Perfil → Avisos), Mostrador y Admin → Falta uno. Pruebas: `functions/test/faltauno.emulator.mjs` (12 casos, corren con `npm test`).
 
 ## Reglas
 - Nada de afiliaciones FIP/AAP/Federación ni nivel decimal en la UI: solo categoría.

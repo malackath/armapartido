@@ -5,6 +5,7 @@ import type {
   Club,
   ClubMembership,
   Court,
+  FillSearch,
   PaymentRecord,
   ProposedMatch,
   Tournament,
@@ -27,9 +28,11 @@ import {
   markBookingPaidAtCounter,
   markMatchSharesPaidAtCounter,
   recordTournamentMatchResult,
+  stopFillSearch,
   type CounterPaymentMethod,
 } from '../services/firestoreService';
 import { BrandIcon } from './BrandIcon';
+import { BADGE_CLASSES, searchForMatch } from './FaltaUno';
 
 interface StaffCounterViewProps {
   club: Club;
@@ -37,6 +40,7 @@ interface StaffCounterViewProps {
   bookings: Booking[];
   memberships: ClubMembership[];
   proposedMatches: ProposedMatch[];
+  fillSearches?: FillSearch[];
   tournaments: Tournament[];
   payments: PaymentRecord[];
   userProfile: UserProfile;
@@ -95,6 +99,33 @@ interface CellInfo {
   payTone: 'paid' | 'due' | 'none' | 'danger';
   due: number;
   match?: ProposedMatch;
+  fill?: { label: string; detail: string; tone: 'amber' | 'green' | 'red'; search: FillSearch };
+}
+
+/** Estado de "Falta uno" para el mostrador (vista 7 de la vista previa). */
+function fillInfo(search: FillSearch | undefined, match: ProposedMatch): CellInfo['fill'] {
+  if (!search) return undefined;
+  const missing = Math.max(0, search.seatsNeeded - search.seatsFilled);
+  if (search.status === 'searching') {
+    return {
+      label: missing === 1 ? 'Falta uno · buscando' : `Faltan ${missing} · buscando`,
+      detail: `Se bajó ${search.seatsNeeded === 1 ? 'un jugador' : `${search.seatsNeeded} jugadores`}. ${search.invitedUids.length ? `Avisamos a ${search.invitedUids.length} de la categoría` : 'Estamos avisando a jugadores de la categoría'}; el primero que confirma entra. No tenés que llamar a nadie.`,
+      tone: 'amber',
+      search,
+    };
+  }
+  if (search.status === 'filled') {
+    return { label: 'Lo llenó Armá Partido', detail: 'Se bajó un jugador y el reemplazo entró solo.', tone: 'green', search };
+  }
+  if (search.status === 'unfilled' && search.choice !== 'cancel') {
+    return {
+      label: `Sin cuarto · juegan ${match.slots.length}`,
+      detail: search.choice === 'play_as_three' ? `No apareció reemplazo. Eligieron jugar igual entre ${match.slots.length}.` : 'No apareció reemplazo. Los jugadores están eligiendo si juegan igual o cancelan.',
+      tone: 'red',
+      search,
+    };
+  }
+  return undefined;
 }
 
 export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
@@ -103,6 +134,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
   bookings,
   memberships,
   proposedMatches,
+  fillSearches = [],
   tournaments,
   payments,
   userProfile,
@@ -205,6 +237,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         payTone: paid >= match.slots.length ? 'paid' : 'due',
         due: Math.max(0, (match.slots.length - paid) * match.pricePerPlayer),
         match,
+        fill: fillInfo(searchForMatch(fillSearches, match.id), match),
       };
     }
 
@@ -259,7 +292,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     return { total, used, dueTotal, dueCount, mpPaid, currentSlot, playingNow, nextSlot };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayBookings, slots, activeCourts, minuteNow, selectedDate, today, proposedMatches, memberships, tournaments]);
+  }, [dayBookings, slots, activeCourts, minuteNow, selectedDate, today, proposedMatches, fillSearches, memberships, tournaments]);
 
   const cashToday = useMemo(() => {
     const byMethod: Record<string, number> = { efectivo: 0, transferencia: 0, debito_club: 0 };
@@ -648,6 +681,7 @@ const BookingCell: React.FC<{ info: CellInfo; booking: Booking; selected: boolea
     }`}
   >
     <span className={`text-[10.5px] font-bold tracking-wide uppercase ${tagClass(info.kind)}`}>{info.tag}</span>
+    {info.fill && <span className={`mt-0.5 self-start rounded-full px-2 py-px text-[10.5px] font-semibold ${BADGE_CLASSES[info.fill.tone]}`}>{info.fill.label}</span>}
     <span className="mt-0.5 truncate text-[13.5px] font-semibold text-ink">{info.title}</span>
     <span className="truncate text-xs text-muted">{info.subtitle}</span>
     <span className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs">
@@ -663,6 +697,7 @@ const MobileRow: React.FC<{ court: Court; info: CellInfo; booking: Booking; onCl
       <span className={`block text-[11px] font-bold tracking-wide uppercase ${tagClass(info.kind)}`}>
         {court.name} · {info.kind === 'matched' ? 'Partido armado' : info.kind === 'held' ? 'Retenida' : info.tag}
       </span>
+      {info.fill && <span className={`mt-0.5 inline-block rounded-full px-2 py-px text-[11px] font-semibold ${BADGE_CLASSES[info.fill.tone]}`}>{info.fill.label}</span>}
       <span className="mt-0.5 block truncate text-sm font-semibold text-ink">{info.title}</span>
       <span className="block truncate text-xs text-muted">{info.subtitle}</span>
     </span>
@@ -763,6 +798,23 @@ const ChargePanel: React.FC<ChargePanelProps> = ({ club, booking, info, membersh
           </button>
         </div>
       </div>
+
+      {info.fill && (
+        <div className={`mt-4 rounded-xl px-3.5 py-3 text-[13px] ${BADGE_CLASSES[info.fill.tone]}`}>
+          <p className="font-semibold">{info.fill.label}</p>
+          <p className="mt-0.5">{info.fill.detail}</p>
+          {info.fill.search.status === 'searching' && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run(() => stopFillSearch(club, info.fill!.search.id), 'Listo, dejamos de buscar para este partido.')}
+              className="mt-2.5 rounded-lg border border-current/30 bg-white px-3 py-1.5 text-xs font-semibold cursor-pointer disabled:opacity-60"
+            >
+              Dejar de buscar
+            </button>
+          )}
+        </div>
+      )}
 
       {info.kind === 'tournament' || info.kind === 'held' ? (
         <div className="mt-4 space-y-1 text-sm">
