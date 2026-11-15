@@ -55,6 +55,11 @@ import { StaffCounterView } from './components/StaffCounterView';
 import { TopBar, type ActiveTab } from './components/TopBar';
 import { TournamentsView } from './components/TournamentsView';
 
+const PLATFORM_OWNER_EMAILS = (import.meta.env.VITE_PLATFORM_OWNER_EMAILS || '')
+  .split(',')
+  .map((e: string) => e.trim().toLowerCase())
+  .filter(Boolean);
+
 const VALID_TABS: ActiveTab[] = [
   'home',
   'bookings',
@@ -257,11 +262,10 @@ export default function App() {
 
   const isPlatformOwner = useMemo(() => {
     if (!authUser) return false;
-    return (
-      authUser.email === 'bernardo@awalabs.com' ||
-      clubs.some((c) => c.ownerUid === authUser.uid)
-    );
-  }, [authUser, clubs]);
+    // Solo las cuentas listadas en VITE_PLATFORM_OWNER_EMAILS ven la gestión de la plataforma.
+    // Ser dueño de un club da acceso a la administración de ese club, no a la plataforma.
+    return !!authUser.email && PLATFORM_OWNER_EMAILS.includes(authUser.email.toLowerCase());
+  }, [authUser]);
 
   // Subscribe to all operational collections of the active club
   useEffect(() => {

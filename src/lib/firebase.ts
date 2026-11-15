@@ -94,12 +94,13 @@ export async function testFirestoreConnection(): Promise<boolean> {
 export async function signInWithGoogle() {
   if (USE_EMULATORS) {
     // El emulador de Auth acepta un token de Google sin firmar.
-    const fakeToken = JSON.stringify({
-      sub: 'demo-martin',
-      email: 'martin.demo@example.com',
-      name: 'Martín Silva',
-      email_verified: true,
-    });
+    // ?demo=jugador entra como un jugador común (sin roles) para probar lo que ve un jugador.
+    const asPlayer = new URLSearchParams(window.location.search).get('demo') === 'jugador';
+    const fakeToken = JSON.stringify(
+      asPlayer
+        ? { sub: 'demo-lucia', email: 'lucia.demo@example.com', name: 'Lucía Pérez', email_verified: true }
+        : { sub: 'demo-martin', email: 'martin.demo@example.com', name: 'Martín Silva', email_verified: true }
+    );
     return signInWithCredential(auth, GoogleAuthProvider.credential(fakeToken));
   }
   googleProvider.setCustomParameters({ prompt: 'select_account' });
