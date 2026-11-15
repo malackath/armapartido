@@ -79,6 +79,8 @@ const NOTIFICATION_CHANNELS: Record<NotificationEventType, { push: boolean; emai
   match_confirmed: { push: true, email: true },
   match_unfilled_1h: { push: true, email: false },
   match_expired: { push: true, email: false },
+  fill_invite: { push: true, email: false },
+  fill_update: { push: true, email: false },
   tournament_new: { push: true, email: true },
   pair_invite: { push: true, email: true },
   tournament_next_match: { push: true, email: true },
@@ -96,6 +98,8 @@ function getDefaultTabForEvent(eventType: NotificationEventType): string {
     case 'match_confirmed':
     case 'match_unfilled_1h':
     case 'match_expired':
+    case 'fill_invite':
+    case 'fill_update':
     case 'pair_invite':
       return 'matchmaking';
     case 'tournament_new':

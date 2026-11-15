@@ -9,6 +9,7 @@ import {
 } from '../../src/lib/padelUtils';
 import { db, makeId, now } from './admin';
 import { notify } from './notify';
+import { replaceInPendingMatch } from './fill';
 
 /** Otro proceso tomó a esos jugadores o esa cancha mientras armábamos: se reintenta con datos frescos. */
 export class Conflict extends Error {}
@@ -209,7 +210,9 @@ export async function respondToMatch(params: {
     return outcome.result;
   }
 
-  // Rechazo: igual que antes, se libera la cancha, el que rechazó sale y los demás vuelven a la espera.
+  // Rechazo con "falta uno": sale solo el que rechazó (y su pareja fija) y se busca reemplazo.
+  if (await replaceInPendingMatch({ clubId, matchId, leavingUids: [slotUid], kind: 'declined' })) return 'replaced_or_cancelled';
+  // Si el club lo tiene apagado (o quedarían menos de 2): como antes, se libera la cancha.
   const released = await releaseMatch(clubId, matchId, { declinedUid: slotUid, expired: false });
   if (!released) return 'already_closed';
   await afterRelease(clubId, released, actorUid);

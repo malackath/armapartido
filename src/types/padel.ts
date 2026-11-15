@@ -22,6 +22,8 @@ export type NotificationEventType =
   | 'match_confirmed'
   | 'match_unfilled_1h'
   | 'match_expired'
+  | 'fill_invite'
+  | 'fill_update'
   | 'tournament_new'
   | 'pair_invite'
   | 'tournament_next_match'
@@ -42,6 +44,7 @@ export interface UserProfile {
   preferredModality: Modality;
   weeklyAvailability: AvailabilityWindow[];
   activeClubIds: string[];
+  alertPrefs?: AlertPrefs;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -80,6 +83,9 @@ export interface Club {
   subscriptionStatus: 'trial' | 'active' | 'past_due';
   trialEndsAt?: string;
   monthlyPricePerCourt: number;
+  /** "Falta uno" automático (por defecto encendido) y diferencia de categoría permitida (1 o 2). */
+  fillEnabled?: boolean;
+  fillMaxGap?: 1 | 2;
   courtCount: number;
   active: boolean;
   createdAt?: unknown;
@@ -329,4 +335,96 @@ export interface CourtWaitlistEntry {
   status: 'waiting' | 'notified' | 'cancelled';
   createdAt?: unknown;
   updatedAt?: unknown;
+}
+
+// -----------------------------------------------------------------------------
+// "Falta uno" automático (especificación: Paddle.URU/docs/falta-uno-automatico.md)
+// -----------------------------------------------------------------------------
+
+/** Invitaciones de "falta uno" por semana que acepta el jugador. -1 = todas. */
+export type WeeklyInvites = 0 | 3 | 6 | -1;
+
+export interface AlertPrefs {
+  weeklyInvites: WeeklyInvites;
+  /** Diferencia de categoría que acepta: 0 = solo la suya, 1 o 2. */
+  maxCategoryGap: 0 | 1 | 2;
+}
+
+export const DEFAULT_ALERT_PREFS: AlertPrefs = { weeklyInvites: 3, maxCategoryGap: 1 };
+
+export type FillSearchKind = 'player_dropped' | 'declined' | 'no_answer';
+export type FillSearchStatus = 'searching' | 'filled' | 'unfilled' | 'cancelled';
+export type FillChoice = 'keep_searching' | 'play_as_three' | 'cancel';
+
+export interface FillSearch {
+  id: string;
+  clubId: string;
+  kind: FillSearchKind;
+  matchId: string;
+  bookingId: string;
+  courtId: string;
+  courtName: string;
+  date: string;
+  startMinute: number;
+  endMinute: number;
+  modality: Modality;
+  /** Género buscado cuando el partido es mixto (el del que se fue). */
+  genderNeeded: Gender | '';
+  seatsNeeded: number;
+  seatsFilled: number;
+  filledUids: string[];
+  excludedUids: string[];
+  invitedUids: string[];
+  /** Jugador que se bajó tarde: si no hay reemplazo, le cuenta una falta. */
+  lateDropUid: string;
+  wave: number;
+  nextWaveAt: string;
+  closesAt: string;
+  status: FillSearchStatus;
+  choice: FillChoice | '';
+  extended: boolean;
+  pricePerPlayer: number;
+  openedAt: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface FillInvite {
+  id: string; // `${searchId}_${uid}`
+  clubId: string;
+  searchId: string;
+  uid: string;
+  wave: number;
+  date: string;
+  startMinute: number;
+  endMinute: number;
+  courtName: string;
+  pricePerPlayer: number;
+  status: 'sent' | 'won' | 'late' | 'declined' | 'expired';
+  countsForCap: boolean;
+  sentAt: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface RecoveryRecord {
+  id: string;
+  clubId: string;
+  bookingId: string;
+  courtId: string;
+  date: string;
+  startMinute: number;
+  endMinute: number;
+  sport: 'padel';
+  kind: 'slot_filled' | 'player_replaced' | 'match_completed';
+  freeSince: string;
+  searchId: string;
+  alertSentAt: string;
+  filledByUid: string;
+  filledAt: string;
+  seatsFilled: number;
+  amountRecovered: number;
+  status: 'pending' | 'counted' | 'voided';
+  voidReason: string;
+  createdAt?: unknown;
 }

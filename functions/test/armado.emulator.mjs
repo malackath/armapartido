@@ -42,7 +42,7 @@ const dow = (s) => new Date(`${s}T12:00:00`).getDay();
 
 // Deja el club sin pedidos ni propuestas para que el escenario sea predecible.
 async function clean() {
-  for (const sub of ['matchRequests', 'proposedMatches']) {
+  for (const sub of ['matchRequests', 'proposedMatches', 'fillSearches', 'fillInvites']) {
     const snap = await club.collection(sub).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -111,17 +111,39 @@ await step('3. Carrera: 10 búsquedas al mismo tiempo con 4 compatibles arman un
   assert.equal(pend.length, 1, `partidos armados: ${pend.length}`);
 });
 
-await step('4. Un jugador rechaza: se libera la cancha, el que rechazó sale y los otros vuelven a la espera', async () => {
+await step('4. Un jugador rechaza (falta uno encendido): el partido sigue, sale solo él y se busca reemplazo', async () => {
   const [m] = await pendingMatches();
   const decliner = m.slots[0];
   const r = await jugador.call('armadoResponder', { clubId: CLUB, matchId: m.id, slotUid: decliner.uid, decision: 'declined' });
   assert.equal(r.result, 'replaced_or_cancelled');
+  const after = (await club.collection('proposedMatches').doc(m.id).get()).data();
+  assert.equal(after.status, 'pending');
+  assert.equal(after.slots.length, 3);
   const bk = (await club.collection('bookings').doc(m.bookingId).get()).data();
-  assert.equal(bk.status, 'cancelled');
+  assert.equal(bk.status, 'held');
   const reqs = await club.collection('matchRequests').get();
   const byUid = Object.fromEntries(reqs.docs.map((d) => [d.get('creatorUid'), d.get('status')]));
   assert.equal(byUid[decliner.uid], 'cancelled');
-  assert.equal(Object.values(byUid).filter((s) => s === 'waiting').length, 3);
+  const fs = await club.collection('fillSearches').where('matchId', '==', m.id).get();
+  assert.equal(fs.size, 1);
+});
+
+await step('4b. Con "falta uno" apagado por el club: como antes, se libera la cancha y los otros vuelven a la espera', async () => {
+  await clean();
+  await club.update({ fillEnabled: false });
+  const D2 = inDays(2);
+  for (const [u, n] of [['demo-p08', 'F'], ['demo-p09', 'R'], ['demo-p10', 'M'], ['demo-p07', 'S']]) await fakeRequest(u, n, 5, D2, T, T + 180);
+  await jugador.call('armadoBuscar', { clubId: CLUB });
+  assert.equal((await pendingMatches()).length, 1, 'no armó partido');
+  const [m] = await pendingMatches();
+  const decliner = m.slots[0];
+  await jugador.call('armadoResponder', { clubId: CLUB, matchId: m.id, slotUid: decliner.uid, decision: 'declined' });
+  const bk = (await club.collection('bookings').doc(m.bookingId).get()).data();
+  assert.equal(bk.status, 'cancelled');
+  const reqs = await club.collection('matchRequests').get();
+  const st = reqs.docs.map((d) => d.get('status'));
+  assert.equal(st.filter((x) => x === 'waiting').length, 3);
+  await club.update({ fillEnabled: true });
 });
 
 await step('5. Un jugador no puede responder por otro con cuenta (sí el mostrador)', async () => {

@@ -1,8 +1,10 @@
 import { logger } from 'firebase-functions';
-import type { Booking, MatchRequest, ProposedMatch } from '../../src/types/padel';
-import { formatDateFriendly, formatMinutes, getTodayISO } from '../../src/lib/padelUtils';
+import type { Booking, FillSearch, MatchRequest, ProposedMatch } from '../../src/types/padel';
+import { formatDateFriendly, formatMinutes } from '../../src/lib/padelUtils';
 import { db, now } from './admin';
 import { afterRelease, releaseMatch } from './engine';
+import { activeSearchFor, autoFinalize, closeUnfilled, replaceInPendingMatch, runWave, settleRecoveries } from './fill';
+import { CHOICE_DEADLINE_MINUTES, isoDate, slotStart } from './fillRules';
 import { notify } from './notify';
 
 export interface ClockReport {
@@ -11,12 +13,11 @@ export interface ClockReport {
   releasedHolds: number;
   unfilledAlerts: number;
   expiredRequests: number;
+  searchesClosed: number;
+  invitesSent: number;
+  recoveriesSettled: number;
 }
 
-function minutesNow(): number {
-  const d = new Date();
-  return d.getHours() * 60 + d.getMinutes();
-}
 
 /**
  * El reloj del armado. Corre cada minuto y hace cumplir lo que antes solo se guardaba:
@@ -27,9 +28,9 @@ function minutesNow(): number {
  */
 export async function runClock(nowDate = new Date()): Promise<ClockReport> {
   const nowISO = nowDate.toISOString();
-  const today = getTodayISO();
-  const nowMin = minutesNow();
-  const report: ClockReport = { clubs: 0, expiredMatches: 0, releasedHolds: 0, unfilledAlerts: 0, expiredRequests: 0 };
+  const today = isoDate(nowDate);
+  const nowMin = nowDate.getHours() * 60 + nowDate.getMinutes();
+  const report: ClockReport = { clubs: 0, expiredMatches: 0, releasedHolds: 0, unfilledAlerts: 0, expiredRequests: 0, searchesClosed: 0, invitesSent: 0, recoveriesSettled: 0 };
 
   const clubs = await db.collection('clubs').get();
   for (const clubDoc of clubs.docs) {
@@ -49,6 +50,20 @@ export async function runClock(nowDate = new Date()): Promise<ClockReport> {
         const m = d.data() as ProposedMatch;
         if (!m.expiresAt || m.expiresAt > nowISO) {
           liveBookingIds.add(m.bookingId);
+          continue;
+        }
+        // Con "falta uno": si hay una búsqueda viva para este partido, ella maneja los tiempos.
+        if (await activeSearchFor(clubId, d.id)) {
+          liveBookingIds.add(m.bookingId);
+          continue;
+        }
+        const silent = m.slots.filter((s) => s.status !== 'accepted').map((s) => s.uid);
+        if (
+          silent.length &&
+          (await replaceInPendingMatch({ clubId, matchId: d.id, leavingUids: silent, kind: 'no_answer', nowDate }))
+        ) {
+          liveBookingIds.add(m.bookingId);
+          report.expiredMatches++;
           continue;
         }
         const released = await releaseMatch(clubId, d.id, { expired: true });
@@ -80,6 +95,23 @@ export async function runClock(nowDate = new Date()): Promise<ClockReport> {
         await d.ref.update({ status: 'cancelled', updatedAt: now() });
         report.releasedHolds++;
       }
+
+      // 5. Búsquedas de "falta uno": tandas, cierre sin cuarto y decisión automática
+      const searches = await clubDoc.ref.collection('fillSearches').where('status', 'in', ['searching', 'unfilled']).get();
+      for (const sd of searches.docs) {
+        const fs = sd.data() as FillSearch;
+        if (fs.status === 'searching') {
+          if (fs.closesAt <= nowISO) {
+            await closeUnfilled(clubId, sd.id, nowDate);
+            report.searchesClosed++;
+          } else if (fs.nextWaveAt <= nowISO) {
+            report.invitesSent += await runWave(clubId, sd.id, nowDate);
+          }
+        } else if (!fs.choice && slotStart(fs.date, fs.startMinute).getTime() - CHOICE_DEADLINE_MINUTES * 60000 <= nowDate.getTime()) {
+          await autoFinalize(clubId, sd.id);
+        }
+      }
+      report.recoveriesSettled += await settleRecoveries(clubId, nowDate);
 
       // 3 y 4. Pedidos en espera
       for (const d of waiting.docs) {

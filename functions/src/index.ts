@@ -8,6 +8,8 @@ import { db, isFakePlayer, makeId, now } from './admin';
 import { respondToMatch, sweepClub } from './engine';
 import { runClock } from './clock';
 import { notify } from './notify';
+import { chooseUnfilled, claimSeat, declineInvite, dropFromMatch, stopSearch } from './fill';
+import type { FillChoice } from '../../src/types/padel';
 
 // São Paulo: misma región que Firestore de la demo. Tope de instancias para que un error no dispare costos.
 setGlobalOptions({ region: 'southamerica-east1', maxInstances: 3, memory: '256MiB' });
@@ -157,4 +159,66 @@ export const armadoReloj = onSchedule({ schedule: 'every 1 minutes', timeZone: '
   if (report.expiredMatches || report.releasedHolds || report.unfilledAlerts || report.expiredRequests) {
     logger.info('reloj', report);
   }
+});
+
+// -----------------------------------------------------------------------------
+// "Falta uno" automático
+// -----------------------------------------------------------------------------
+
+function canActFor(uid: string, target: string, role: unknown): boolean {
+  return target === uid || isFakePlayer(target) || role === 'admin' || role === 'staff';
+}
+
+/** "No puedo ir": salir de un partido armado. Se busca reemplazo solo. */
+export const faltaUnoBajarme = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  const matchId = str(d.matchId);
+  const target = str(d.uid) || uid;
+  const member = await requireMember(clubId, uid);
+  if (!canActFor(uid, target, member.get('role'))) throw new HttpsError('permission-denied', 'Solo podés bajarte vos.');
+  return dropFromMatch({ clubId, matchId, uid: target });
+});
+
+/** "Me sumo": el primero que confirma entra. */
+export const faltaUnoMeSumo = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  return { result: await claimSeat({ clubId, searchId: str(d.searchId), uid }) };
+});
+
+/** "No puedo" en una invitación. */
+export const faltaUnoNoPuedo = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  await declineInvite({ clubId, searchId: str(d.searchId), uid });
+  return { result: 'ok' };
+});
+
+/** Sin cuarto: jugar igual, seguir buscando o cancelar. */
+export const faltaUnoElegir = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  const choice = str(d.choice) as FillChoice;
+  if (!['keep_searching', 'play_as_three', 'cancel'].includes(choice)) throw new HttpsError('invalid-argument', 'Opción inválida.');
+  return chooseUnfilled({ clubId, searchId: str(d.searchId), uid, choice });
+});
+
+/** Mostrador: dejar de buscar. */
+export const faltaUnoDejarDeBuscar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  const member = await requireMember(clubId, uid);
+  const role = member.get('role');
+  if (role !== 'admin' && role !== 'staff') throw new HttpsError('permission-denied', 'Solo el mostrador o el administrador.');
+  await stopSearch(clubId, str(d.searchId));
+  return { result: 'ok' };
 });
