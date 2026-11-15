@@ -13,6 +13,13 @@ Cada club tiene su app marca blanca sobre una sola plataforma multi-club. Jugado
 - `npm install --legacy-peer-deps`
 - `npm run dev` (Express + Vite), `npx vite build`, `npm run lint` (tsc)
 
+## Demo (rama claude/demo)
+- Mundo de demo: `src/demo/demoWorld.ts` (club Los Jacarandás, 5 cuentas por rol + 17 jugadores, reservas, partidos, torneos). Reinicio: `src/demo/resetDemo.ts` (botón "Reiniciar demo" en el menú del avatar, solo dueño o plataforma).
+- Cargar en emuladores: `npm run dev:demo` y luego `FIREBASE_EMULATORS=1 DEMO_PASSWORD='prueba-local-123' npx tsx scripts/seed-demo.ts`.
+- Cargar en Firebase real: `DEMO_PASSWORD=... FIREBASE_CONFIG_FILE=<config.json> npm run demo:seed`. Contraseña y config de la demo viven en la Mac de Ber (Paddle.URU/docs), nunca en el repo.
+- Build de demo: variables `VITE_FIREBASE_*`, `VITE_DEMO_MODE=1`, `VITE_PLATFORM_OWNER_EMAILS=plataforma@demo.armapartido.com`.
+- Publicación: Cloudflare Pages, proyecto aparte de "armapartido" (que es la página Muy pronto). Con wrangler 4, `pages project create` necesita `--force`.
+
 ## Reglas
 - Nada de afiliaciones FIP/AAP/Federación ni nivel decimal en la UI: solo categoría.
 - Español de Uruguay: "cancha", nunca "pista".
