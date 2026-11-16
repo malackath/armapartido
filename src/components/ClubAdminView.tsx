@@ -30,6 +30,12 @@ import { BrandIcon, type BrandIconName } from './BrandIcon';
 import { payMethodLabel } from './StaffCounterView';
 import { ClubOpsContext, useClubOps } from './caja/ops';
 import { CantinaAdmin, CashDaysCard, DepositCard, FixedAdmin, MonthlyReportAdmin } from './caja/AdminSections';
+import { auth } from '../lib/firebase';
+import { ClientesContext, useClientesData } from './clientes/data';
+import { ClientsPanel } from './clientes/ClientsPanel';
+import { Libro } from './clientes/Libro';
+import { Numeros } from './clientes/Numeros';
+import { CuponerasAdmin } from './clientes/CuponerasAdmin';
 
 interface ClubAdminViewProps {
   club: Club;
@@ -46,15 +52,18 @@ interface ClubAdminViewProps {
   onToast: (msg: string) => void;
 }
 
-type Section = 'courts' | 'prices' | 'fill' | 'members' | 'tournaments' | 'cash' | 'cantina' | 'fixed' | 'report' | 'club';
+type Section = 'courts' | 'prices' | 'fill' | 'members' | 'clients' | 'numbers' | 'tournaments' | 'cash' | 'packs' | 'cantina' | 'fixed' | 'report' | 'club';
 
 const SECTIONS: { id: Section; label: string; icon: BrandIconName; title: string; subtitle: string }[] = [
   { id: 'courts', label: 'Canchas y horarios', icon: 'cancha', title: 'Canchas y horarios', subtitle: 'Lo que cambies acá se ve al instante en la app de los jugadores y en el Mostrador.' },
   { id: 'prices', label: 'Precios y reglas', icon: 'pago-en-club', title: 'Precios y reglas', subtitle: 'Precio por turno, cancelación, faltas y Mercado Pago.' },
   { id: 'fill', label: 'Falta uno', icon: 'falta-uno', title: '"Falta uno" automático', subtitle: 'Cuando alguien se baja, la app busca reemplazo sola y te muestra los turnos recuperados.' },
   { id: 'members', label: 'Jugadores y encargados', icon: 'pareja', title: 'Jugadores y encargados', subtitle: 'Corregí categorías, nombrá encargados del mostrador y bloqueá a quien falta seguido.' },
+  { id: 'clients', label: 'Clientes', icon: 'perfil', title: 'Clientes del club', subtitle: 'Una ficha por persona, con app o sin app: lo que debe, sus cuponeras, sus turnos y sus datos.' },
+  { id: 'numbers', label: 'Números', icon: 'resultado', title: 'Números del club', subtitle: 'Altas, clientes que vuelven, ocupación, ventas, deuda y cuponeras. Tocá un número para ver quiénes lo forman.' },
   { id: 'tournaments', label: 'Torneos', icon: 'torneos', title: 'Torneos', subtitle: 'Creá torneos, seguí la inscripción y sorteá el cuadro.' },
-  { id: 'cash', label: 'Caja', icon: 'pago-online', title: 'Caja', subtitle: 'Cierres de cada día y todo lo cobrado en el club y por Mercado Pago.' },
+  { id: 'cash', label: 'Caja', icon: 'pago-online', title: 'Caja', subtitle: 'Cierres de cada día y el libro del club: cada cobro con su rubro, medio y factura.' },
+  { id: 'packs', label: 'Cuponeras', icon: 'pago-en-club', title: 'Cuponeras', subtitle: 'Paquetes de partes o turnos que se venden en el Mostrador. Usarlas no es plata nueva.' },
   { id: 'cantina', label: 'Cantina', icon: 'paleta', title: 'Cantina', subtitle: 'Productos, precios y cuántos quedan. Se venden desde el Mostrador, pegados al turno.' },
   { id: 'fixed', label: 'Turnos fijos', icon: 'horario', title: 'Turnos fijos', subtitle: 'Reservas que se repiten todas las semanas.' },
   { id: 'report', label: 'Informe del mes', icon: 'resultado', title: 'Lo que ganaste con Armá Partido', subtitle: 'Los turnos que llenaron nuestros avisos, en pesos, al lado de la cuota. Llega por mail el día 1.' },
@@ -76,6 +85,7 @@ const KIND_LABEL: Record<PaymentRecord['kind'], string> = {
   refund: 'Devolución',
   platform_subscription: 'Cuota de la plataforma',
   cantina: 'Cantina',
+  venta: 'Venta',
   retiro: 'Retiro de caja',
   anulacion: 'Anulación',
 };
@@ -204,7 +214,12 @@ const hourOptions = (from: number, to: number) => Array.from({ length: to - from
 
 export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memberships, bookings, proposedMatches, tournaments, payments, userProfile, onToast }) => {
   const ops = useClubOps(club.id);
+  const clientes = useClientesData(club.id);
   const [section, setSection] = useState<Section>('courts');
+  const today = getTodayISO();
+  const staff = { uid: userProfile.uid, name: userProfile.displayName };
+  // Dueño del club (o plataforma con el mail listado): baja la planilla de clientes y borra datos
+  const isOwner = club.ownerUid === userProfile.uid || (import.meta.env.VITE_PLATFORM_OWNER_EMAILS || '').toLowerCase().split(',').map((s: string) => s.trim()).includes((auth.currentUser?.email || '').toLowerCase());
   const [busy, setBusy] = useState(false);
 
   // Configuración del club (se guarda con "Guardar cambios")
@@ -288,6 +303,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
 
   return (
     <ClubOpsContext.Provider value={ops}>
+    <ClientesContext.Provider value={clientes}>
     <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8">
       {/* Menú de secciones */}
       <nav aria-label="Secciones de administración" className="-mx-4 mb-5 overflow-x-auto px-4 lg:mx-0 lg:mb-0 lg:overflow-visible lg:px-0">
@@ -464,9 +480,19 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
         {section === 'cash' && (
           <div className="space-y-5">
             <CashDaysCard />
-            <CashSection payments={ops.ready ? ops.allPayments : payments} />
+            <Libro club={club} bookings={bookings} matches={proposedMatches} staff={staff} today={today} onToast={onToast} />
           </div>
         )}
+
+        {section === 'clients' && (
+          <div className="max-w-3xl">
+            <ClientsPanel club={club} memberships={memberships} bookings={bookings} matches={proposedMatches} payments={ops.allPayments} consumptions={ops.consumptions} staff={staff} isOwner={isOwner} today={today} nowMinute={new Date().getHours() * 60 + new Date().getMinutes()} closedToday={ops.cashDays.find((d) => d.id === today)?.status === 'closed'} onToast={onToast} />
+          </div>
+        )}
+
+        {section === 'numbers' && <Numeros club={club} courts={courts} bookings={bookings} matches={proposedMatches} memberships={memberships} staff={staff} isOwner={isOwner} today={today} onToast={onToast} />}
+
+        {section === 'packs' && <CuponerasAdmin club={club} today={today} onToast={onToast} />}
 
         {section === 'cantina' && <CantinaAdmin club={club} onToast={onToast} />}
 
@@ -494,6 +520,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
         )}
       </div>
     </div>
+    </ClientesContext.Provider>
     </ClubOpsContext.Provider>
   );
 };

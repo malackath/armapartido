@@ -311,8 +311,10 @@ export async function payDebt(params: {
   staff: Staff;
   day: string;
   afterClose: boolean;
+  /** Ficha del que paga (para el libro y la factura). */
+  clientId?: string;
 }) {
-  const { club, debtKey, debtName, consumptions, bookings, matches, method, staff, day, afterClose } = params;
+  const { club, debtKey, debtName, consumptions, bookings, matches, method, staff, day, afterClose, clientId } = params;
   for (const b of bookings) {
     const match = matches.find((m) => m.bookingId === b.id);
     if (b.type === 'matched' && match) {
@@ -324,7 +326,7 @@ export async function payDebt(params: {
   const batch = writeBatch(db);
   const amount = markConsumptionsPaidFor(batch, club, consumptions, debtKey);
   if (amount > 0) {
-    const p = newPayment(club, staff, day, { payerName: debtName, referenceId: 'deuda', amount, method, kind: 'cantina', note: 'Pago de lo que debía', ...(afterClose ? { afterClose: true } : {}) });
+    const p = newPayment(club, staff, day, { payerName: debtName, referenceId: 'deuda', amount, method, kind: 'cantina', rubro: 'cantina', note: 'Pago de lo que debía', ...(clientId ? { clientId } : {}), ...(afterClose ? { afterClose: true } : {}) });
     batch.set(ref(club.id, 'payments', p.id), p);
     await batch.commit();
   }

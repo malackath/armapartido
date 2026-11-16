@@ -34,7 +34,13 @@ import { PlayerAvatar, StatusChip } from './ui/People';
 import { ClubOpsContext, useClubOps } from './caja/ops';
 import { TurnAccount } from './caja/TurnAccount';
 import { CashPanel } from './caja/CashPanel';
-import { cashSummary, debtsOf } from '../lib/caja';
+import { cashSummary } from '../lib/caja';
+import { clientDebts } from '../lib/clientes';
+import { ClientesContext, useClientesData } from './clientes/data';
+import { ClientsPanel } from './clientes/ClientsPanel';
+import { ClientPicker } from './clientes/ClientPicker';
+import type { ClubClient } from '../types/clientes';
+import { formatPhone } from '../lib/clientes';
 import { BADGE_CLASSES, searchForMatch } from './FaltaUno';
 
 interface StaffCounterViewProps {
@@ -151,7 +157,8 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
   const [busy, setBusy] = useState(false);
   const [minuteNow, setMinuteNow] = useState(nowMinute());
   const ops = useClubOps(club.id);
-  const [cashOpen, setCashOpen] = useState<null | 'caja' | 'deben' | 'venta'>(null);
+  const clientes = useClientesData(club.id);
+  const [cashOpen, setCashOpen] = useState<null | 'caja' | 'deben' | 'venta' | 'clientes'>(null);
 
   useEffect(() => {
     const t = window.setInterval(() => setMinuteNow(nowMinute()), 60_000);
@@ -311,8 +318,8 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
   const todayCash = ops.cashDays.find((d) => d.id === today);
   const lowStock = ops.products.filter((p) => p.active && p.stock !== null && p.stock <= p.minStock);
   const debtCount = useMemo(
-    () => debtsOf({ consumptions: ops.consumptions, bookings, matches: proposedMatches, today, nowMinute: minuteNow, nameOf: nameOfUid }).length,
-    [ops.consumptions, bookings, proposedMatches, today, minuteNow, nameOfUid]
+    () => clientDebts({ clients: clientes.clients, consumptions: ops.consumptions, bookings, matches: proposedMatches, sales: clientes.sales, today, nowMinute: minuteNow, nameOf: nameOfUid }).length,
+    [clientes.clients, clientes.sales, ops.consumptions, bookings, proposedMatches, today, minuteNow, nameOfUid]
   );
 
   const legacyCashToday = useMemo(() => {
@@ -355,6 +362,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
 
   return (
     <ClubOpsContext.Provider value={ops}>
+    <ClientesContext.Provider value={clientes}>
     <div className="space-y-5">
       {/* Encabezado */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -385,7 +393,17 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
             }}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink hover:bg-mist cursor-pointer"
           >
-            Venta rápida
+            Venta suelta
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedId(null);
+              setCashOpen('clientes');
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink hover:bg-mist cursor-pointer"
+          >
+            <BrandIcon name="pareja" size={18} /> Clientes
           </button>
           <button
             type="button"
@@ -630,8 +648,12 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         {/* Panel derecho */}
         <div className="space-y-4">
           <div className="hidden lg:block">
-            {cashOpen && !selected ? (
+            {cashOpen === 'clientes' && !selected ? (
+              <ClientesSide club={club} memberships={memberships} bookings={bookings} matches={proposedMatches} payments={ops.allPayments} consumptions={ops.consumptions} userProfile={userProfile} today={today} nowMinute={minuteNow} closedToday={todayCash?.status === 'closed'} onToast={onToast} onClose={() => setCashOpen(null)} />
+            ) : cashOpen && !selected ? (
               <CashPanel
+                memberships={memberships}
+                tournaments={tournaments.filter((t) => t.status === 'registration_open')}
                 key={cashOpen}
                 club={club}
                 bookings={bookings}
@@ -644,7 +666,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
                 setBusy={setBusy}
                 onToast={onToast}
                 onClose={() => setCashOpen(null)}
-                initialTab={cashOpen}
+                initialTab={cashOpen as 'caja' | 'deben' | 'venta'}
               />
             ) : selected ? (
               <ChargePanel
@@ -707,7 +729,12 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
       {cashOpen && !selected && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 backdrop-blur-[2px] lg:hidden" onClick={() => setCashOpen(null)}>
           <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-3xl" onClick={(e) => e.stopPropagation()}>
+            {cashOpen === 'clientes' ? (
+              <ClientesSide club={club} memberships={memberships} bookings={bookings} matches={proposedMatches} payments={ops.allPayments} consumptions={ops.consumptions} userProfile={userProfile} today={today} nowMinute={minuteNow} closedToday={todayCash?.status === 'closed'} onToast={onToast} onClose={() => setCashOpen(null)} sheet />
+            ) : (
             <CashPanel
+              memberships={memberships}
+              tournaments={tournaments.filter((t) => t.status === 'registration_open')}
               key={cashOpen}
               club={club}
               bookings={bookings}
@@ -720,14 +747,16 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
               setBusy={setBusy}
               onToast={onToast}
               onClose={() => setCashOpen(null)}
-              initialTab={cashOpen}
+              initialTab={cashOpen as 'caja' | 'deben' | 'venta'}
             />
+            )}
           </div>
         </div>
       )}
 
       {newTarget && (
         <NewBookingModal
+          memberships={memberships}
           club={club}
           courts={activeCourts}
           slots={slots}
@@ -743,11 +772,43 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         />
       )}
     </div>
+    </ClientesContext.Provider>
     </ClubOpsContext.Provider>
   );
 };
 
 // ---------- Piezas ----------
+
+/** Clientes del club en el Mostrador (panel derecho en compu, hoja de abajo en celular). */
+const ClientesSide: React.FC<{
+  club: Club;
+  memberships: ClubMembership[];
+  bookings: Booking[];
+  matches: ProposedMatch[];
+  payments: PaymentRecord[];
+  consumptions: ReturnType<typeof useClubOps>['consumptions'];
+  userProfile: UserProfile;
+  today: string;
+  nowMinute: number;
+  closedToday: boolean;
+  onToast: (msg: string) => void;
+  onClose: () => void;
+  sheet?: boolean;
+}> = ({ onClose, sheet, userProfile, ...rest }) => (
+  <div className={`border border-line bg-page p-4 ${sheet ? 'rounded-t-3xl pb-8' : 'rounded-2xl'}`}>
+    <div className="mb-3 flex items-start justify-between gap-3">
+      <div>
+        <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Clientes del club</p>
+        <h2 className="mt-1 font-display text-lg font-bold text-ink">Con y sin app</h2>
+      </div>
+      <button type="button" onClick={onClose} aria-label="Cerrar" className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-white cursor-pointer">
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+    <ClientsPanel {...rest} staff={{ uid: userProfile.uid, name: userProfile.displayName }} isOwner={rest.club.ownerUid === userProfile.uid} />
+  </div>
+);
+
 
 const Kpi: React.FC<{ title: string; className?: string; tone?: 'ok' | 'due'; icon?: BrandIconName; children: React.ReactNode }> = ({ title, className = '', tone, icon, children }) => (
   <div className={`rounded-2xl px-4 py-3.5 sm:px-5 sm:py-4 ${tone === 'ok' ? 'bg-ok-bg' : tone === 'due' ? 'bg-due-bg' : 'bg-white'} ${className}`}>
@@ -1126,11 +1187,12 @@ const NewBookingModal: React.FC<{
   setBusy: (b: boolean) => void;
   onToast: (msg: string) => void;
   onClose: () => void;
-}> = ({ club, courts, slots, date, dateLabel, initial, isTaken, userProfile, busy, setBusy, onToast, onClose }) => {
+  memberships: ClubMembership[];
+}> = ({ club, courts, slots, date, dateLabel, initial, isTaken, userProfile, busy, setBusy, onToast, onClose, memberships }) => {
   const [courtId, setCourtId] = useState(initial.courtId);
   const [startMinute, setStartMinute] = useState(initial.startMinute);
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [client, setClient] = useState<ClubClient | null>(null);
+  const [byPhone, setByPhone] = useState(true);
   const [paidNow, setPaidNow] = useState(false);
   const [method, setMethod] = useState<CounterPaymentMethod>('efectivo');
 
@@ -1141,7 +1203,7 @@ const NewBookingModal: React.FC<{
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!court || !slot || taken || !name.trim()) return;
+    if (!court || !slot || taken || !client) return;
     setBusy(true);
     try {
       await createCounterBooking({
@@ -1151,12 +1213,13 @@ const NewBookingModal: React.FC<{
         startMinute: slot.startMinute,
         endMinute: slot.endMinute,
         staffUid: userProfile.uid,
-        guestName: name.trim(),
-        phone: phone.trim(),
+        guestName: client.name,
+        phone: formatPhone(client.phone),
         paidNow,
         method,
+        clientId: client.id,
       });
-      onToast(`Reserva cargada: ${court.name}, ${formatMinutes(slot.startMinute)}, a nombre de ${name.trim()}.`);
+      onToast(`Reserva cargada: ${court.name}, ${formatMinutes(slot.startMinute)}, a nombre de ${client.name}.`);
       onClose();
     } finally {
       setBusy(false);
@@ -1199,14 +1262,28 @@ const NewBookingModal: React.FC<{
         </div>
         {taken && <p className="mt-2 text-xs font-semibold text-red-700">Ese turno ya está ocupado en esa cancha.</p>}
 
-        <label className="mt-4 block text-xs font-semibold text-ink">
-          Nombre (no necesita tener la app)
-          <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Joaquín Pérez" className="mt-1.5 w-full rounded-xl border border-line px-3 py-2.5 text-sm font-normal" />
-        </label>
-        <label className="mt-3 block text-xs font-semibold text-ink">
-          Teléfono <span className="font-normal text-muted">(opcional)</span>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="099 123 456" className="mt-1.5 w-full rounded-xl border border-line px-3 py-2.5 text-sm font-normal" />
-        </label>
+        <div className="mt-4">
+          <p className="mb-1.5 flex items-center justify-between text-xs font-semibold text-ink">
+            <span>A nombre de (no necesita tener la app)</span>
+            {!client && (
+              <span className="flex gap-1 text-[11.5px] font-normal">
+                <button type="button" onClick={() => setByPhone(true)} className={`rounded-full px-2 py-0.5 cursor-pointer ${byPhone ? 'bg-brand text-white' : 'text-muted'}`}>Por teléfono</button>
+                <button type="button" onClick={() => setByPhone(false)} className={`rounded-full px-2 py-0.5 cursor-pointer ${!byPhone ? 'bg-brand text-white' : 'text-muted'}`}>En el mostrador</button>
+              </span>
+            )}
+          </p>
+          {client ? (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2.5">
+              <span className="min-w-0 text-sm">
+                <span className="block truncate font-semibold text-ink">{client.name}</span>
+                <span className="block text-xs text-muted">{[formatPhone(client.phone), client.uid ? 'con app' : 'sin app'].filter(Boolean).join(' · ')}</span>
+              </span>
+              <button type="button" onClick={() => setClient(null)} className="shrink-0 rounded-full border border-line px-3 py-1 text-xs font-semibold cursor-pointer">Cambiar</button>
+            </div>
+          ) : (
+            <ClientPicker club={club} memberships={memberships} staff={{ uid: userProfile.uid, name: userProfile.displayName }} today={getTodayISO()} origin={byPhone ? 'telefono' : 'mostrador'} onPick={setClient} />
+          )}
+        </div>
 
         <div className="mt-4 flex items-center justify-between rounded-xl bg-mist px-3.5 py-3">
           <span className="text-sm">
@@ -1233,7 +1310,7 @@ const NewBookingModal: React.FC<{
           <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-line py-3 text-sm font-semibold text-ink hover:bg-mist cursor-pointer">
             Volver
           </button>
-          <button type="submit" disabled={busy || taken || !name.trim()} className="flex-1 rounded-xl bg-brand py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer">
+          <button type="submit" disabled={busy || taken || !client} className="flex-1 rounded-xl bg-brand py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer">
             {busy ? 'Guardando…' : 'Confirmar reserva'}
           </button>
         </div>

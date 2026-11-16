@@ -5,11 +5,16 @@ import type { Consumption } from '../../types/caja';
 import { formatDateFriendly, formatMinutes, formatUYU, getTodayISO } from '../../lib/padelUtils';
 import { accountOf, participantsOf } from '../../lib/caja';
 import { subscribeMyConsumptions } from '../../services/cajaService';
+import { subscribeMyClientData } from '../../services/clientesService';
+import { dmy, pendingValue, VALIDITY_LABEL } from '../../lib/clientes';
+import type { ClientPack, ClubClient } from '../../types/clientes';
 import { BrandIcon } from '../BrandIcon';
 
 export const MyAccount: React.FC<{ club: Club; userProfile: UserProfile; bookings: Booking[]; proposedMatches: ProposedMatch[] }> = ({ club, userProfile, bookings, proposedMatches }) => {
   const [mine, setMine] = useState<Consumption[]>([]);
   useEffect(() => subscribeMyConsumptions(club.id, userProfile.uid, setMine), [club.id, userProfile.uid]);
+  const [ficha, setFicha] = useState<{ clients: ClubClient[]; packs: ClientPack[] }>({ clients: [], packs: [] });
+  useEffect(() => subscribeMyClientData(club.id, userProfile.uid, setFicha), [club.id, userProfile.uid]);
   const today = getTodayISO();
   const uid = userProfile.uid;
 
@@ -31,9 +36,14 @@ export const MyAccount: React.FC<{ club: Club; userProfile: UserProfile; booking
       .sort((a, z) => z.b.date.localeCompare(a.b.date) || z.b.startMinute - a.b.startMinute);
   }, [bookings, proposedMatches, mine, today, uid, userProfile.displayName]);
 
+  // Compras sueltas fiadas (sin turno), por ejemplo cantina anotada "a su cuenta"
+  const loose = mine.filter((c) => !c.bookingId && c.status === 'pending' && c.participantUids.includes(uid));
+  const looseTotal = loose.reduce((a, c) => a + c.total, 0);
+  const balance = ficha.clients.reduce((a, c) => a + (c.balance || 0), 0);
+  const livePacks = ficha.packs.filter((p) => pendingValue(p, today) > 0);
   const due = turns.filter((t) => t.acc.totalDue > 0);
   const paid = turns.filter((t) => t.acc.totalDue === 0).slice(0, 4);
-  const total = due.reduce((a, t) => a + t.acc.totalDue, 0);
+  const total = due.reduce((a, t) => a + t.acc.totalDue, 0) + looseTotal;
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6">
@@ -51,7 +61,7 @@ export const MyAccount: React.FC<{ club: Club; userProfile: UserProfile; booking
         </div>
       </div>
 
-      {due.length === 0 && paid.length === 0 && <p className="mt-4 text-sm text-slate-500">Todavía no tenés consumos ni turnos para pagar.</p>}
+      {due.length === 0 && paid.length === 0 && loose.length === 0 && livePacks.length === 0 && <p className="mt-4 text-sm text-slate-500">Todavía no tenés consumos ni turnos para pagar.</p>}
 
       {due.map(({ b, acc }) => (
         <div key={b.id} className="mt-4 rounded-xl border border-slate-200">
@@ -76,6 +86,39 @@ export const MyAccount: React.FC<{ club: Club; userProfile: UserProfile; booking
           </div>
         </div>
       ))}
+
+      {loose.length > 0 && (
+        <div className="mt-4 rounded-xl border border-slate-200">
+          <p className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-900">Compras sin turno</p>
+          {loose.map((c) => (
+            <div key={c.id} className="flex justify-between px-4 py-2 text-sm">
+              <span className="text-slate-600">{dmy(c.date)} · {c.qty > 1 ? `${c.qty} ` : ''}{c.productName}</span>
+              <span className="tabular-nums">{formatUYU(c.total)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {(livePacks.length > 0 || balance > 0) && (
+        <div className="mt-4 grid gap-2 sm:grid-cols-2" data-testid="mis-cuponeras">
+          {livePacks.map((p) => (
+            <div key={p.id} className="rounded-xl bg-[#e6f3f3] px-4 py-3">
+              <p className="text-sm font-bold text-slate-900">{p.name}</p>
+              <p className="text-[13px] text-slate-600">
+                Te quedan <b>{p.usesLeft}</b> de {p.usesTotal} · vence {dmy(p.expiresOn)}
+              </p>
+              <p className="text-[12px] text-slate-500">Vale {VALIDITY_LABEL[p.validity]}. Avisá en el mostrador que la querés usar.</p>
+            </div>
+          ))}
+          {balance > 0 && (
+            <div className="rounded-xl bg-emerald-50 px-4 py-3">
+              <p className="text-sm font-bold text-slate-900">Saldo a favor</p>
+              <p className="font-display text-xl font-bold tabular-nums text-emerald-700">{formatUYU(balance)}</p>
+              <p className="text-[12px] text-slate-500">Paga cancha, cantina o cuponeras en el club.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {total > 0 && (
         <p className="mt-4 rounded-xl bg-[#ecfcfc] px-4 py-3 text-sm text-slate-700">

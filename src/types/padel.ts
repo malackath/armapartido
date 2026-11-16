@@ -161,6 +161,8 @@ export interface Booking {
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   holdExpiresAt: string;
+  /** Ficha del cliente (reservas por teléfono o mostrador). */
+  clientId?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -283,6 +285,7 @@ export interface PaymentRecord {
     | 'refund'
     | 'platform_subscription'
     | 'cantina'
+    | 'venta'
     | 'retiro'
     | 'anulacion';
   status: 'completed' | 'refunded';
@@ -298,6 +301,13 @@ export interface PaymentRecord {
   voidOfId?: string;
   /** Cobro hecho con la caja de ese día ya cerrada. */
   afterClose?: boolean;
+  /** Ficha del cliente que pagó (si la hay). */
+  clientId?: string;
+  /** Rubro de lo cobrado. Los cobros viejos no lo tienen y se deduce de kind (ver rubroOfPayment). */
+  rubro?: 'cancha' | 'cantina' | 'cuponeras' | 'saldo' | 'clases' | 'torneos' | 'alquiler' | 'otros';
+  /** Casilla de factura (fase 1 manual). Sin el campo = pendiente. */
+  invoiceStatus?: 'pendiente' | 'emitida' | 'no_corresponde';
+  invoiceNumber?: string;
   createdAt?: unknown;
 }
 

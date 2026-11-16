@@ -955,8 +955,10 @@ export async function createCounterBooking(params: {
   phone?: string;
   paidNow: boolean;
   method: CounterPaymentMethod | 'mercadopago';
+  /** Ficha del cliente (alta rápida o buscador del mostrador). */
+  clientId?: string;
 }) {
-  const { club, court, date, startMinute, endMinute, staffUid, guestName, phone, paidNow, method } = params;
+  const { club, court, date, startMinute, endMinute, staffUid, guestName, phone, paidNow, method, clientId } = params;
   // El teléfono (si lo hay) se guarda junto al nombre: "Nombre · 099 123 456".
   const cleanPhone = (phone || '').trim().slice(0, 20);
   const storedName = cleanPhone
@@ -985,6 +987,7 @@ export async function createCounterBooking(params: {
       paymentMethod: method === 'mercadopago' ? 'mercadopago' : 'club',
       paymentStatus: paidNow ? 'paid' : 'pending',
       holdExpiresAt: '',
+      ...(clientId ? { clientId } : {}),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -1001,6 +1004,8 @@ export async function createCounterBooking(params: {
         amount: totalPrice,
         method,
         kind: 'booking_full',
+        rubro: 'cancha',
+        ...(clientId ? { clientId } : {}),
         status: 'completed',
         createdAt: serverTimestamp(),
       });
