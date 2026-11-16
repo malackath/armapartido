@@ -14,6 +14,8 @@ Cada club tiene su app marca blanca sobre una sola plataforma multi-club. Jugado
 - `npm run dev` (Express + Vite), `npx vite build`, `npm run lint` (tsc)
 
 ## Demo (rama claude/demo)
+- Demo siempre en hora (16/11): `src/demo/demoHoy.ts` arma los turnos de hoy alrededor de la hora actual (3 canchas en juego, falta uno, deben) y el historial desde el mes anterior (Números ~68 %). Al entrar con un toque, si la demo tiene más de 2 h se rearma sola (`refreshDemoIfStale`). El reinicio escribe primero y borra después. Club de demo abierto de 8 a 24. Antes de las 8:30 el día se arma como si fueran las 9:15.
+- Service worker: se registra en `src/main.tsx` (virtual:pwa-register, autoUpdate): recarga sola con la versión nueva y busca actualización cada 30 min.
 - Mundo de demo: `src/demo/demoWorld.ts` (club Los Jacarandás, 5 cuentas por rol + 17 jugadores, reservas, partidos, torneos). Reinicio: `src/demo/resetDemo.ts` (botón "Reiniciar demo" en el menú del avatar, solo dueño o plataforma).
 - Cargar en emuladores: `npm run dev:demo` y luego `FIREBASE_EMULATORS=1 DEMO_PASSWORD='prueba-local-123' npx tsx scripts/seed-demo.ts`.
 - Cargar en Firebase real: `DEMO_PASSWORD=... FIREBASE_CONFIG_FILE=<config.json> npm run demo:seed`. Contraseña y config de la demo viven en la Mac de Ber (Paddle.URU/docs), nunca en el repo.
