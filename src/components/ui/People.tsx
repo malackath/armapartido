@@ -109,7 +109,7 @@ const CHIP: Record<StatusKind, string> = {
   due: 'bg-due-bg text-due',
   wait: 'bg-wait-bg text-wait',
   fu: 'bg-action text-on-action',
-  live: 'bg-due text-white',
+  live: 'bg-live-fill text-brand', // En juego = petróleo como en el Mostrador (rojo es solo deuda)
   free: 'bg-mist text-brand',
   busy: 'bg-busy text-muted',
   mine: 'bg-brand text-white',

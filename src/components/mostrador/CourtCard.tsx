@@ -205,7 +205,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({ court, state, title, start
         {isLive ? (
           <>
             <span className="font-display text-[1.9rem] leading-none font-bold tracking-tight tabular-nums">
-              {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
+              {elapsed >= 3600
+                ? `${Math.floor(elapsed / 3600)}:${String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`
+                : `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`}
             </span>
             <span className="min-w-0 text-[13px] leading-snug text-muted">
               <b className="block text-ink">{left < 60 ? 'Terminando' : `faltan ${Math.ceil(left / 60)} min`}</b>
