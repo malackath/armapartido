@@ -76,7 +76,8 @@ export const TournamentsView: React.FC<TournamentsViewProps> = ({
   return (
     <div className="space-y-8">
       <PhotoHeader
-        image="/img/torneo-noche.webp"
+        image="/video/torneo-poster.webp"
+        video="/video/torneo.mp4"
         title="Torneos"
         subtitle={`Anotate con tu pareja y seguí el cuadro en ${club.name}.`}
       />

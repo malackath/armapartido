@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es-UY">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Armá Partido · Muy pronto</title>
+<meta name="description" content="Reservá cancha y armá partidos parejos en tu club de pádel. Muy pronto en clubes de Montevideo.">
+<meta name="theme-color" content="#172123">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<meta property="og:title" content="Armá Partido · Muy pronto">
+<meta property="og:description" content="Reservá cancha y armá partidos parejos en tu club de pádel.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://armapartido.com/">
+<meta property="og:image" content="https://armapartido.com/img/og-image.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preload" href="/fonts/outfit-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:Outfit;src:url(/fonts/outfit-latin-400-normal.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:Outfit;src:url(/fonts/outfit-latin-600-normal.woff2) format("woff2");font-weight:500 600;font-display:swap}
+@font-face{font-family:Outfit;src:url(/fonts/outfit-latin-700-normal.woff2) format("woff2");font-weight:700;font-display:swap}
+:root{--ink:#172123;--teal:#0a5761;--cyan:#05e2f2;--mist:#ecfcfc;--bg:#f2fbfb;--line:#d7e9ea;--muted:#4d6266}
+*{box-sizing:border-box;margin:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:Outfit,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:17px;line-height:1.55}
+.hero{position:relative;min-height:100svh;display:flex;flex-direction:column;color:var(--mist);background:var(--ink) url(/img/inicio-club.jpg) center/cover;background-image:image-set(url(/img/inicio-club.webp) type("image/webp"),url(/img/inicio-club.jpg) type("image/jpeg"))}
+.hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(23,33,35,.55) 0%,rgba(23,33,35,.35) 35%,rgba(23,33,35,.92) 72%,#172123 100%)}
+.in{position:relative;width:100%;max-width:1080px;margin:0 auto;padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+header.in{padding-top:max(22px,env(safe-area-inset-top))}
+header img{height:64px;width:auto;display:block}
+.copy{margin-top:auto;padding-bottom:56px}
+.soon{display:inline-block;font-weight:600;font-size:15px;color:var(--ink);background:var(--cyan);border-radius:99px;padding:6px 14px}
+h1{font-size:clamp(40px,9vw,76px);line-height:1.02;letter-spacing:-.02em;font-weight:700;margin:18px 0 18px;max-width:14ch;text-wrap:balance}
+.lead{font-size:clamp(18px,2.4vw,22px);max-width:34ch;color:#cfe9ea}
+section.how{padding-top:64px;padding-bottom:24px}
+h2{font-size:clamp(28px,5vw,40px);line-height:1.1;letter-spacing:-.01em;font-weight:700;max-width:20ch;text-wrap:balance}
+.list{list-style:none;padding:0;margin-top:32px;display:grid;gap:28px}
+.list li{display:grid;grid-template-columns:52px 1fr;gap:16px;align-items:start}
+.ic{width:52px;height:52px;border-radius:16px;background:var(--teal);color:var(--cyan);display:grid;place-items:center}
+.list h3{font-size:20px;font-weight:600;line-height:1.25}
+.list p{color:var(--muted);margin-top:4px;max-width:46ch}
+.pics{display:grid;grid-template-columns:1fr;gap:12px;margin:48px 0 0}
+.pics img{width:100%;height:auto;aspect-ratio:16/10;object-fit:cover;border-radius:20px;display:block;background:var(--line)}
+.vid{margin:48px 0 0}
+.vid .media{position:relative;border-radius:20px;overflow:hidden;background:var(--ink);aspect-ratio:16/9}
+.vid video,.vid img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.vid figcaption{margin-top:14px}
+.vid figcaption strong{display:block;font-size:clamp(22px,3.4vw,32px);line-height:1.15;font-weight:700}
+.vid figcaption span{color:var(--muted)}
+@media (min-width:760px){
+  .vid{position:relative;border-radius:20px;overflow:hidden}
+  .vid .media{border-radius:0}
+  .vid .media::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(23,33,35,0) 50%,rgba(23,33,35,.85) 100%)}
+  .vid figcaption{position:absolute;left:32px;right:32px;bottom:24px;margin:0;color:#fff}
+  .vid figcaption span{color:#cfe9ea}
+}
+@media (prefers-reduced-motion:reduce){.vid video{display:none}}
+.club{margin:64px 0;padding:32px 24px;border-radius:24px;background:var(--ink);color:var(--mist)}
+.club h2{color:#fff}
+.club p{margin-top:12px;color:#b9d6d8;max-width:52ch}
+footer{padding:8px 0 max(40px,env(safe-area-inset-bottom));color:var(--muted);font-size:15px;display:flex;flex-wrap:wrap;gap:6px 18px;justify-content:space-between}
+@media (min-width:760px){
+  header img{height:76px}
+  .copy{padding-bottom:88px}
+  .list{grid-template-columns:repeat(3,1fr);gap:32px}
+  .list li{grid-template-columns:1fr;gap:16px}
+  .pics{grid-template-columns:1fr 1fr}
+  .club{padding:48px}
+}
+</style>
+</head>
+<body>
+<div class="hero">
+  <header class="in"><img src="/img/logo.svg" alt="Armá Partido" width="174" height="72"></header>
+  <div class="in copy">
+    <span class="soon">Muy pronto</span>
+    <h1>Reservá cancha y armá partidos parejos.</h1>
+    <p class="lead">Cargás tu categoría y los horarios en que podés jugar. La app te junta con tres jugadores de tu nivel y te avisa cuando el partido está armado.</p>
+  </div>
+</div>
+<main>
+  <section class="how in">
+    <h2>Todo tu club de pádel en el celular</h2>
+    <ul class="list">
+      <li><span class="ic"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/><path d="m9 15 2 2 4-4"/></svg></span><div><h3>Reservás gratis</h3><p>Elegís día, hora y cancha. Pagás en el club como siempre, o con Mercado Pago si preferís.</p></div></li>
+      <li><span class="ic"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="3"/><circle cx="17" cy="7" r="3"/><circle cx="7" cy="17" r="3"/><circle cx="17" cy="17" r="3" stroke-dasharray="2.4 2.4"/></svg></span><div><h3>Partidos de tu categoría</h3><p>¿Te falta uno? La app busca entre los jugadores del club de 1ra a 7ma y arma el partido con gente de tu nivel.</p></div></li>
+      <li><span class="ic"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 16v5M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/></svg></span><div><h3>Torneos en pareja</h3><p>Te anotás con tu compañero, seguís el cuadro y te llega un aviso antes de cada partido.</p></div></li>
+    </ul>
+    <figure class="vid">
+      <div class="media">
+        <img src="/video/torneo-poster.jpg" alt="" width="1280" height="720" loading="lazy">
+        <video src="/video/torneo.mp4" poster="/video/torneo-poster.jpg" autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video>
+      </div>
+      <figcaption><strong>Torneos del club, con cuadro en vivo</strong><span>Te anotás con tu pareja desde la app y seguís cada partido.</span></figcaption>
+    </figure>
+    <div class="pics">
+      <picture><source srcset="/img/armar-partido.webp" type="image/webp"><img src="/img/armar-partido.jpg" alt="Cuatro jugadores conversan en la red antes de empezar el partido" loading="lazy" width="1200" height="670"></picture>
+      <picture><source srcset="/img/cancha-techada.webp" type="image/webp"><img src="/img/cancha-techada.jpg" alt="Cancha de pádel techada, vacía y lista para jugar" loading="lazy" width="1200" height="670"></picture>
+    </div>
+  </section>
+  <section class="in">
+    <div class="club">
+      <h2>¿Tenés un club?</h2>
+      <p>Cada club tiene su propia app, con su nombre y sus canchas. Estamos arrancando con los primeros clubes de Montevideo.</p>
+    </div>
+  </section>
+</main>
+<footer class="in"><span>Armá Partido · Montevideo, Uruguay</span><span>armapartido.com</span></footer>
+</body>
+</html>
