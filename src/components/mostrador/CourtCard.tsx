@@ -29,6 +29,8 @@ export interface CourtNext {
 }
 
 export interface CourtCardProps {
+  /** Hora que se está mirando con el deslizador (minutos del día); sin esto, la hora real. */
+  atMinute?: number;
   court: Court;
   state: CourtLiveState;
   title?: string;
@@ -137,9 +139,11 @@ export const CourtDrawing: React.FC<{ court: Court; dim?: boolean; children?: Re
   );
 };
 
-export const CourtCard: React.FC<CourtCardProps> = ({ court, state, title, startMinute, endMinute, seats, next, freeUntil, selected, onClick }) => {
+export const CourtCard: React.FC<CourtCardProps> = ({ court, state, title, startMinute, endMinute, seats, next, freeUntil, selected, onClick, atMinute }) => {
   const isLive = state === 'live' || state === 'due';
-  const secs = useSecondClock(isLive || state === 'soon' || state === 'fu');
+  const clock = useSecondClock(atMinute == null && (isLive || state === 'soon' || state === 'fu'));
+  // Con el deslizador de la agenda, la tarjeta muestra la cancha a esa hora (reloj quieto).
+  const secs = atMinute != null ? atMinute * 60 : clock;
   const elapsed = isLive && startMinute != null ? Math.max(0, secs - startMinute * 60) : 0;
   const total = startMinute != null && endMinute != null ? (endMinute - startMinute) * 60 : 5400;
   const left = Math.max(0, total - elapsed);

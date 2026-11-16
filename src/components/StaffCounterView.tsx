@@ -161,6 +161,8 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
   const [newTarget, setNewTarget] = useState<{ courtId: string; startMinute: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [minuteNow, setMinuteNow] = useState(nowMinute());
+  /** Hora elegida con el deslizador de la agenda (null = ahora, en vivo). */
+  const [viewMinute, setViewMinute] = useState<number | null>(null);
   const ops = useClubOps(club.id);
   const clientes = useClientesData(club.id);
   const [cashOpen, setCashOpen] = useState<null | 'caja' | 'deben' | 'venta' | 'clientes'>(null);
@@ -408,9 +410,12 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
   };
   const toneLabel: Record<AgendaItem['tone'], string> = { paid: 'Pagado', due: 'Debe', tbd: 'A cobrar', unconf: 'Armando partido', fu: 'Falta uno', tour: 'Torneo', busy: 'Ausencia' };
 
+  const liveMinute = minuteNow;
   const courtCards = useMemo(() => {
+    const minuteNow = viewMinute ?? liveMinute;
+    const source = viewMinute != null ? dayBookings.filter((b) => b.status !== 'cancelled') : todayBookings;
     return activeCourts.map((ct) => {
-      const list = todayBookings.filter((b) => b.courtId === ct.id).sort((a, b) => a.startMinute - b.startMinute);
+      const list = source.filter((b) => b.courtId === ct.id).sort((a, b) => a.startMinute - b.startMinute);
       const live = list.find((b) => b.startMinute <= minuteNow && b.endMinute > minuteNow && b.status !== 'no_show');
       const upcoming = list.filter((b) => b.startMinute > minuteNow);
       const nextB = upcoming[0];
@@ -438,10 +443,10 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
       } else {
         props = { court: ct, state: 'free', seats: [], freeUntil: nextB ? nextB.startMinute : null, next: nextOf(minuteNow), bookingId: null };
       }
-      return props;
+      return viewMinute != null ? { ...props, atMinute: viewMinute } : props;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCourts, todayBookings, minuteNow, ops.consumptions, proposedMatches, fillSearches, memberships, tournaments]);
+  }, [activeCourts, todayBookings, dayBookings, viewMinute, liveMinute, ops.consumptions, proposedMatches, fillSearches, memberships, tournaments]);
 
   const agendaItems: (AgendaItem & { courtId: string; short: string })[] = useMemo(
     () =>
@@ -510,12 +515,20 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Mostrador</p>
-          <h1 className="mt-1 flex items-baseline gap-3 font-display text-2xl font-bold text-ink sm:text-3xl">
+          <h1 className="mt-1 flex items-baseline gap-3 whitespace-nowrap font-display text-2xl font-bold text-ink sm:text-3xl">
             {selectedDate === today ? 'Canchas de hoy' : `Agenda del ${DAY_LONG[getDayOfWeekFromISO(selectedDate)].toLowerCase()} ${Number(selectedDate.slice(8))}`}
-            {canchasView && <span className="hidden font-display text-3xl font-bold text-brand tabular-nums md:inline">{formatMinutes(minuteNow)}</span>}
+            {canchasView && viewMinute == null && <span className="hidden font-display text-3xl font-bold text-brand tabular-nums md:inline">{formatMinutes(minuteNow)}</span>}
+            {canchasView && viewMinute != null && <span className="hidden font-display text-3xl font-bold text-wait tabular-nums md:inline">{formatMinutes(viewMinute)}</span>}
           </h1>
           <p className="mt-1 text-sm text-muted first-letter:uppercase">
-            {canchasView ? (selectedDate === today ? dateLabel : `${dateLabel} · arriba siguen las canchas de hoy en vivo`) : `${dateLabel} · turnos de ${club.slotDurationMinutes || 90} minutos · abierto de ${club.openHour}:00 a ${formatMinutes(club.closeHour * 60)}`}
+            {canchasView && viewMinute != null ? (
+              <>
+                Mirando las canchas a las {formatMinutes(viewMinute)} ·{' '}
+                <button type="button" onClick={() => setViewMinute(null)} className="font-semibold text-brand underline underline-offset-2 cursor-pointer">
+                  volver a ahora ({formatMinutes(minuteNow)})
+                </button>
+              </>
+            ) : canchasView ? (selectedDate === today ? dateLabel : `${dateLabel} · arriba siguen las canchas de hoy en vivo`) : `${dateLabel} · turnos de ${club.slotDurationMinutes || 90} minutos · abierto de ${club.openHour}:00 a ${formatMinutes(club.closeHour * 60)}`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -649,8 +662,10 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
               ))}
             </div>
             <div className="flex flex-col overflow-hidden rounded-xl bg-white" style={{ height: 'max(420px, calc(100vh - 640px))' }}>
-              <DayTabs days={weekTabs} value={weekTabs.some((d) => d.iso === selectedDate) ? selectedDate : today} onChange={(iso) => setSelectedDate(iso)} />
+              <DayTabs days={weekTabs} value={weekTabs.some((d) => d.iso === selectedDate) ? selectedDate : today} onChange={(iso) => { setSelectedDate(iso); setViewMinute(null); }} />
               <DayTimeline
+                onViewMinute={setViewMinute}
+                viewMinute={viewMinute}
                 courts={activeCourts.map((c) => ({ id: c.id, name: c.name, roofed: c.roof === 'techada' }))}
                 items={agendaItems}
                 openMinute={slots[0]?.startMinute ?? club.openHour * 60}

@@ -138,7 +138,10 @@ export const DayTimeline: React.FC<{
   nowMinute: number | null;
   selectedId?: string | null;
   onPick: (id: string) => void;
-}> = ({ courts, items, openMinute, closeMinute, nowMinute, selectedId, onPick }) => {
+  /** Hora que se mira con el deslizador (null = ahora). Las tarjetas de arriba muestran esa hora. */
+  viewMinute?: number | null;
+  onViewMinute?: (minute: number | null) => void;
+}> = ({ courts, items, openMinute, closeMinute, nowMinute, selectedId, onPick, viewMinute = null, onViewMinute }) => {
   // El día entero no entra a lo ancho: cada hora tiene un ancho fijo y la agenda se recorre con el
   // deslizador de arriba, las flechas o "Ahora" (pedido de Ber, 16/11/2026).
   const lastEnd = items.reduce((m, it) => Math.max(m, it.endMinute), closeMinute);
@@ -153,18 +156,29 @@ export const DayTimeline: React.FC<{
   const showNow = nowMinute != null && nowMinute >= openMinute && nowMinute <= end;
   const scroller = React.useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ left: 0, max: 0, client: 0 });
+  const userMoved = React.useRef(false);
   const sync = React.useCallback(() => {
     const el = scroller.current;
-    if (el) setView({ left: el.scrollLeft, max: Math.max(0, el.scrollWidth - el.clientWidth), client: el.clientWidth });
-  }, []);
+    if (!el) return;
+    setView({ left: el.scrollLeft, max: Math.max(0, el.scrollWidth - el.clientWidth), client: el.clientWidth });
+    if (userMoved.current && onViewMinute) {
+      // La línea de "hora vista" va en el medio de lo que se ve; se redondea a 5 minutos.
+      const center = openMinute + ((el.scrollLeft + el.clientWidth / 2 - PAD) / PX_HOUR) * 60;
+      onViewMinute(Math.min(end, Math.max(openMinute, Math.round(center / 5) * 5)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onViewMinute, openMinute, end]);
+  const markUser = () => {
+    userMoved.current = true;
+  };
   const goTo = React.useCallback((minute: number, smooth = true) => {
     const el = scroller.current;
-    if (el) el.scrollTo({ left: Math.max(0, px(minute) - 60), behavior: smooth ? 'smooth' : 'auto' });
+    if (el) el.scrollTo({ left: Math.max(0, px(minute) - el.clientWidth / 2), behavior: smooth ? 'smooth' : 'auto' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openMinute]);
   React.useEffect(() => {
     // Al abrir, la agenda arranca una hora antes de ahora (o al principio si es otro día).
-    goTo(showNow ? nowMinute! - 60 : openMinute, false);
+    goTo(showNow ? nowMinute! : openMinute, false);
     sync();
     const el = scroller.current;
     const ro = new ResizeObserver(sync);
@@ -172,10 +186,21 @@ export const DayTimeline: React.FC<{
     return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openMinute, end, nowMinute == null]);
+  React.useEffect(() => {
+    // "Volver a ahora" desde el encabezado: la agenda vuelve a la hora actual.
+    if (viewMinute == null && userMoved.current) {
+      userMoved.current = false;
+      if (showNow) goTo(nowMinute!);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMinute]);
   const minuteAt = (left: number) => openMinute + ((left - PAD) / PX_HOUR) * 60;
   const fromM = Math.max(openMinute, minuteAt(view.left + PAD));
   const toM = Math.min(end, minuteAt(view.left + view.client - PAD));
-  const step = (dir: 1 | -1) => scroller.current?.scrollBy({ left: dir * PX_HOUR * 3, behavior: 'smooth' });
+  const step = (dir: 1 | -1) => {
+    markUser();
+    scroller.current?.scrollBy({ left: dir * PX_HOUR * 3, behavior: 'smooth' });
+  };
   const arrow = 'grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-white text-brand cursor-pointer hover:bg-mist disabled:opacity-35 disabled:cursor-default';
   return (
     <div className="flex min-h-0 flex-1 flex-col px-3.5 pt-2 pb-2">
@@ -192,6 +217,7 @@ export const DayTimeline: React.FC<{
           max={Math.max(1, view.max)}
           value={view.left}
           onChange={(e) => {
+            markUser();
             const el = scroller.current;
             if (el) el.scrollLeft = Number(e.target.value);
           }}
@@ -203,7 +229,11 @@ export const DayTimeline: React.FC<{
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
         </button>
         {showNow && (
-          <button type="button" onClick={() => goTo(nowMinute! - 60)} className="h-8 shrink-0 rounded-lg border border-line bg-white px-3 text-xs font-semibold text-brand cursor-pointer hover:bg-mist">
+          <button type="button" onClick={() => {
+            userMoved.current = false;
+            onViewMinute?.(null);
+            goTo(nowMinute!);
+          }} className="h-8 shrink-0 rounded-lg border border-line bg-white px-3 text-xs font-semibold text-brand cursor-pointer hover:bg-mist">
             Ahora
           </button>
         )}
@@ -216,16 +246,21 @@ export const DayTimeline: React.FC<{
             </div>
           ))}
         </div>
-        <div ref={scroller} onScroll={sync} className="timeline-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-x-auto overflow-y-hidden">
+        <div ref={scroller} onScroll={sync} onWheel={markUser} onPointerDown={markUser} onTouchStart={markUser} className="timeline-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-x-auto overflow-y-hidden">
           <div className="relative h-5 shrink-0 text-xs text-muted" style={{ width }}>
             {hours.map((h) => (
               <span key={h} className="absolute -translate-x-1/2 tabular-nums" style={{ left: px(h) }}>
                 {h === hours[hours.length - 1] && h - openMinute === span ? '' : formatMinutes(h % 1440)}
               </span>
             ))}
-            {showNow && (
+            {showNow && viewMinute == null && (
               <span className="absolute z-10 -translate-x-1/2 rounded-full bg-due px-1.5 font-bold text-white tabular-nums" style={{ left: px(nowMinute!) }}>
                 {formatMinutes(nowMinute!)}
+              </span>
+            )}
+            {viewMinute != null && (
+              <span className="absolute z-10 -translate-x-1/2 rounded-full bg-wait px-1.5 font-bold text-white tabular-nums" style={{ left: px(viewMinute) }}>
+                {formatMinutes(viewMinute)}
               </span>
             )}
           </div>
@@ -259,6 +294,7 @@ export const DayTimeline: React.FC<{
                     </button>
                   ))}
                 {showNow && <div className="pointer-events-none absolute -top-1 -bottom-1 z-[3] w-0.5 bg-due" style={{ left: px(nowMinute!) }} />}
+                {viewMinute != null && <div className="pointer-events-none absolute -top-1 -bottom-1 z-[4] w-[3px] -translate-x-1/2 bg-wait" style={{ left: px(viewMinute) }} />}
               </div>
             ))}
           </div>
