@@ -64,7 +64,7 @@ async function adminSection(p, label, file, key) {
   check('Mostrador: botones Caja y Venta suelta', /Caja/.test(t) && t.includes('Venta suelta'));
   await p.screenshot({ path: `${OUT}/7-mostrador.png` });
   // Vista Canchas: el partido armado de hoy está en la línea de tiempo (su hora depende de cuándo se armó la demo).
-  let turno = V(p.locator('button[title*="rmado"]'));
+  let turno = V(p.locator('button').filter({ hasText: /Armado \d/ }));
   if (!(await turno.count())) {
     const g = V(p.getByRole('tab', { name: 'Grilla' })); if (await g.count()) { await g.click(); await p.waitForTimeout(800); }
     turno = p.locator('button').filter({ hasText: /Partido armado/i }).first();
@@ -74,6 +74,9 @@ async function adminSection(p, label, file, key) {
     t = await p.innerText('body');
     check('Mostrador: cuenta del turno con cantina', t.includes('AGREGAR DE LA CANTINA') || /Agregar de la cantina/i.test(t), seg(t, 'Falta cobrar', 60));
     await p.screenshot({ path: `${OUT}/8-mostrador-cuenta-turno.png` });
+    // En la vista Canchas la cuenta se abre en un cajón: se cierra tocando el fondo.
+    const scrim = p.locator('div.fixed.inset-0.z-40:visible');
+    if (await scrim.count()) { await scrim.first().click({ position: { x: 10, y: 10 } }); await p.waitForTimeout(800); }
   } else check('Mostrador: cuenta del turno con cantina', false, 'no encontré el partido armado de hoy');
   await V(p.getByRole('button', { name: /^Caja/ })).click(); await p.waitForTimeout(2000);
   t = await p.innerText('body');
