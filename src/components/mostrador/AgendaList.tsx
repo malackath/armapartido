@@ -145,8 +145,9 @@ export const DayTimeline: React.FC<{
   const end = Math.ceil(lastEnd / 60) * 60;
   const span = Math.max(60, end - openMinute);
   const PX_HOUR = 132;
-  const width = (span / 60) * PX_HOUR;
-  const px = (m: number) => ((m - openMinute) / 60) * PX_HOUR;
+  const PAD = 24; // margen para que la hora del borde no quede cortada
+  const width = (span / 60) * PX_HOUR + PAD * 2;
+  const px = (m: number) => PAD + ((m - openMinute) / 60) * PX_HOUR;
   const hours: number[] = [];
   for (let h = Math.ceil(openMinute / 60) * 60; h <= end; h += 60) hours.push(h);
   const showNow = nowMinute != null && nowMinute >= openMinute && nowMinute <= end;
@@ -171,9 +172,9 @@ export const DayTimeline: React.FC<{
     return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openMinute, end, nowMinute == null]);
-  const minuteAt = (left: number) => openMinute + (left / PX_HOUR) * 60;
-  const fromM = minuteAt(view.left);
-  const toM = Math.min(end, minuteAt(view.left + view.client - 100));
+  const minuteAt = (left: number) => openMinute + ((left - PAD) / PX_HOUR) * 60;
+  const fromM = Math.max(openMinute, minuteAt(view.left + PAD));
+  const toM = Math.min(end, minuteAt(view.left + view.client - PAD));
   const step = (dir: 1 | -1) => scroller.current?.scrollBy({ left: dir * PX_HOUR * 3, behavior: 'smooth' });
   const arrow = 'grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-white text-brand cursor-pointer hover:bg-mist disabled:opacity-35 disabled:cursor-default';
   return (
@@ -218,7 +219,7 @@ export const DayTimeline: React.FC<{
         <div ref={scroller} onScroll={sync} className="timeline-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-x-auto overflow-y-hidden">
           <div className="relative h-5 shrink-0 text-xs text-muted" style={{ width }}>
             {hours.map((h) => (
-              <span key={h} className={`absolute tabular-nums ${h === hours[0] ? '' : '-translate-x-1/2'}`} style={{ left: px(h) }}>
+              <span key={h} className="absolute -translate-x-1/2 tabular-nums" style={{ left: px(h) }}>
                 {h === hours[hours.length - 1] && h - openMinute === span ? '' : formatMinutes(h % 1440)}
               </span>
             ))}
