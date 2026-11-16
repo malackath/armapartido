@@ -106,7 +106,7 @@ export const FillInviteCard: React.FC<{
         Falta {seatsLeft === 1 ? 'uno' : seatsLeft}
       </span>
       <h3 className="mt-2 text-[22px] font-semibold text-ink">¿Te sumás al partido?</h3>
-      <div className="mt-3 rounded-[18px] border border-line bg-white p-4">
+      <div className="mt-3 rounded-xl border border-line bg-white p-4">
         <p className="text-sm font-semibold text-emerald-600">{when(invite.date, invite.startMinute, invite.endMinute)}</p>
         <p className="mt-1 text-[19px] font-semibold text-ink">{invite.courtName}</p>
         <div className="mt-2">

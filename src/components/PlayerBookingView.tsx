@@ -47,6 +47,7 @@ import {
 import { ClubRankingSection } from './ClubRankingSection';
 import { MercadoPagoModal } from './MercadoPagoModal';
 import { depositFor } from '../lib/caja';
+import { BrandIcon } from './BrandIcon';
 
 interface PlayerBookingViewProps {
   club: Club;
@@ -114,7 +115,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
       bookings
         .filter(
           (b) =>
-            (b.createdByUid === userProfile.uid || b.playerUids.includes(userProfile.uid)) &&
+            ((b.type !== 'counter' && b.createdByUid === userProfile.uid) || b.playerUids.includes(userProfile.uid)) &&
             b.status !== 'cancelled'
         )
         .sort((a, b) => a.date.localeCompare(b.date) || a.startMinute - b.startMinute),
@@ -334,13 +335,14 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
             <div key={court.id} className="rounded-2xl border border-slate-200 bg-white p-5">
               <div className="flex items-baseline justify-between gap-4 border-b border-slate-100 pb-3">
                 <div>
-                  <h2 className="font-display text-lg font-bold text-slate-900">{court.name}</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {court.roof === 'techada' ? 'Techada' : 'Al aire libre'}
-                    <span className="mx-1.5" aria-hidden="true">·</span>
-                    {court.surface === 'cristal' ? 'Cristal' : 'Muro'}
-                    <span className="mx-1.5" aria-hidden="true">·</span>
-                    {court.hasLights ? 'Con luz' : 'Sin luz'}
+                  <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900">
+                    <BrandIcon name="cancha" size={20} className="text-brand" />
+                    {court.name}
+                  </h2>
+                  <p className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                    <span className="flex items-center gap-1"><BrandIcon name={court.roof === 'techada' ? 'techada' : 'descubierta'} size={14} />{court.roof === 'techada' ? 'Techada' : 'Al aire libre'}</span>
+                    <span className="flex items-center gap-1"><BrandIcon name={court.surface === 'cristal' ? 'cristal' : 'muro'} size={14} />{court.surface === 'cristal' ? 'Cristal' : 'Muro'}</span>
+                    <span className="flex items-center gap-1"><BrandIcon name="luz" size={14} />{court.hasLights ? 'Con luz' : 'Sin luz'}</span>
                   </p>
                 </div>
                 {isWeekend && (
@@ -360,7 +362,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                   const isHeld = occupied?.status === 'held';
                   const isOwnBooking =
                     !!occupied &&
-                    (occupied.createdByUid === userProfile.uid ||
+                    ((occupied.type !== 'counter' && occupied.createdByUid === userProfile.uid) ||
                       occupied.playerUids.includes(userProfile.uid));
                   const slotWaitlist = activeWaitlistOnDate.filter(
                     (w) =>
@@ -398,35 +400,41 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                           ? 'Clic para anotarte en la lista de espera automática'
                           : undefined
                       }
-                      className={`flex min-h-[56px] flex-col items-center justify-center rounded-xl border px-2 py-2 text-center transition-colors ${
+                      className={`flex min-h-[64px] flex-col items-center justify-center rounded-xl px-2 py-2 text-center transition-colors ${
                         isOwnBooking
-                          ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800 cursor-default'
+                          ? 'bg-brand text-white cursor-default'
                           : occupied
                             ? myWaitEntry
-                              ? 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100/70 cursor-pointer'
+                              ? 'bg-fu-fill text-ink hover:brightness-95 cursor-pointer'
                               : isHeld
-                                ? 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100/70 cursor-pointer'
-                                : 'border-slate-200 bg-slate-100 text-slate-600 hover:border-slate-300 hover:bg-slate-200/70 cursor-pointer'
+                                ? 'bg-wait-fill text-wait hover:brightness-95 cursor-pointer'
+                                : 'bg-busy text-muted hover:brightness-95 cursor-pointer'
                             : isBlocked
-                              ? 'border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed'
-                              : 'border-slate-200 bg-white text-slate-900 hover:border-emerald-600 hover:bg-emerald-50/60 cursor-pointer'
+                              ? 'border border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed'
+                              : 'border-[1.5px] border-[#9fd6da] bg-white text-brand hover:border-brand hover:bg-mist cursor-pointer'
                       }`}
                     >
-                      <span className=" text-sm font-semibold tabular-nums">
+                      <span className={`text-[15px] font-bold tabular-nums ${occupied && !isOwnBooking && !isHeld && !myWaitEntry ? 'line-through' : ''}`}>
                         {formatMinutes(slot.startMinute)}
                       </span>
-                      <span className="mt-0.5 text-[11px] tabular-nums opacity-85">
-                        {isOwnBooking
-                          ? 'Tu turno'
-                          : occupied
-                            ? myWaitEntry
-                              ? 'En espera'
-                              : slotWaitlist.length > 0
-                                ? `Espera (${slotWaitlist.length})`
-                                : isHeld
-                                  ? 'Retenida'
-                                  : 'Ocupada'
-                            : formatUYU(price)}
+                      <span className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold tabular-nums">
+                        {isOwnBooking ? (
+                          <>
+                            <BrandIcon name="perfil" size={13} /> Tu turno
+                          </>
+                        ) : occupied ? (
+                          myWaitEntry ? (
+                            'En espera'
+                          ) : slotWaitlist.length > 0 ? (
+                            `Espera (${slotWaitlist.length})`
+                          ) : isHeld ? (
+                            'Retenida'
+                          ) : (
+                            'Ocupada'
+                          )
+                        ) : (
+                          <span className="font-normal text-muted">{formatUYU(price)}</span>
+                        )}
                       </span>
                     </button>
                   );

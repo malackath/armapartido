@@ -209,10 +209,11 @@ service cloud.firestore {
           'isDiscoverable', 'createdAt', 'updatedAt'
         ])
         && data.keys().hasOnly([
-          'uid', 'clubId', 'displayName', 'role', 'category', 'gender',
+          'uid', 'clubId', 'displayName', 'photoUrl', 'role', 'category', 'gender',
           'preferredModality', 'weeklyAvailability', 'noShowCount', 'blocked',
           'isDiscoverable', 'createdAt', 'updatedAt'
         ])
+        && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 600))
         && data.uid == memberUid && isValidId(data.uid)
         && data.clubId == clubId && isValidId(data.clubId)
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
@@ -237,9 +238,10 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'id', 'clubId', 'courtId', 'courtName', 'date', 'startMinute', 'endMinute',
           'type', 'status', 'createdByUid', 'playerUids', 'guestName', 'totalPrice',
-          'paidAmount', 'paymentMethod', 'paymentStatus', 'holdExpiresAt', 'createdAt', 'updatedAt', 'fixedId'
+          'paidAmount', 'paymentMethod', 'paymentStatus', 'holdExpiresAt', 'createdAt', 'updatedAt', 'fixedId', 'clientId'
         ])
         && (!('fixedId' in data) || isValidId(data.fixedId))
+        && (!('clientId' in data) || data.clientId == '' || isValidId(data.clientId))
         && data.id == bookingId && isValidId(data.id)
         && data.clubId == clubId && isValidId(data.clubId)
         && isValidId(data.courtId)
@@ -379,7 +381,11 @@ service cloud.firestore {
     function isValidPaymentRecord(data, clubId, paymentId) {
       return data.keys().hasAll(['id', 'clubId', 'uid', 'clubOwnerUid', 'payerName', 'referenceId', 'amount', 'method', 'kind', 'status', 'createdAt'])
         && data.keys().hasOnly(['id', 'clubId', 'uid', 'clubOwnerUid', 'payerName', 'referenceId', 'amount', 'method', 'kind', 'status', 'createdAt',
-          'day', 'staffName', 'note', 'voided', 'voidOfId', 'afterClose'])
+          'day', 'staffName', 'note', 'voided', 'voidOfId', 'afterClose', 'clientId', 'rubro', 'invoiceStatus', 'invoiceNumber'])
+        && (!('clientId' in data) || data.clientId == '' || isValidId(data.clientId))
+        && (!('rubro' in data) || data.rubro in ['cancha', 'cantina', 'cuponeras', 'saldo', 'clases', 'torneos', 'alquiler', 'otros'])
+        && (!('invoiceStatus' in data) || data.invoiceStatus in ['pendiente', 'emitida', 'no_corresponde'])
+        && (!('invoiceNumber' in data) || (data.invoiceNumber is string && data.invoiceNumber.size() <= 40))
         && (!('day' in data) || (data.day is string && data.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
         && (!('staffName' in data) || (data.staffName is string && data.staffName.size() <= 80))
         && (!('note' in data) || (data.note is string && data.note.size() <= 200))
@@ -394,7 +400,7 @@ service cloud.firestore {
         && data.referenceId is string && data.referenceId.size() <= 128
         && data.amount is number && data.amount >= -50000 && data.amount <= 100000
         && data.method is string && data.method in ['mercadopago', 'efectivo', 'transferencia', 'debito_club']
-        && data.kind is string && data.kind in ['booking_full', 'booking_deposit', 'match_share', 'tournament_fee', 'refund', 'platform_subscription', 'cantina', 'retiro', 'anulacion']
+        && data.kind is string && data.kind in ['booking_full', 'booking_deposit', 'match_share', 'tournament_fee', 'refund', 'platform_subscription', 'cantina', 'venta', 'retiro', 'anulacion']
         && data.status is string && data.status in ['completed', 'refunded']
         && data.createdAt is timestamp;
     }
@@ -645,7 +651,7 @@ service cloud.firestore {
             (isClubStaffOrAdmin(clubId) && incoming().diff(existing()).affectedKeys().hasOnly(['noShowCount', 'blocked', 'updatedAt'])) ||
             (isOwner(memberUid) && incoming().role == existing().role && incoming().noShowCount == existing().noShowCount && incoming().blocked == existing().blocked
               && incoming().diff(existing()).affectedKeys().hasOnly([
-                'displayName', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'isDiscoverable', 'updatedAt'
+                'displayName', 'photoUrl', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'isDiscoverable', 'updatedAt'
               ]))
           );
       }
@@ -796,6 +802,7 @@ service cloud.firestore {
             (isClubMember(clubId) && incoming().uid == request.auth.uid)
           );
         allow update: if isEmailVerified() && isValidId(clubId) && isValidId(paymentId)
+          && !incoming().diff(existing()).affectedKeys().hasOnly(['invoiceStatus', 'invoiceNumber'])
           && isValidPaymentRecord(incoming(), clubId, paymentId)
           && incoming().id == existing().id
           && incoming().clubId == existing().clubId
@@ -809,6 +816,12 @@ service cloud.firestore {
             // Anular un cobro desde la caja: el encargado solo marca voided (el movimiento negativo va aparte)
             (isClubStaffOrAdmin(clubId) && incoming().voided == true && incoming().diff(existing()).affectedKeys().hasOnly(['voided']))
           );
+        // Libro de ventas: el encargado marca la factura (emitida con su número, o no corresponde). Nada más.
+        allow update: if isValidId(clubId) && isValidId(paymentId)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['invoiceStatus', 'invoiceNumber'])
+          && incoming().invoiceStatus in ['pendiente', 'emitida', 'no_corresponde']
+          && (!('invoiceNumber' in incoming()) || (incoming().invoiceNumber is string && incoming().invoiceNumber.size() <= 40))
+          && isClubStaffOrAdmin(clubId);
       }
 
       match /notifications/{notificationId} {
@@ -941,6 +954,97 @@ service cloud.firestore {
       match /recoveries/{recoveryId} {
         allow get, list: if isSignedIn() && isValidId(clubId) && (isClubStaffOrAdmin(clubId) || isPlatformAdmin());
         allow write: if false;
+      }
+
+      // ---------- Clientes, cuponeras, saldo y ventas (especificación clientes-ventas-kpis) ----------
+      // La ficha es del club (responsable, ley 18.331). La ve y la escribe el personal del club.
+      // El jugador ve solo su propia ficha (la unida a su cuenta) para su saldo a favor.
+      match /clients/{clientId} {
+        allow get: if isSignedIn() && (
+          isClubStaffOrAdmin(clubId) || isPlatformAdmin() || existing().uid == request.auth.uid
+        );
+        allow list: if isSignedIn() && (
+          isClubStaffOrAdmin(clubId) || isPlatformAdmin() || existing().uid == request.auth.uid
+        );
+        allow create, update: if isValidId(clubId) && isValidId(clientId)
+          && (isClubStaffOrAdmin(clubId) || isPlatformAdmin())
+          && incoming().clubId == clubId && incoming().id == clientId
+          && incoming().keys().hasOnly(['id', 'clubId', 'name', 'phone', 'noPhone', 'email', 'category', 'uid', 'linkedBy', 'linkedAtISO',
+            'origin', 'createdByUid', 'createdByName', 'createdOn', 'noticeGiven', 'acceptsNews', 'rut', 'businessName', 'note',
+            'balance', 'status', 'mergedInto', 'reviewDuplicate', 'erased', 'invitedAtISO', 'createdAt', 'updatedAt'])
+          && incoming().name is string && incoming().name.size() >= 1 && incoming().name.size() <= 80
+          && incoming().phone is string && (incoming().phone == '' || incoming().phone.matches('^\\+[0-9]{8,15}$'))
+          && incoming().email is string && incoming().email.size() <= 120
+          && incoming().note is string && incoming().note.size() <= 200
+          && incoming().balance is number && incoming().balance >= 0 && incoming().balance <= 200000
+          && incoming().status in ['active', 'archived']
+          && incoming().origin in ['app', 'mostrador', 'telefono', 'migracion', 'falta_uno', 'torneo']
+          && (incoming().uid == '' || isValidId(incoming().uid))
+          // Unir la ficha a una cuenta de la app: solo a alguien que es jugador del club
+          && (incoming().uid == '' || (resource != null && incoming().uid == resource.data.uid) || membershipExists(clubId, incoming().uid));
+        // No se borran: se archivan o se borran los datos personales (erased)
+        allow delete: if false;
+      }
+
+      // Cuponeras que arma el club: las ve cualquiera del club, las arma el dueño o administrador
+      match /packTypes/{packTypeId} {
+        allow read: if isClubMember(clubId) || isPlatformAdmin();
+        allow create, update: if isValidId(clubId) && isValidId(packTypeId)
+          && (isClubAdmin(clubId) || isPlatformAdmin())
+          && incoming().clubId == clubId && incoming().id == packTypeId
+          && incoming().keys().hasOnly(['id', 'clubId', 'name', 'price', 'uses', 'unit', 'validity', 'days', 'active', 'order', 'createdAt', 'updatedAt'])
+          && incoming().name is string && incoming().name.size() >= 1 && incoming().name.size() <= 60
+          && incoming().price is number && incoming().price > 0 && incoming().price <= 200000
+          && incoming().uses is int && incoming().uses >= 1 && incoming().uses <= 100
+          && incoming().days is int && incoming().days >= 1 && incoming().days <= 730
+          && incoming().unit in ['parte', 'turno']
+          && incoming().validity in ['todos', 'valle', 'semana']
+          && incoming().active is bool;
+        allow delete: if false;
+      }
+
+      // Cuponeras vendidas: el jugador ve las suyas (uid de su cuenta)
+      match /clientPacks/{packId} {
+        allow get: if isSignedIn() && (isClubStaffOrAdmin(clubId) || isPlatformAdmin() || existing().uid == request.auth.uid);
+        allow list: if isSignedIn() && (
+          isClubStaffOrAdmin(clubId) || isPlatformAdmin() || existing().uid == request.auth.uid
+        );
+        allow create, update: if isValidId(clubId) && isValidId(packId)
+          && (isClubStaffOrAdmin(clubId) || isPlatformAdmin())
+          && incoming().clubId == clubId && incoming().id == packId
+          && isValidId(incoming().clientId)
+          && incoming().usesLeft is int && incoming().usesLeft >= 0 && incoming().usesLeft <= incoming().usesTotal
+          && incoming().status in ['active', 'voided']
+          && incoming().uses is list && incoming().uses.size() <= 100;
+        allow delete: if false;
+      }
+
+      // Libro de ventas: lo que se vendió, a quién y de qué rubro. Solo el personal del club.
+      match /sales/{saleId} {
+        allow read: if isClubStaffOrAdmin(clubId) || isPlatformAdmin();
+        allow create: if isValidId(clubId) && isValidId(saleId)
+          && (isClubStaffOrAdmin(clubId) || isPlatformAdmin())
+          && incoming().clubId == clubId && incoming().id == saleId
+          && incoming().rubro in ['cancha', 'cantina', 'cuponeras', 'saldo', 'clases', 'torneos', 'alquiler', 'otros']
+          && incoming().method in ['efectivo', 'transferencia', 'debito_club', 'mercadopago', 'cuponera', 'saldo', 'cuenta']
+          && incoming().amount is number && incoming().amount >= 0 && incoming().amount <= 200000
+          && incoming().status == 'vigente';
+        // Cobrar lo que quedó a cuenta o anular (nunca se borra)
+        allow update: if (isClubStaffOrAdmin(clubId) || isPlatformAdmin())
+          && incoming().id == existing().id && incoming().clubId == existing().clubId
+          && incoming().amount == existing().amount && incoming().rubro == existing().rubro
+          && incoming().diff(existing()).affectedKeys().hasOnly(['paid', 'paymentId', 'status', 'voidReason', 'updatedAt']);
+        allow delete: if false;
+      }
+
+      // Quién bajó una planilla con datos personales: lo ve el dueño; nadie lo cambia
+      match /exportLogs/{logId} {
+        allow read: if isClubAdmin(clubId) || isPlatformAdmin();
+        allow create: if (isClubStaffOrAdmin(clubId) || isPlatformAdmin())
+          && incoming().clubId == clubId && incoming().id == logId
+          && incoming().byUid == request.auth.uid
+          && incoming().kind in ['clientes', 'movimientos', 'libro', 'datos_persona'];
+        allow update, delete: if false;
       }
 
       match /waitlist/{waitlistId} {

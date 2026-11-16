@@ -3,6 +3,7 @@
  * para poder probarlo con `npx tsx scripts/test-caja.ts` y reusarlo en el servidor.
  */
 import type { Booking, Club, ClubMembership, Court, PaymentRecord, ProposedMatch } from '../types/padel';
+import type { ClubClient } from '../types/clientes';
 import type { CashDay, Consumption, MonthlyReport, Recovery } from '../types/caja';
 import { addDaysISO, generateDaySlots, getDayOfWeekFromISO } from './padelUtils';
 
@@ -101,7 +102,8 @@ export function participantsOf(booking: Booking, match: ProposedMatch | undefine
   const uid = booking.playerUids[0] || '';
   const name = (booking.guestName || '').split(' · ')[0].replace(/\s*\(Mostrador\)\s*$/, '') || (uid ? nameOf(uid) : 'Cliente');
   const due = Math.max(0, booking.totalPrice - booking.paidAmount);
-  return [{ key: uid || guestKey(booking.id), name, canchaShare: due, canchaPaid: due === 0 }];
+  // Con ficha (reserva por teléfono o mostrador): la clave es la ficha, así su deuda queda en su nombre
+  return [{ key: uid || (booking.clientId ? `c:${booking.clientId}` : guestKey(booking.id)), name, canchaShare: due, canchaPaid: due === 0 }];
 }
 
 /** Parte de un consumo que le toca a una persona (0 si no le toca). */
@@ -137,6 +139,13 @@ export function accountOf(participants: Participant[], consumptions: Consumption
 
 // ---------- Caja del día ----------
 
+/** ¿Este cobro (o lo que anula) es de la cantina? Usa el rubro si lo tiene (ventas nuevas). */
+export function isCantinaPayment(p: PaymentRecord, byId: Map<string, PaymentRecord>): boolean {
+  const base = p.kind === 'anulacion' ? byId.get(p.voidOfId || '') : p;
+  if (!base) return false;
+  return base.rubro ? base.rubro === 'cantina' : base.kind === 'cantina';
+}
+
 export interface CashSummary {
   byMethod: Record<'efectivo' | 'transferencia' | 'debito_club' | 'mercadopago', number>;
   withdrawals: number;
@@ -158,8 +167,7 @@ export function cashSummary(payments: PaymentRecord[], date: string, openingFloa
       continue;
     }
     byMethod[p.method] = (byMethod[p.method] ?? 0) + p.amount;
-    const kindForCantina = p.kind === 'anulacion' ? byId.get(p.voidOfId || '')?.kind : p.kind;
-    if (kindForCantina === 'cantina') cantina += p.amount;
+    if (isCantinaPayment(p, byId)) cantina += p.amount;
   }
   const total = byMethod.efectivo + byMethod.transferencia + byMethod.debito_club + byMethod.mercadopago;
   return { byMethod, withdrawals, cantina, total, expectedCash: openingFloat + byMethod.efectivo - withdrawals, movements };
@@ -235,6 +243,8 @@ export function computeMonthlyReport(params: {
   consumptions: Consumption[];
   recoveries: Recovery[];
   memberships: ClubMembership[];
+  /** Fichas del club: si vienen, los nuevos se cuentan por ficha (con y sin app). */
+  clients?: ClubClient[];
 }): MonthlyReport {
   const { club, month, today, courts, bookings, matches, payments, consumptions, recoveries, memberships } = params;
   const fromDate = `${month}-01`;
@@ -275,14 +285,18 @@ export function computeMonthlyReport(params: {
   let cantinaCollected = 0;
   for (const p of payments) {
     if (!inMonth(paymentDay(p))) continue;
-    const kind = p.kind === 'anulacion' ? byId.get(p.voidOfId || '')?.kind : p.kind;
-    if (kind === 'cantina') cantinaCollected += p.amount;
+    if (isCantinaPayment(p, byId)) cantinaCollected += p.amount;
   }
 
-  const newPlayers = memberships.filter((m) => {
-    const d = toDateValue(m.createdAt);
-    return d ? inMonth(isoOf(d)) : false;
-  }).length;
+  const newFichas = (params.clients ?? []).filter((c) => !c.mergedInto && inMonth(c.createdOn));
+  const newPlayers = params.clients?.length
+    ? newFichas.length
+    : memberships.filter((m) => {
+        const d = toDateValue(m.createdAt);
+        return d ? inMonth(isoOf(d)) : false;
+      }).length;
+  // Decisión 8 (a confirmar): clientes nuevos que llegaron por Armá Partido (la app o un aviso de Falta uno)
+  const newFromApp = params.clients?.length ? newFichas.filter((c) => c.origin === 'app' || c.origin === 'falta_uno').length : undefined;
 
   const nameOf = (uid: string) => memberships.find((m) => m.uid === uid)?.displayName ?? 'Jugador';
   const uncollected = debtsOf({
@@ -316,6 +330,7 @@ export function computeMonthlyReport(params: {
     noShows: monthBookings.filter((b) => b.status === 'no_show').length,
     cantinaCollected,
     newPlayers,
+    ...(newFromApp !== undefined ? { newFromApp } : {}),
     uncollected,
     tip: emptiestSlotTip({ club, fromDate, toDate, played, activeCourts, memberships }),
     recoveryIds: counted.map((r) => r.id),

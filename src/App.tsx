@@ -57,6 +57,7 @@ import { ProfileView } from './components/ProfileView';
 import { StaffCounterView } from './components/StaffCounterView';
 import { TopBar, type ActiveTab } from './components/TopBar';
 import { TournamentsView } from './components/TournamentsView';
+import { PAGE_CONTAINER } from './lib/layout';
 
 const PLATFORM_OWNER_EMAILS = (import.meta.env.VITE_PLATFORM_OWNER_EMAILS || '')
   .split(',')
@@ -411,7 +412,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-surface pb-24 md:pb-12">
+    <div className="min-h-screen bg-page pb-24 md:pb-12">
       <TopBar
         clubs={clubs}
         activeClub={activeClub}
@@ -443,7 +444,7 @@ export default function App() {
         onLogout={logoutUser}
       />
 
-      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8">
+      <main className={`${PAGE_CONTAINER} py-5 sm:py-8`}>
         {!activeClub ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
             <p className="text-sm text-slate-600">Preparando los clubes piloto en Montevideo...</p>
@@ -461,6 +462,7 @@ export default function App() {
                 fillSearches={fillSearches}
                 fillInvites={myFillInvites}
                 userProfile={userProfile}
+                memberships={memberships}
                 onToast={showToast}
                 onNavigate={setActiveTab}
                 onJoinRequest={(preset) => {

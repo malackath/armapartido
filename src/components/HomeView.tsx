@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import type { Booking, Club, Court, FillInvite, FillSearch, MatchRequest, ProposedMatch, Tournament, UserProfile } from '../types/padel';
+import type { Booking, Club, ClubMembership, ClubSponsor, Court, FillInvite, FillSearch, MatchRequest, ProposedMatch, Tournament, UserProfile } from '../types/padel';
 import {
   addDaysISO,
   formatCategory,
@@ -11,6 +11,7 @@ import {
   calculateSlotPrice,
 } from '../lib/padelUtils';
 import { BrandIcon } from './BrandIcon';
+import { CategoryBadge, PairAvatar, PlayerAvatar, StatusChip } from './ui/People';
 import { BADGE_CLASSES, DropMatchButton, FillInvitesSection, MatchFillStatus, fillBadge, searchForMatch } from './FaltaUno';
 import type { ActiveTab } from './TopBar';
 
@@ -30,6 +31,8 @@ interface HomeViewProps {
   fillSearches?: FillSearch[];
   fillInvites?: FillInvite[];
   userProfile: UserProfile;
+  /** Socios del club: de acá salen las fotos de perfil de los demás jugadores. */
+  memberships?: ClubMembership[];
   onToast: (msg: string) => void;
   onNavigate: (tab: ActiveTab) => void;
   onJoinRequest: (preset: HomeJoinPreset) => void;
@@ -68,23 +71,13 @@ function initials(name: string): string {
     .join('');
 }
 
-const Avatars: React.FC<{ names: string[]; empty?: number }> = ({ names, empty = 0 }) => (
-  <div className="flex">
+const Avatars: React.FC<{ names: string[]; empty?: number; photoOf?: (name: string) => string | undefined }> = ({ names, empty = 0, photoOf }) => (
+  <div className="flex items-center gap-0.5">
     {names.map((n, i) => (
-      <span
-        key={`${n}-${i}`}
-        className={`-ml-2 first:ml-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white ${
-          i % 3 === 2 ? 'bg-emerald-300' : 'bg-brand'
-        }`}
-      >
-        {initials(n)}
-      </span>
+      <PlayerAvatar key={`${n}-${i}`} name={n} photoUrl={photoOf?.(n)} size={30} />
     ))}
     {Array.from({ length: empty }).map((_, i) => (
-      <span
-        key={`e-${i}`}
-        className="-ml-2 flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-emerald-600 bg-white text-sm font-semibold text-emerald-600"
-      >
+      <span key={`e-${i}`} className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] border-2 border-dashed border-brand/70 text-sm font-semibold text-brand">
         +
       </span>
     ))}
@@ -101,11 +94,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
   fillSearches = [],
   fillInvites = [],
   userProfile,
+  memberships = [],
   onToast,
   onNavigate,
   onJoinRequest,
 }) => {
   const today = getTodayISO();
+  const photoMap = useMemo(() => new Map(memberships.filter((m) => m.photoUrl).map((m) => [m.displayName, m.photoUrl as string])), [memberships]);
+  const photoByName = (name?: string) => (name === userProfile.displayName ? userProfile.photoUrl || photoMap.get(name) : name ? photoMap.get(name) : undefined);
   const days = useMemo(() => getUpcomingDays(7), []);
   const [selectedDay, setSelectedDay] = useState(days[0].iso);
   const activeCourts = courts.filter((c) => c.active);
@@ -131,55 +127,62 @@ export const HomeView: React.FC<HomeViewProps> = ({
     ];
   }, [club, bookings, selectedDay, activeCourts.length, today]);
 
-  // Próximo partido o reserva del jugador
-  const next = useMemo(() => {
+  // Próximos partidos y reservas del jugador (hasta 3, el más cercano primero)
+  const upcoming = useMemo(() => {
     const isFuture = (date: string, end: number) => date > today || (date === today && end > nowMinutes());
-    const match = proposedMatches
-      .filter((m) => m.status !== 'cancelled' && m.playerUids.includes(userProfile.uid) && isFuture(m.date, m.endMinute))
-      .sort((a, b) => a.date.localeCompare(b.date) || a.startMinute - b.startMinute)[0];
-    const booking = bookings
-      .filter(
-        (b) =>
-          (b.status === 'confirmed' || b.status === 'held') &&
-          (b.createdByUid === userProfile.uid || b.playerUids.includes(userProfile.uid)) &&
-          isFuture(b.date, b.endMinute)
-      )
-      .sort((a, b) => a.date.localeCompare(b.date) || a.startMinute - b.startMinute)[0];
-    if (match && (!booking || `${match.date}${match.startMinute}` <= `${booking.date}${booking.startMinute}`)) {
-      const linked = bookings.find((b) => b.id === match.bookingId);
-      return {
-        kind: 'match' as const,
-        match,
-        date: match.date,
-        start: match.startMinute,
-        end: match.endMinute,
-        courtName: match.courtName,
-        court: courts.find((c) => c.id === match.courtId),
-        confirmed: match.status === 'confirmed',
-        names: match.slots.map((s) => s.displayName),
-        payAtClub: linked?.paymentMethod !== 'mercadopago',
-        price: match.pricePerPlayer,
-        priceLabel: 'por jugador',
-      };
-    }
-    if (booking) {
-      return {
-        kind: 'booking' as const,
-        match: undefined,
-        date: booking.date,
-        start: booking.startMinute,
-        end: booking.endMinute,
-        courtName: booking.courtName,
-        court: courts.find((c) => c.id === booking.courtId),
-        confirmed: booking.status === 'confirmed',
-        names: [userProfile.displayName],
-        payAtClub: booking.paymentMethod === 'club',
-        price: booking.totalPrice,
-        priceLabel: 'la cancha',
-      };
-    }
-    return null;
+    const matches = proposedMatches.filter(
+      (m) => m.status !== 'cancelled' && m.playerUids.includes(userProfile.uid) && isFuture(m.date, m.endMinute)
+    );
+    const matchBookingIds = new Set(matches.map((m) => m.bookingId));
+    const items = [
+      ...matches.map((match) => {
+        const linked = bookings.find((b) => b.id === match.bookingId);
+        const mySlot = match.slots.find((s) => s.uid === userProfile.uid);
+        return {
+          key: `m-${match.id}`,
+          kind: 'match' as const,
+          match,
+          date: match.date,
+          start: match.startMinute,
+          end: match.endMinute,
+          courtName: match.courtName,
+          court: courts.find((c) => c.id === match.courtId),
+          confirmed: match.status === 'confirmed',
+          players: match.slots.map((s) => ({ name: s.displayName, category: s.category })),
+          payAtClub: linked?.paymentMethod !== 'mercadopago',
+          paid: !!mySlot?.paid,
+          price: match.pricePerPlayer,
+          priceLabel: 'por jugador',
+        };
+      }),
+      ...bookings
+        .filter(
+          (b) =>
+            (b.status === 'confirmed' || b.status === 'held') &&
+            !matchBookingIds.has(b.id) &&
+            ((b.type !== 'counter' && b.createdByUid === userProfile.uid) || b.playerUids.includes(userProfile.uid)) &&
+            isFuture(b.date, b.endMinute)
+        )
+        .map((booking) => ({
+          key: `b-${booking.id}`,
+          kind: 'booking' as const,
+          match: undefined,
+          date: booking.date,
+          start: booking.startMinute,
+          end: booking.endMinute,
+          courtName: booking.courtName,
+          court: courts.find((c) => c.id === booking.courtId),
+          confirmed: booking.status === 'confirmed',
+          players: [{ name: userProfile.displayName, category: userProfile.category }],
+          payAtClub: booking.paymentMethod === 'club',
+          paid: booking.paymentStatus === 'paid',
+          price: booking.totalPrice,
+          priceLabel: 'la cancha',
+        })),
+    ];
+    return items.sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start).slice(0, 3);
   }, [proposedMatches, bookings, courts, userProfile, today]);
+  const next = upcoming[0] ?? null;
 
   // Jugadores buscando partido con categoría compatible (±1)
   const open = useMemo(
@@ -201,25 +204,27 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const tournament = useMemo(
     () =>
       tournaments
-        .filter((t) => t.status === 'registration_open' && t.endDate >= today)
-        .sort((a, b) => a.startDate.localeCompare(b.startDate))[0],
+        .filter((t) => (t.status === 'registration_open' || t.status === 'in_progress' || t.status === 'draw_generated') && t.endDate >= today)
+        .sort((a, b) => (a.status === 'in_progress' ? -1 : 0) - (b.status === 'in_progress' ? -1 : 0) || a.startDate.localeCompare(b.startDate))[0],
     [tournaments, today]
   );
 
   const courtDetail = (c?: Court) =>
     c ? ` · ${c.roof === 'techada' ? 'techada' : 'descubierta'}, ${c.surface === 'cristal' ? 'vidrio' : 'muro'}` : '';
 
-  const nextSearch = next?.match ? searchForMatch(fillSearches, next.match.id) : undefined;
-  const nextBadge = fillBadge(nextSearch);
 
   return (
-    <div className="mx-auto max-w-xl space-y-6">
+    <div className="space-y-6">
       <FillInvitesSection club={club} invites={fillInvites} searches={fillSearches} matches={proposedMatches} onToast={onToast} />
       <section>
         <div className="flex items-start justify-between gap-3">
-          <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight text-ink">¡Hola, {firstName}!</h1>
-          <span className="mt-1 shrink-0 rounded-full bg-mist px-3 py-1.5 text-[13px] font-semibold text-brand">
-            {formatCategory(userProfile.category)} categoría
+          <div className="flex items-center gap-3.5">
+            <PlayerAvatar name={userProfile.displayName} photoUrl={userProfile.photoUrl} size={56} category={userProfile.category} />
+            <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight text-ink">¡Hola, {firstName}!</h1>
+          </div>
+          <span className="mt-1 flex shrink-0 items-center gap-1.5 rounded-full bg-white px-2 py-1 text-[13px] font-semibold text-ink">
+            <CategoryBadge category={userProfile.category} />
+            categoría
           </span>
         </div>
         <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
@@ -228,7 +233,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </p>
       </section>
 
-      <section className="rounded-[18px] border border-line bg-white p-4">
+      {/* En escritorio, Inicio usa todo el ancho de la página en dos columnas. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+      <div className="grid min-w-0 grid-cols-1 gap-6">
+      <section className="rounded-xl border border-line bg-white p-4">
         <h2 className="flex items-center gap-2 text-[17px] font-semibold text-ink">
           <BrandIcon name="reservar" className="text-brand" />
           Reservá una cancha
@@ -273,59 +281,71 @@ export const HomeView: React.FC<HomeViewProps> = ({
         <div className="mb-2.5 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-[17px] font-semibold text-ink">
             <BrandIcon name="horario" className="text-brand" />
-            Tu próximo partido
+            {upcoming.length > 1 ? 'Tus próximos partidos' : 'Tu próximo partido'}
+            {upcoming.length > 1 && <span className="text-sm font-normal text-muted">· {upcoming.length} reservas</span>}
           </h2>
-          {next && <span className="text-sm font-semibold text-emerald-600">{dayLabel(next.date)}</span>}
         </div>
         {next ? (
-          <div className="rounded-[18px] border border-line bg-white p-4">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-semibold text-emerald-600">
-                {dayLabel(next.date)} · {formatMinutes(next.start)} a {formatMinutes(next.end)}
-              </span>
-              {nextBadge ? (
-                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${BADGE_CLASSES[nextBadge.tone]}`}>{nextBadge.label}</span>
-              ) : (
-                <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    next.confirmed ? 'bg-[#dcf5e8] text-[#137a4b]' : 'bg-[#fff3d6] text-[#8a5a00]'
-                  }`}
-                >
-                  {next.confirmed ? 'Confirmado' : 'Por confirmar'}
-                </span>
-              )}
+          <>
+            <div className={`grid gap-3 ${upcoming.length === 3 ? 'sm:grid-cols-3' : upcoming.length === 2 ? 'sm:grid-cols-2' : ''}`}>
+              {upcoming.map((it, i) => {
+                const search = it.match ? searchForMatch(fillSearches, it.match.id) : undefined;
+                const badge = fillBadge(search);
+                // El más cercano en el verde de la marca, los siguientes cada vez más claros (pedido de Ber).
+                const tone = ['bg-brand text-white', 'bg-[#3d7f87] text-white', 'bg-[#a9cfd3] text-ink'][i];
+                return (
+                  <button
+                    key={it.key}
+                    type="button"
+                    onClick={() => onNavigate(it.kind === 'match' ? 'matchmaking' : 'bookings')}
+                    className={`flex cursor-pointer flex-col gap-1 rounded-xl p-4 text-left hover:brightness-105 ${tone}`}
+                  >
+                    <span className="text-xs font-bold tracking-wider uppercase opacity-80">{dayLabel(it.date)}</span>
+                    <span className="font-display text-[22px] font-bold tabular-nums leading-tight">
+                      {formatMinutes(it.start)} a {formatMinutes(it.end)}
+                    </span>
+                    <span className="flex items-center gap-1 text-[13px] opacity-90">
+                      <BrandIcon name="cancha" size={15} />
+                      {it.courtName}
+                      {courtDetail(it.court)}
+                    </span>
+                    <span className="mt-2.5 mb-1 flex flex-wrap items-center gap-1">
+                      {it.players.map((p, k) => (
+                        <PlayerAvatar key={k} name={p.name} photoUrl={photoByName(p.name)} size={34} category={p.category} className="mr-1" />
+                      ))}
+                      {it.kind === 'match' &&
+                        Array.from({ length: Math.max(0, 4 - it.players.length) }).map((_, k) => (
+                          <span key={`e${k}`} className="mr-1 h-[34px] w-[34px] rounded-[10px] border-2 border-dashed border-current opacity-70" />
+                        ))}
+                    </span>
+                    <span className="mt-auto flex flex-wrap gap-1.5 pt-1">
+                      {badge ? (
+                        <StatusChip kind="fu" icon="falta-uno" className="bg-white! text-ink!">{badge.label}</StatusChip>
+                      ) : !it.confirmed ? (
+                        <StatusChip kind="wait" icon="horario" className="bg-white!">Por confirmar</StatusChip>
+                      ) : it.paid ? (
+                        <StatusChip kind="ok" icon="pago-en-club" className="bg-white!">Pagado</StatusChip>
+                      ) : (
+                        <StatusChip kind="free" icon={it.payAtClub ? 'pago-en-club' : 'pago-online'} className="bg-white!">
+                          {formatUYU(it.price)} {it.priceLabel}
+                        </StatusChip>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <p className="mt-1 text-[19px] font-semibold text-ink">
-              {next.courtName}
-              {courtDetail(next.court)}
-            </p>
-            <p className="text-sm text-muted">{club.name}</p>
-            <div className="my-3 flex items-center gap-2.5 rounded-xl bg-surface px-3 py-2.5">
-              <BrandIcon name={next.payAtClub ? 'pago-en-club' : 'pago-online'} className="shrink-0 text-ink" />
-              <div className="flex-1 text-[13px] text-muted">
-                <strong className="block text-sm font-semibold text-ink">
-                  {next.payAtClub ? 'Se paga en el club' : 'Pagado con Mercado Pago'}
-                </strong>
-                {formatUYU(next.price)} {next.priceLabel}
-              </div>
-              <Avatars names={next.names} empty={next.kind === 'match' ? Math.max(0, 4 - next.names.length) : 0} />
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigate(next.kind === 'match' ? 'matchmaking' : 'bookings')}
-              className="flex h-10 w-full cursor-pointer items-center justify-center rounded-2xl bg-mist text-sm font-semibold text-brand"
-            >
-              Ver detalle
-            </button>
             {next.match && (
-              <MatchFillStatus club={club} match={next.match} search={nextSearch} userUid={userProfile.uid} onToast={onToast} />
+              <div className="mt-3 empty:hidden">
+                <MatchFillStatus club={club} match={next.match} search={searchForMatch(fillSearches, next.match.id)} userUid={userProfile.uid} onToast={onToast} />
+                {next.match.status === 'confirmed' && searchForMatch(fillSearches, next.match.id)?.status !== 'unfilled' && (
+                  <DropMatchButton club={club} match={next.match} onToast={onToast} />
+                )}
+              </div>
             )}
-            {next.match?.status === 'confirmed' && nextSearch?.status !== 'unfilled' && (
-              <DropMatchButton club={club} match={next.match} onToast={onToast} />
-            )}
-          </div>
+          </>
         ) : (
-          <div className="rounded-[18px] border border-dashed border-line bg-white p-4 text-center">
+          <div className="rounded-xl border border-dashed border-line bg-white p-4 text-center">
             <p className="text-sm text-muted">Todavía no tenés partidos. Reservá una cancha o pedile a la app que te arme uno.</p>
             <button
               type="button"
@@ -361,8 +381,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <div key={r.id} className="grid gap-2.5 rounded-2xl border border-line bg-white p-3.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
-                      <span className="rounded-md bg-mist px-2 py-0.5 text-xs font-semibold text-brand">
-                        {formatCategory(minCat)} a {formatCategory(maxCat)}
+                      <span className="flex items-center gap-0.5">
+                        {Array.from({ length: maxCat - minCat + 1 }, (_, k) => (
+                          <CategoryBadge key={k} category={minCat + k} size={20} showSuffix={false} />
+                        ))}
                       </span>
                       <b className="text-[15px] font-semibold text-ink">
                         {when} {formatMinutes(r.startMinute)}
@@ -377,7 +399,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       {club.slotDurationMinutes} minutos
                     </p>
                     <div className="flex items-center gap-3">
-                      <Avatars names={names} empty={4 - names.length} />
+                      <Avatars names={names} empty={4 - names.length} photoOf={photoByName} />
                       <button
                         type="button"
                         onClick={() =>
@@ -404,32 +426,107 @@ export const HomeView: React.FC<HomeViewProps> = ({
         )}
       </section>
 
-      {tournament && (
-        <section
-          className="relative flex h-[180px] items-end overflow-hidden rounded-[18px] bg-ink bg-cover bg-center p-4 text-white"
-          style={{ backgroundImage: "url('/img/torneo-noche.webp')" }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-ink/10 to-ink/90" />
-          <div className="relative w-full">
-            <p className="text-[13px] opacity-85">Torneo · {rangeLabel(tournament.startDate, tournament.endDate)}</p>
-            <h3 className="mt-0.5 mb-2.5 text-[22px] font-bold leading-tight">{tournament.name}</h3>
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[13px] opacity-85">
-                Inscripción en pareja
-                {tournament.categories.length > 0 &&
-                  ` · ${formatCategory(Math.min(...tournament.categories))} a ${formatCategory(Math.max(...tournament.categories))}`}
-              </p>
-              <button
-                type="button"
-                onClick={() => onNavigate('tournaments')}
-                className="shrink-0 cursor-pointer rounded-xl bg-white/20 px-3.5 py-2 text-sm font-semibold backdrop-blur"
-              >
-                Anotarme
-              </button>
-            </div>
-          </div>
-        </section>
+      </div>
+      {(tournament || club.sponsor || club.sponsors?.length) && (
+        <aside className="grid min-w-0 gap-4 sm:grid-cols-2 lg:sticky lg:top-24 lg:grid-cols-1">
+          {tournament && (() => {
+            const photo = '/img/torneo-noche.webp';
+            const nextMatch = tournament.matches
+              .filter((m) => m.status === 'scheduled' && m.date >= today)
+              .sort((a, b) => a.date.localeCompare(b.date) || a.startMinute - b.startMinute)[0];
+            const pairOf = (id?: string) => tournament.pairs.find((p) => p.id === id);
+            const p1 = pairOf(nextMatch?.pair1Id);
+            const p2 = pairOf(nextMatch?.pair2Id);
+            return (
+              <section className="overflow-hidden rounded-xl bg-white">
+                <div className="relative h-[150px] bg-ink bg-cover bg-[center_30%]" style={{ backgroundImage: `url('${photo}')` }}>
+                  <span className="absolute top-3 left-3">
+                    {tournament.status === 'in_progress' ? (
+                      <StatusChip kind="live">● En juego</StatusChip>
+                    ) : tournament.status === 'registration_open' ? (
+                      <StatusChip kind="ok" icon="reservar">Inscripción abierta</StatusChip>
+                    ) : (
+                      <StatusChip kind="wait" icon="torneos">Cuadro sorteado</StatusChip>
+                    )}
+                  </span>
+                </div>
+                <div className="p-4">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-brand uppercase">
+                    <BrandIcon name="torneos" size={14} /> Torneo del club
+                  </p>
+                  <h3 className="mt-1 font-display text-lg font-bold leading-tight text-ink">{tournament.name}</h3>
+                  <p className="mt-0.5 text-[13px] text-muted">
+                    {nextMatch
+                      ? `${nextMatch.round} ${dayLabel(nextMatch.date).toLowerCase()} ${formatMinutes(nextMatch.startMinute)} · ${nextMatch.courtName}`
+                      : `${rangeLabel(tournament.startDate, tournament.endDate)} · inscripción en pareja`}
+                  </p>
+                  {p1 && p2 && (
+                    <div className="mt-3 flex items-center gap-2.5">
+                      <PairAvatar a={{ name: p1.player1Name, photoUrl: photoByName(p1.player1Name) }} b={{ name: p1.player2Name, photoUrl: photoByName(p1.player2Name) }} size={36} />
+                      <span className="text-sm font-bold text-muted">vs</span>
+                      <PairAvatar a={{ name: p2.player1Name, photoUrl: photoByName(p2.player1Name) }} b={{ name: p2.player2Name, photoUrl: photoByName(p2.player2Name) }} size={36} />
+                    </div>
+                  )}
+                  <div className="mt-2 flex items-center gap-1">
+                    {tournament.categories.map((c) => (
+                      <CategoryBadge key={c} category={c} />
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('tournaments')}
+                    className="mt-3 flex h-10 w-full cursor-pointer items-center justify-center rounded-xl bg-brand text-sm font-semibold text-white hover:brightness-110"
+                  >
+                    {tournament.status === 'registration_open' ? 'Anotarme' : 'Ver cuadro'}
+                  </button>
+                </div>
+              </section>
+            );
+          })()}
+          <SponsorCard sponsors={club.sponsors?.length ? club.sponsors : club.sponsor ? [club.sponsor] : []} />
+        </aside>
       )}
+      </div>
     </div>
+  );
+};
+
+// Auspiciantes del club: muestra uno y rota cada 8 segundos (pedido de Ber, 15/11/2026).
+const SponsorCard: React.FC<{ sponsors: ClubSponsor[] }> = ({ sponsors }) => {
+  const [i, setI] = React.useState(() => Math.floor(Math.random() * Math.max(1, sponsors.length)));
+  React.useEffect(() => {
+    if (sponsors.length < 2) return;
+    const t = window.setInterval(() => setI((n) => (n + 1) % sponsors.length), 8000);
+    return () => window.clearInterval(t);
+  }, [sponsors.length]);
+  if (!sponsors.length) return null;
+  const s = sponsors[i % sponsors.length];
+  return (
+    <a
+      href={s.url || undefined}
+      target="_blank"
+      rel="noreferrer"
+      className="block overflow-hidden rounded-xl border-2 border-dashed border-[#9bb3b6] bg-white/60 p-4"
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[11px] tracking-widest text-muted uppercase">Auspicia el club</p>
+        {sponsors.length > 1 && (
+          <span className="flex gap-1" aria-hidden>
+            {sponsors.map((x, n) => (
+              <span key={x.name} className={`h-1.5 w-1.5 rounded-full ${n === i % sponsors.length ? 'bg-brand' : 'bg-[#c5d6d8]'}`} />
+            ))}
+          </span>
+        )}
+      </div>
+      {s.imageUrl ? (
+        <img key={s.imageUrl} src={s.imageUrl} alt={s.name} className="mb-2 aspect-[16/9] w-full rounded-xl object-cover" loading="lazy" />
+      ) : s.logoUrl ? (
+        <img src={s.logoUrl} alt={s.name} className="mb-2 h-16 w-full rounded-xl object-contain" />
+      ) : (
+        <div className="mb-2 rounded-xl bg-ink px-4 py-4 text-center font-display font-extrabold tracking-[.12em] text-white uppercase">{s.name}</div>
+      )}
+      <p className="text-sm font-semibold text-ink">{s.name}</p>
+      {s.tagline && <p className="text-xs text-muted">{s.tagline}</p>}
+    </a>
   );
 };

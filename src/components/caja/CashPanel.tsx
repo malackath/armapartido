@@ -1,10 +1,15 @@
 /** Caja del día en el Mostrador: abrir, retiros, movimientos, anular, deben, venta rápida y cierre. */
 import React, { useMemo, useState } from 'react';
 import { Minus, Plus, X } from 'lucide-react';
-import type { Booking, Club, PaymentRecord, ProposedMatch } from '../../types/padel';
+import type { Booking, Club, ClubMembership, PaymentRecord, ProposedMatch, Tournament } from '../../types/padel';
 import { formatMinutes, formatUYU } from '../../lib/padelUtils';
-import { cashSummary, debtsOf, toDateValue } from '../../lib/caja';
-import { addWithdrawal, closeCashDay, openCashDay, payDebt, quickSale, voidPayment, type Staff } from '../../services/cajaService';
+import { cashSummary, toDateValue } from '../../lib/caja';
+import { clientDebts, clientKey } from '../../lib/clientes';
+import { payWholeDebt } from '../../services/clientesService';
+import { useClientes } from '../clientes/data';
+import { VentaSuelta } from '../clientes/VentaSuelta';
+import { StatusChip } from '../ui/People';
+import { addWithdrawal, closeCashDay, openCashDay, voidPayment, type Staff } from '../../services/cajaService';
 import type { CounterPaymentMethod } from '../../services/firestoreService';
 import { KIND_LABEL, MethodPicker, Row, btnPrimary, btnSecondary, inputCls, labelCls, useOps } from './ops';
 
@@ -29,12 +34,15 @@ export const CashPanel: React.FC<{
   onToast: (msg: string) => void;
   onClose: () => void;
   initialTab?: Tab;
-}> = ({ club, bookings, matches, nameOf, staff, today, nowMinute, busy, setBusy, onToast, onClose, initialTab = 'caja' }) => {
+  memberships?: ClubMembership[];
+  tournaments?: Tournament[];
+}> = ({ club, bookings, matches, nameOf, staff, today, nowMinute, busy, setBusy, onToast, onClose, initialTab = 'caja', memberships = [], tournaments = [] }) => {
   const { cashDays, allPayments, consumptions, products } = useOps();
+  const { clients, sales } = useClientes();
   const [tab, setTab] = useState<Tab>(initialTab);
   const day = cashDays.find((d) => d.id === today);
   const summary = useMemo(() => cashSummary(allPayments, today, day?.openingFloat ?? 0), [allPayments, today, day]);
-  const debts = useMemo(() => debtsOf({ consumptions, bookings, matches, today, nowMinute, nameOf }), [consumptions, bookings, matches, today, nowMinute, nameOf]);
+  const debts = useMemo(() => clientDebts({ clients, consumptions, bookings, matches, sales, today, nowMinute, nameOf }), [clients, consumptions, bookings, matches, sales, today, nowMinute, nameOf]);
   const closed = day?.status === 'closed';
 
   const run = async (fn: () => Promise<unknown>, msg: string) => {
@@ -74,7 +82,7 @@ export const CashPanel: React.FC<{
           [
             ['caja', 'Caja de hoy'],
             ['deben', `Deben (${debts.length})`],
-            ['venta', 'Venta rápida'],
+            ['venta', 'Venta suelta'],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -103,7 +111,20 @@ export const CashPanel: React.FC<{
         />
       )}
       {tab === 'deben' && <DebenTab club={club} debts={debts} consumptions={consumptions} bookings={bookings} matches={matches} staff={staff} today={today} closed={closed} busy={busy} run={run} />}
-      {tab === 'venta' && <VentaTab club={club} products={products.filter((p) => p.active)} staff={staff} today={today} closed={closed} busy={busy} run={run} />}
+      {tab === 'venta' && (
+        <VentaSuelta
+          club={club}
+          memberships={memberships}
+          products={products.filter((p) => p.active)}
+          tournaments={tournaments}
+          staff={staff}
+          today={today}
+          closed={closed}
+          busy={busy}
+          run={run}
+          debtOf={(c) => debts.find((d) => d.key === clientKey(c))?.amount ?? 0}
+        />
+      )}
     </div>
   );
 };
@@ -114,7 +135,7 @@ const CajaTab: React.FC<{
   club: Club;
   day: ReturnType<typeof useOps>['cashDays'][number] | undefined;
   summary: ReturnType<typeof cashSummary>;
-  debtsToday: ReturnType<typeof debtsOf>;
+  debtsToday: ReturnType<typeof clientDebts>;
   staff: Staff;
   today: string;
   busy: boolean;
@@ -314,7 +335,7 @@ const CajaTab: React.FC<{
 
 const DebenTab: React.FC<{
   club: Club;
-  debts: ReturnType<typeof debtsOf>;
+  debts: ReturnType<typeof clientDebts>;
   consumptions: ReturnType<typeof useOps>['consumptions'];
   bookings: Booking[];
   matches: ProposedMatch[];
@@ -324,6 +345,7 @@ const DebenTab: React.FC<{
   busy: boolean;
   run: Run;
 }> = ({ club, debts, consumptions, bookings, matches, staff, today, closed, busy, run }) => {
+  const { clients, sales } = useClientes();
   const [method, setMethod] = useState<CounterPaymentMethod>('efectivo');
   const [open, setOpen] = useState<string | null>(null);
   const total = debts.reduce((a, d) => a + d.amount, 0);
@@ -338,11 +360,15 @@ const DebenTab: React.FC<{
           <li key={d.key} className="border-b border-[#eef5f5] py-2.5 last:border-0">
             <button type="button" onClick={() => setOpen(open === d.key ? null : d.key)} className="flex w-full items-baseline justify-between gap-2 text-left cursor-pointer">
               <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold text-ink">{d.name}</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-semibold text-ink">{d.name}</span>
+                  {d.client ? !d.client.uid && <StatusChip kind="wait" className="py-0! text-[10.5px]!">sin app</StatusChip> : d.key.startsWith('g:') && <StatusChip kind="busy" className="py-0! text-[10.5px]!">sin ficha</StatusChip>}
+                </span>
                 <span className="block text-[12px] text-muted">
                   desde {d.since === today ? 'hoy' : d.since.split('-').reverse().slice(0, 2).join('/')}
                   {d.bookingIds.length > 0 && ` · ${d.bookingIds.length} ${d.bookingIds.length === 1 ? 'cancha' : 'canchas'}`}
                   {d.consumptionIds.length > 0 && ` · ${d.consumptionIds.length} de cantina`}
+                  {d.saleIds.length > 0 && ` · ${d.saleIds.length} a cuenta`}
                 </span>
               </span>
               <span className="shrink-0 font-display text-[16px] font-bold tabular-nums text-amber-700">{formatUYU(d.amount)}</span>
@@ -355,19 +381,7 @@ const DebenTab: React.FC<{
                   disabled={busy}
                   onClick={() =>
                     run(
-                      () =>
-                        payDebt({
-                          club,
-                          debtKey: d.key,
-                          debtName: d.name,
-                          consumptions: consumptions.filter((c) => d.consumptionIds.includes(c.id)),
-                          bookings: bookings.filter((b) => d.bookingIds.includes(b.id)),
-                          matches,
-                          method,
-                          staff,
-                          day: today,
-                          afterClose: closed,
-                        }),
+                      () => payWholeDebt({ club, debt: d, clients, consumptions, bookings, matches, sales, method, staff, day: today, afterClose: closed }),
                       `Cobrado: ${formatUYU(d.amount)} de ${d.name.split(' ')[0]}.`
                     )
                   }
@@ -380,63 +394,6 @@ const DebenTab: React.FC<{
           </li>
         ))}
       </ul>
-    </div>
-  );
-};
-
-const VentaTab: React.FC<{
-  club: Club;
-  products: ReturnType<typeof useOps>['products'];
-  staff: Staff;
-  today: string;
-  closed: boolean;
-  busy: boolean;
-  run: Run;
-}> = ({ club, products, staff, today, closed, busy, run }) => {
-  const [qty, setQty] = useState<Record<string, number>>({});
-  const [buyer, setBuyer] = useState('');
-  const [method, setMethod] = useState<CounterPaymentMethod>('efectivo');
-  const items = products.filter((p) => (qty[p.id] ?? 0) > 0).map((p) => ({ product: p, qty: qty[p.id] }));
-  const total = items.reduce((a, i) => a + i.product.price * i.qty, 0);
-  if (products.length === 0) return <p className="mt-4 text-sm text-muted">El club todavía no cargó productos. Se cargan en Admin, Cantina.</p>;
-  return (
-    <div className="mt-4 space-y-3">
-      <p className="text-[13px] text-muted">Para alguien que pasa a comprar sin turno. Se cobra en el momento.</p>
-      <ul>
-        {products.map((p) => (
-          <li key={p.id} className="flex items-center justify-between gap-2 border-b border-[#eef5f5] py-1.5 last:border-0">
-            <span className="min-w-0 truncate text-sm text-ink">
-              {p.name} <span className="text-muted tabular-nums">{formatUYU(p.price)}</span>
-              {p.stock !== null && <span className={`ml-1 text-[11px] ${p.stock <= p.minStock ? 'font-bold text-red-700' : 'text-muted'}`}>quedan {p.stock}</span>}
-            </span>
-            <span className="flex shrink-0 items-center gap-1.5">
-              <button type="button" aria-label={`Menos ${p.name}`} onClick={() => setQty((q) => ({ ...q, [p.id]: Math.max(0, (q[p.id] ?? 0) - 1) }))} className="grid h-8 w-8 place-items-center rounded-lg border border-line cursor-pointer">
-                <Minus className="h-3.5 w-3.5" />
-              </button>
-              <span className="w-5 text-center text-sm font-semibold tabular-nums">{qty[p.id] ?? 0}</span>
-              <button type="button" aria-label={`Más ${p.name}`} onClick={() => setQty((q) => ({ ...q, [p.id]: (q[p.id] ?? 0) + 1 }))} className="grid h-8 w-8 place-items-center rounded-lg border border-line cursor-pointer">
-                <Plus className="h-3.5 w-3.5" />
-              </button>
-            </span>
-          </li>
-        ))}
-      </ul>
-      <input value={buyer} onChange={(e) => setBuyer(e.target.value)} placeholder="Nombre (opcional)" className={inputCls} aria-label="Nombre del que compra" />
-      <MethodPicker value={method} onChange={setMethod} />
-      <button
-        type="button"
-        disabled={busy || total <= 0}
-        onClick={() =>
-          run(async () => {
-            await quickSale({ club, items, buyerName: buyer.trim(), method, staff, day: today, afterClose: closed });
-            setQty({});
-            setBuyer('');
-          }, `Venta cobrada: ${formatUYU(total)}.`)
-        }
-        className={btnPrimary}
-      >
-        Cobrar {formatUYU(total)}
-      </button>
     </div>
   );
 };

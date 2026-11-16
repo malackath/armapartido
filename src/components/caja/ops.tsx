@@ -50,6 +50,7 @@ export const KIND_LABEL: Record<PaymentRecord['kind'], string> = {
   refund: 'Devolución',
   platform_subscription: 'Cuota de la plataforma',
   cantina: 'Cantina',
+  venta: 'Venta',
   retiro: 'Retiro de caja',
   anulacion: 'Anulación',
 };

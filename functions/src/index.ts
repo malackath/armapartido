@@ -2,6 +2,8 @@ import './tz';
 import { setGlobalOptions, logger } from 'firebase-functions';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { linkOrCreateClient } from './clientes';
 import type { MatchRequest, Modality } from '../../src/types/padel';
 import { formatCategory, getTodayISO } from '../../src/lib/padelUtils';
 import { db, isFakePlayer, makeId, now } from './admin';
@@ -221,4 +223,15 @@ export const faltaUnoDejarDeBuscar = onCall(async (req) => {
   if (role !== 'admin' && role !== 'staff') throw new HttpsError('permission-denied', 'Solo el mostrador o el administrador.');
   await stopSearch(clubId, str(d.searchId));
   return { result: 'ok' };
+});
+
+// -----------------------------------------------------------------------------
+// Clientes: ficha del club al sumarse desde la app (une por mail verificado o crea una nueva)
+// -----------------------------------------------------------------------------
+
+// En la nube de pruebas de Claude el emulador no puede registrar disparadores de Firestore (el proxy
+// corta esa llamada local): ahí se corre con SIN_DISPARADORES=1 y la prueba llama la función directo.
+export const clientesAlSumarse = process.env.SIN_DISPARADORES === '1' ? undefined : onDocumentCreated('clubs/{clubId}/memberships/{uid}', async (event) => {
+  const res = await linkOrCreateClient(event.params.clubId, event.params.uid);
+  logger.info('clientes', { clubId: event.params.clubId, uid: event.params.uid, ...res });
 });

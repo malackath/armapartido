@@ -4,6 +4,13 @@
    cian #0BFBFF para acciones de alta intención, fondo claro #F2FBFB, tipografía Outfit.
    La escala "emerald" del prototipo se reasigna a la paleta teal de Stitch. */
 @theme {
+  /* Esquinas: 12 px en todo el sitio (pedido de Ber, 15/11/2026). Quedan aparte las pastillas (rounded-full)
+     y los cuadraditos chicos de leyenda (rounded-sm). */
+  --radius-md: 12px;
+  --radius-lg: 12px;
+  --radius-xl: 12px;
+  --radius-2xl: 12px;
+  --radius-3xl: 12px;
   --font-display: "Outfit", system-ui, sans-serif;
   --font-sans: "Outfit", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
@@ -22,11 +29,28 @@
   --color-action: #0bfbff;
   --color-on-action: #002020;
   --color-surface: #f2fbfb;
+  /* Fondo de página: el original #F2FBFB un poco más intenso (15/11/2026, pedido de Ber). */
+  --color-page: #e8f5f5;
   --color-ink: #172123;
   --color-brand: #0a5761;
   --color-mist: #e2f3f3;
   --color-line: #d7e9ea;
   --color-muted: #55696c;
+
+  /* Colores de estado (15/11/2026, opción B aprobada por Ber): relleno suave + texto fuerte. */
+  --color-ok: #1e6b3a;
+  --color-ok-bg: #e3f5ea;
+  --color-ok-fill: #cdebd6;
+  --color-due: #c0362c;
+  --color-due-bg: #fdecea;
+  --color-due-fill: #f9d3cf;
+  --color-wait: #8a5a00;
+  --color-wait-bg: #fff3d6;
+  --color-wait-fill: #fbe6b5;
+  --color-fu-fill: #9df3f9;
+  --color-busy: #dfe5e5;
+  --color-live-fill: #bfd9dc;
+  --color-avatar: #d3e7e8;
 }
 
 :root {
@@ -36,7 +60,7 @@
 
 body {
   font-family: var(--font-sans);
-  background-color: #F2FBFB;
+  background-color: #e8f5f5;
   color: #151D1D;
 }
 

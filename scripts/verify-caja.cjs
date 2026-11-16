@@ -61,7 +61,7 @@ async function adminSection(p, label, file, key) {
   ({ c, p } = await enter(b, 'mostrador'));
   await menu(p, 'Mostrador');
   let t = await p.innerText('body');
-  check('Mostrador: botones Caja y Venta rápida', /Caja/.test(t) && t.includes('Venta rápida'));
+  check('Mostrador: botones Caja y Venta suelta', /Caja/.test(t) && t.includes('Venta suelta'));
   await p.screenshot({ path: `${OUT}/7-mostrador.png` });
   const turno = p.locator('button').filter({ hasText: /Partido armado/i }).first();
   if (await turno.count()) {

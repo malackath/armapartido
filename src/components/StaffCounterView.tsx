@@ -29,11 +29,18 @@ import {
   stopFillSearch,
   type CounterPaymentMethod,
 } from '../services/firestoreService';
-import { BrandIcon } from './BrandIcon';
+import { BrandIcon, type BrandIconName } from './BrandIcon';
+import { PlayerAvatar, StatusChip } from './ui/People';
 import { ClubOpsContext, useClubOps } from './caja/ops';
 import { TurnAccount } from './caja/TurnAccount';
 import { CashPanel } from './caja/CashPanel';
-import { cashSummary, debtsOf } from '../lib/caja';
+import { cashSummary } from '../lib/caja';
+import { clientDebts } from '../lib/clientes';
+import { ClientesContext, useClientesData } from './clientes/data';
+import { ClientsPanel } from './clientes/ClientsPanel';
+import { ClientPicker } from './clientes/ClientPicker';
+import type { ClubClient } from '../types/clientes';
+import { formatPhone } from '../lib/clientes';
 import { BADGE_CLASSES, searchForMatch } from './FaltaUno';
 
 interface StaffCounterViewProps {
@@ -150,7 +157,8 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
   const [busy, setBusy] = useState(false);
   const [minuteNow, setMinuteNow] = useState(nowMinute());
   const ops = useClubOps(club.id);
-  const [cashOpen, setCashOpen] = useState<null | 'caja' | 'deben' | 'venta'>(null);
+  const clientes = useClientesData(club.id);
+  const [cashOpen, setCashOpen] = useState<null | 'caja' | 'deben' | 'venta' | 'clientes'>(null);
 
   useEffect(() => {
     const t = window.setInterval(() => setMinuteNow(nowMinute()), 60_000);
@@ -167,6 +175,13 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
     () => bookings.filter((b) => b.date === selectedDate && b.status !== 'cancelled'),
     [bookings, selectedDate]
   );
+
+  const hasStarted = (slot: Slot) => selectedDate < today || (selectedDate === today && slot.startMinute <= minuteNow);
+
+  const playersOf = (b: Booking): ClubMembership[] => {
+    const uids = b.playerUids?.length ? b.playerUids : b.createdByUid ? [b.createdByUid] : [];
+    return uids.map((u) => memberByUid.get(u)).filter((m): m is ClubMembership => !!m);
+  };
 
   const findBooking = (courtId: string, slot: Slot) =>
     dayBookings.find((b) => b.courtId === courtId && b.startMinute < slot.endMinute && b.endMinute > slot.startMinute);
@@ -303,8 +318,8 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
   const todayCash = ops.cashDays.find((d) => d.id === today);
   const lowStock = ops.products.filter((p) => p.active && p.stock !== null && p.stock <= p.minStock);
   const debtCount = useMemo(
-    () => debtsOf({ consumptions: ops.consumptions, bookings, matches: proposedMatches, today, nowMinute: minuteNow, nameOf: nameOfUid }).length,
-    [ops.consumptions, bookings, proposedMatches, today, minuteNow, nameOfUid]
+    () => clientDebts({ clients: clientes.clients, consumptions: ops.consumptions, bookings, matches: proposedMatches, sales: clientes.sales, today, nowMinute: minuteNow, nameOf: nameOfUid }).length,
+    [clientes.clients, clientes.sales, ops.consumptions, bookings, proposedMatches, today, minuteNow, nameOfUid]
   );
 
   const legacyCashToday = useMemo(() => {
@@ -347,6 +362,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
 
   return (
     <ClubOpsContext.Provider value={ops}>
+    <ClientesContext.Provider value={clientes}>
     <div className="space-y-5">
       {/* Encabezado */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -377,7 +393,17 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
             }}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink hover:bg-mist cursor-pointer"
           >
-            Venta rápida
+            Venta suelta
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedId(null);
+              setCashOpen('clientes');
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink hover:bg-mist cursor-pointer"
+          >
+            <BrandIcon name="pareja" size={18} /> Clientes
           </button>
           <button
             type="button"
@@ -407,7 +433,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
 
       {/* Números del día */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        <Kpi title={selectedDate === today ? 'Ocupación de hoy' : 'Ocupación'}>
+        <Kpi icon="cancha" title={selectedDate === today ? 'Ocupación de hoy' : 'Ocupación'}>
           <p className="font-display text-2xl font-bold tabular-nums sm:text-3xl">
             {stats.total ? Math.round((stats.used / stats.total) * 100) : 0}%
             <span className="ml-2 text-xs font-normal text-muted sm:text-sm">{stats.used} de {stats.total} turnos</span>
@@ -416,7 +442,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
             <div className="h-full rounded-full bg-emerald-600" style={{ width: `${stats.total ? (stats.used / stats.total) * 100 : 0}%` }} />
           </div>
         </Kpi>
-        <Kpi title="En cancha ahora" className="hidden lg:block">
+        <Kpi icon="paleta" title="En cancha ahora" className="hidden lg:block">
           {selectedDate === today && stats.currentSlot ? (
             <>
               <p className="font-display text-3xl font-bold tabular-nums">
@@ -431,14 +457,14 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
             <p className="mt-1 text-sm text-muted">{selectedDate === today ? 'El club está cerrado ahora.' : 'Solo se ve en el día de hoy.'}</p>
           )}
         </Kpi>
-        <Kpi title="Cobrado hoy en el club" className="hidden lg:block">
-          <p className="font-display text-3xl font-bold tabular-nums">{formatUYU(cashToday.total)}</p>
+        <Kpi icon="pago-en-club" tone="ok" title="Cobrado hoy en el club" className="hidden lg:block">
+          <p className="font-display text-3xl font-bold tabular-nums text-ok">{formatUYU(cashToday.total)}</p>
           <p className="mt-1.5 text-xs text-muted">
             Efectivo {formatUYU(cashToday.byMethod.efectivo)} · Transf. {formatUYU(cashToday.byMethod.transferencia)} · Tarjeta {formatUYU(cashToday.byMethod.debito_club)}
           </p>
         </Kpi>
-        <Kpi title="Por cobrar">
-          <p className="font-display text-2xl font-bold tabular-nums text-amber-700 sm:text-3xl">
+        <Kpi icon="pago-online" tone="due" title="Por cobrar">
+          <p className="font-display text-2xl font-bold tabular-nums text-due sm:text-3xl">
             {formatUYU(stats.dueTotal)}
             <span className="ml-2 text-xs font-normal text-muted sm:text-sm">{stats.dueCount} {stats.dueCount === 1 ? 'turno' : 'turnos'}</span>
           </p>
@@ -553,7 +579,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
                             const info = describe(b);
                             return (
                               <td key={ct.id} className={`h-[100px] p-0 align-top ${dim ? 'opacity-30' : ''}`}>
-                                <BookingCell info={info} booking={b} selected={selectedId === b.id} onClick={() => setSelectedId(b.id)} />
+                                <BookingCell info={info} booking={b} players={playersOf(b)} started={hasStarted(slot)} selected={selectedId === b.id} onClick={() => setSelectedId(b.id)} />
                               </td>
                             );
                           })}
@@ -583,7 +609,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
                       <div className="space-y-2">
                         {items.map(({ ct, b }) =>
                           b ? (
-                            <MobileRow key={ct.id} court={ct} info={describe(b)} booking={b} onClick={() => setSelectedId(b.id)} />
+                            <MobileRow key={ct.id} court={ct} info={describe(b)} booking={b} players={playersOf(b)} started={hasStarted(slot)} onClick={() => setSelectedId(b.id)} />
                           ) : (
                             <button
                               key={ct.id}
@@ -606,10 +632,13 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
               </div>
 
               <div className="hidden flex-wrap gap-4 px-1 text-xs text-muted md:flex">
-                <Legend className="bg-white" label="Reservada" />
-                <Legend className="bg-amber-50" label="Retenida mientras se arma un partido" />
-                <Legend className="bg-indigo-50" label="Torneo" />
-                <Legend className="bg-red-50" label="Ausencia" />
+                <Legend className="bg-ok-fill border-transparent" label="Pagado" />
+                <Legend className="bg-mist border-transparent" label="Reservada, a cobrar" />
+                <Legend className="bg-due-fill border-transparent" label="Ya jugó y debe" />
+                <Legend className="bg-wait-fill border-transparent" label="Retenida mientras se arma un partido" />
+                <Legend className="bg-fu-fill border-transparent" label="Falta uno" />
+                <Legend className="bg-live-fill border-transparent" label="Torneo" />
+                <Legend className="bg-busy border-transparent" label="Ausencia" />
                 <Legend className="border-dashed" label="Libre" />
               </div>
             </>
@@ -619,8 +648,12 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         {/* Panel derecho */}
         <div className="space-y-4">
           <div className="hidden lg:block">
-            {cashOpen && !selected ? (
+            {cashOpen === 'clientes' && !selected ? (
+              <ClientesSide club={club} memberships={memberships} bookings={bookings} matches={proposedMatches} payments={ops.allPayments} consumptions={ops.consumptions} userProfile={userProfile} today={today} nowMinute={minuteNow} closedToday={todayCash?.status === 'closed'} onToast={onToast} onClose={() => setCashOpen(null)} />
+            ) : cashOpen && !selected ? (
               <CashPanel
+                memberships={memberships}
+                tournaments={tournaments.filter((t) => t.status === 'registration_open')}
                 key={cashOpen}
                 club={club}
                 bookings={bookings}
@@ -633,7 +666,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
                 setBusy={setBusy}
                 onToast={onToast}
                 onClose={() => setCashOpen(null)}
-                initialTab={cashOpen}
+                initialTab={cashOpen as 'caja' | 'deben' | 'venta'}
               />
             ) : selected ? (
               <ChargePanel
@@ -696,7 +729,12 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
       {cashOpen && !selected && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 backdrop-blur-[2px] lg:hidden" onClick={() => setCashOpen(null)}>
           <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-3xl" onClick={(e) => e.stopPropagation()}>
+            {cashOpen === 'clientes' ? (
+              <ClientesSide club={club} memberships={memberships} bookings={bookings} matches={proposedMatches} payments={ops.allPayments} consumptions={ops.consumptions} userProfile={userProfile} today={today} nowMinute={minuteNow} closedToday={todayCash?.status === 'closed'} onToast={onToast} onClose={() => setCashOpen(null)} sheet />
+            ) : (
             <CashPanel
+              memberships={memberships}
+              tournaments={tournaments.filter((t) => t.status === 'registration_open')}
               key={cashOpen}
               club={club}
               bookings={bookings}
@@ -709,14 +747,16 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
               setBusy={setBusy}
               onToast={onToast}
               onClose={() => setCashOpen(null)}
-              initialTab={cashOpen}
+              initialTab={cashOpen as 'caja' | 'deben' | 'venta'}
             />
+            )}
           </div>
         </div>
       )}
 
       {newTarget && (
         <NewBookingModal
+          memberships={memberships}
           club={club}
           courts={activeCourts}
           slots={slots}
@@ -732,74 +772,147 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         />
       )}
     </div>
+    </ClientesContext.Provider>
     </ClubOpsContext.Provider>
   );
 };
 
 // ---------- Piezas ----------
 
-const Kpi: React.FC<{ title: string; className?: string; children: React.ReactNode }> = ({ title, className = '', children }) => (
-  <div className={`rounded-2xl border border-line bg-white px-4 py-3.5 sm:px-5 sm:py-4 ${className}`}>
-    <p className="text-[11px] font-semibold tracking-wider text-muted uppercase sm:text-xs">{title}</p>
+/** Clientes del club en el Mostrador (panel derecho en compu, hoja de abajo en celular). */
+const ClientesSide: React.FC<{
+  club: Club;
+  memberships: ClubMembership[];
+  bookings: Booking[];
+  matches: ProposedMatch[];
+  payments: PaymentRecord[];
+  consumptions: ReturnType<typeof useClubOps>['consumptions'];
+  userProfile: UserProfile;
+  today: string;
+  nowMinute: number;
+  closedToday: boolean;
+  onToast: (msg: string) => void;
+  onClose: () => void;
+  sheet?: boolean;
+}> = ({ onClose, sheet, userProfile, ...rest }) => (
+  <div className={`border border-line bg-page p-4 ${sheet ? 'rounded-t-3xl pb-8' : 'rounded-2xl'}`}>
+    <div className="mb-3 flex items-start justify-between gap-3">
+      <div>
+        <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Clientes del club</p>
+        <h2 className="mt-1 font-display text-lg font-bold text-ink">Con y sin app</h2>
+      </div>
+      <button type="button" onClick={onClose} aria-label="Cerrar" className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-white cursor-pointer">
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+    <ClientsPanel {...rest} staff={{ uid: userProfile.uid, name: userProfile.displayName }} isOwner={rest.club.ownerUid === userProfile.uid} />
+  </div>
+);
+
+
+const Kpi: React.FC<{ title: string; className?: string; tone?: 'ok' | 'due'; icon?: BrandIconName; children: React.ReactNode }> = ({ title, className = '', tone, icon, children }) => (
+  <div className={`rounded-2xl px-4 py-3.5 sm:px-5 sm:py-4 ${tone === 'ok' ? 'bg-ok-bg' : tone === 'due' ? 'bg-due-bg' : 'bg-white'} ${className}`}>
+    <p className={`flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase sm:text-xs ${tone === 'ok' ? 'text-ok' : tone === 'due' ? 'text-due' : 'text-muted'}`}>{icon && <BrandIcon name={icon} size={15} />}{title}</p>
     <div className="mt-1.5">{children}</div>
   </div>
 );
 
 const Legend: React.FC<{ className: string; label: string }> = ({ className, label }) => (
   <span className="inline-flex items-center gap-1.5">
-    <i className={`inline-block h-3 w-3 rounded border border-line ${className}`} />
+    <i className={`inline-block h-4 w-4 rounded-[5px] border border-line ${className}`} />
     {label}
   </span>
 );
 
 const toneClass = (tone: CellInfo['payTone']) =>
-  tone === 'paid' ? 'text-green-700' : tone === 'due' ? 'text-amber-700' : tone === 'danger' ? 'text-red-700' : 'text-indigo-700';
+  tone === 'paid' ? 'text-ok' : tone === 'due' ? 'text-due' : tone === 'danger' ? 'text-due' : 'text-brand';
 
-const cellBg = (kind: CellInfo['kind']) =>
-  kind === 'held'
-    ? 'bg-amber-50 border-amber-200'
-    : kind === 'tournament'
-      ? 'bg-indigo-50 border-indigo-200'
-      : kind === 'no_show'
-        ? 'bg-red-50 border-red-200'
-        : 'bg-white border-line';
+/** Estado visual de la celda (opción B aprobada por Ber 15/11/2026: relleno de color, sin borde). */
+type CellState = 'paid' | 'due' | 'booked' | 'held' | 'fill' | 'tournament' | 'no_show' | 'none';
+/** Rojo solo cuando el turno ya empezó y sigue sin pagar; antes es una reserva normal a cobrar en el club. */
+const cellState = (info: CellInfo, started = false): CellState => {
+  if (info.kind === 'no_show') return 'no_show';
+  if (info.fill?.search.status === 'searching') return 'fill';
+  if (info.kind === 'held') return 'held';
+  if (info.kind === 'tournament') return 'tournament';
+  if (info.payTone === 'paid') return 'paid';
+  if (info.payTone === 'due') return started ? 'due' : 'booked';
+  return 'none';
+};
+const CELL_FILL: Record<CellState, string> = {
+  paid: 'bg-ok-fill',
+  due: 'bg-due-fill',
+  booked: 'bg-mist',
+  held: 'bg-wait-fill',
+  fill: 'bg-fu-fill',
+  tournament: 'bg-live-fill',
+  no_show: 'bg-busy',
+  none: 'bg-white border border-line',
+};
+const cellBg = (info: CellInfo, started = false) => CELL_FILL[cellState(info, started)];
 
-const tagClass = (kind: CellInfo['kind']) =>
-  kind === 'held' ? 'text-amber-700' : kind === 'tournament' ? 'text-indigo-700' : kind === 'no_show' ? 'text-red-700' : 'text-muted';
+const tagClass = (kind: CellInfo['kind']) => (kind === 'no_show' ? 'text-due' : 'text-ink/70');
 
-const BookingCell: React.FC<{ info: CellInfo; booking: Booking; selected: boolean; onClick: () => void }> = ({ info, booking, selected, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={`relative flex h-full w-full flex-col rounded-xl border px-2.5 py-2 text-left hover:shadow-sm cursor-pointer ${cellBg(info.kind)} ${
-      selected ? 'outline-[3px] -outline-offset-1 outline-emerald-600 outline' : ''
-    }`}
-  >
-    <span className={`text-[10.5px] font-bold tracking-wide uppercase ${tagClass(info.kind)}`}>{info.tag}</span>
-    {info.fill && <span className={`mt-0.5 self-start rounded-full px-2 py-px text-[10.5px] font-semibold ${BADGE_CLASSES[info.fill.tone]}`}>{info.fill.label}</span>}
-    <span className="mt-0.5 truncate text-[13.5px] font-semibold text-ink">{info.title}</span>
-    <span className="truncate text-xs text-muted">{info.subtitle}</span>
-    <span className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs">
-      <span className={`truncate font-semibold ${toneClass(info.payTone)}`}>{info.payLabel}</span>
-      {info.kind !== 'tournament' && <span className="shrink-0 tabular-nums text-ink">{formatUYU(info.due > 0 && booking.paymentStatus === 'deposit_paid' && info.kind !== 'matched' ? info.due : booking.totalPrice)}</span>}
+const PAY_CHIP: Record<CellInfo['payTone'], string> = {
+  paid: 'text-ok',
+  due: 'text-due',
+  danger: 'text-due',
+  none: 'text-brand',
+};
+
+const CellPlayers: React.FC<{ players: ClubMembership[]; missing?: number }> = ({ players, missing = 0 }) =>
+  players.length || missing ? (
+    <span className="mt-1 flex items-center gap-0.5">
+      {players.slice(0, 4).map((m) => (
+        <PlayerAvatar key={m.uid} name={m.displayName} photoUrl={m.photoUrl} size={24} />
+      ))}
+      {Array.from({ length: Math.min(missing, 4 - Math.min(players.length, 4)) }).map((_, i) => (
+        <span key={i} className="h-6 w-6 rounded-[7px] border-2 border-dashed border-ink/60" />
+      ))}
     </span>
-  </button>
-);
+  ) : null;
 
-const MobileRow: React.FC<{ court: Court; info: CellInfo; booking: Booking; onClick: () => void }> = ({ court, info, booking, onClick }) => (
-  <button type="button" onClick={onClick} className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-3.5 py-3 text-left cursor-pointer ${cellBg(info.kind)}`}>
+const BookingCell: React.FC<{ info: CellInfo; booking: Booking; players: ClubMembership[]; started: boolean; selected: boolean; onClick: () => void }> = ({ info, booking, players, started, selected, onClick }) => {
+  const missing = info.fill?.search.status === 'searching' ? Math.max(0, info.fill.search.seatsNeeded - info.fill.search.seatsFilled) : 0;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative flex h-full w-full flex-col rounded-xl px-2.5 py-2 text-left hover:shadow-md cursor-pointer ${cellBg(info, started)} ${
+        selected ? 'outline-[3px] -outline-offset-1 outline-brand outline' : ''
+      }`}
+    >
+      <span className={`text-[10.5px] font-bold tracking-wide uppercase ${tagClass(info.kind)}`}>{info.tag}</span>
+      <span className="mt-0.5 truncate text-[13.5px] font-semibold text-ink">{info.title}</span>
+      <CellPlayers players={players} missing={missing} />
+      <span className="mt-auto flex items-center justify-between gap-2 pt-1.5 text-xs">
+        {info.fill ? (
+          <StatusChip kind={info.fill.search.status === 'searching' ? 'fu' : info.fill.tone === 'green' ? 'ok' : 'due'} icon="falta-uno" className="bg-white! text-ink!">
+            {info.fill.label}
+          </StatusChip>
+        ) : (
+          <span className={`truncate rounded-full bg-white px-2 py-[3px] font-semibold ${info.payTone === 'due' && !started ? 'text-brand' : PAY_CHIP[info.payTone]}`}>{info.payTone === 'due' && !started ? 'A cobrar' : info.payLabel}</span>
+        )}
+        {info.kind !== 'tournament' && <span className="shrink-0 font-semibold tabular-nums text-ink">{formatUYU(info.due > 0 && booking.paymentStatus === 'deposit_paid' && info.kind !== 'matched' ? info.due : booking.totalPrice)}</span>}
+      </span>
+    </button>
+  );
+};
+
+const MobileRow: React.FC<{ court: Court; info: CellInfo; booking: Booking; players: ClubMembership[]; started: boolean; onClick: () => void }> = ({ court, info, booking, players, started, onClick }) => (
+  <button type="button" onClick={onClick} className={`flex w-full items-center justify-between gap-3 rounded-2xl px-3.5 py-3 text-left cursor-pointer ${cellBg(info, started)}`}>
     <span className="min-w-0">
       <span className={`block text-[11px] font-bold tracking-wide uppercase ${tagClass(info.kind)}`}>
         {court.name} · {info.kind === 'matched' ? 'Partido armado' : info.kind === 'held' ? 'Retenida' : info.tag}
       </span>
-      {info.fill && <span className={`mt-0.5 inline-block rounded-full px-2 py-px text-[11px] font-semibold ${BADGE_CLASSES[info.fill.tone]}`}>{info.fill.label}</span>}
+      {info.fill && <span className="mt-0.5 inline-block rounded-full bg-white px-2 py-px text-[11px] font-semibold text-ink">{info.fill.label}</span>}
       <span className="mt-0.5 block truncate text-sm font-semibold text-ink">{info.title}</span>
-      <span className="block truncate text-xs text-muted">{info.subtitle}</span>
+      <CellPlayers players={players} />
     </span>
     {info.kind !== 'tournament' && info.kind !== 'held' && (
       <span className="shrink-0 text-right text-xs">
         <span className="block text-sm font-bold tabular-nums text-ink">{formatUYU(booking.totalPrice)}</span>
-        <span className={`font-semibold ${toneClass(info.payTone)}`}>{info.payLabel}</span>
+        <span className={`mt-1 inline-block rounded-full bg-white px-2 py-[2px] font-semibold ${info.payTone === 'due' && !started ? 'text-brand' : toneClass(info.payTone)}`}>{info.payTone === 'due' && !started ? 'A cobrar' : info.payLabel}</span>
       </span>
     )}
   </button>
@@ -1074,11 +1187,12 @@ const NewBookingModal: React.FC<{
   setBusy: (b: boolean) => void;
   onToast: (msg: string) => void;
   onClose: () => void;
-}> = ({ club, courts, slots, date, dateLabel, initial, isTaken, userProfile, busy, setBusy, onToast, onClose }) => {
+  memberships: ClubMembership[];
+}> = ({ club, courts, slots, date, dateLabel, initial, isTaken, userProfile, busy, setBusy, onToast, onClose, memberships }) => {
   const [courtId, setCourtId] = useState(initial.courtId);
   const [startMinute, setStartMinute] = useState(initial.startMinute);
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [client, setClient] = useState<ClubClient | null>(null);
+  const [byPhone, setByPhone] = useState(true);
   const [paidNow, setPaidNow] = useState(false);
   const [method, setMethod] = useState<CounterPaymentMethod>('efectivo');
 
@@ -1089,7 +1203,7 @@ const NewBookingModal: React.FC<{
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!court || !slot || taken || !name.trim()) return;
+    if (!court || !slot || taken || !client) return;
     setBusy(true);
     try {
       await createCounterBooking({
@@ -1099,12 +1213,13 @@ const NewBookingModal: React.FC<{
         startMinute: slot.startMinute,
         endMinute: slot.endMinute,
         staffUid: userProfile.uid,
-        guestName: name.trim(),
-        phone: phone.trim(),
+        guestName: client.name,
+        phone: formatPhone(client.phone),
         paidNow,
         method,
+        clientId: client.id,
       });
-      onToast(`Reserva cargada: ${court.name}, ${formatMinutes(slot.startMinute)}, a nombre de ${name.trim()}.`);
+      onToast(`Reserva cargada: ${court.name}, ${formatMinutes(slot.startMinute)}, a nombre de ${client.name}.`);
       onClose();
     } finally {
       setBusy(false);
@@ -1147,14 +1262,28 @@ const NewBookingModal: React.FC<{
         </div>
         {taken && <p className="mt-2 text-xs font-semibold text-red-700">Ese turno ya está ocupado en esa cancha.</p>}
 
-        <label className="mt-4 block text-xs font-semibold text-ink">
-          Nombre (no necesita tener la app)
-          <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Joaquín Pérez" className="mt-1.5 w-full rounded-xl border border-line px-3 py-2.5 text-sm font-normal" />
-        </label>
-        <label className="mt-3 block text-xs font-semibold text-ink">
-          Teléfono <span className="font-normal text-muted">(opcional)</span>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="099 123 456" className="mt-1.5 w-full rounded-xl border border-line px-3 py-2.5 text-sm font-normal" />
-        </label>
+        <div className="mt-4">
+          <p className="mb-1.5 flex items-center justify-between text-xs font-semibold text-ink">
+            <span>A nombre de (no necesita tener la app)</span>
+            {!client && (
+              <span className="flex gap-1 text-[11.5px] font-normal">
+                <button type="button" onClick={() => setByPhone(true)} className={`rounded-full px-2 py-0.5 cursor-pointer ${byPhone ? 'bg-brand text-white' : 'text-muted'}`}>Por teléfono</button>
+                <button type="button" onClick={() => setByPhone(false)} className={`rounded-full px-2 py-0.5 cursor-pointer ${!byPhone ? 'bg-brand text-white' : 'text-muted'}`}>En el mostrador</button>
+              </span>
+            )}
+          </p>
+          {client ? (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2.5">
+              <span className="min-w-0 text-sm">
+                <span className="block truncate font-semibold text-ink">{client.name}</span>
+                <span className="block text-xs text-muted">{[formatPhone(client.phone), client.uid ? 'con app' : 'sin app'].filter(Boolean).join(' · ')}</span>
+              </span>
+              <button type="button" onClick={() => setClient(null)} className="shrink-0 rounded-full border border-line px-3 py-1 text-xs font-semibold cursor-pointer">Cambiar</button>
+            </div>
+          ) : (
+            <ClientPicker club={club} memberships={memberships} staff={{ uid: userProfile.uid, name: userProfile.displayName }} today={getTodayISO()} origin={byPhone ? 'telefono' : 'mostrador'} onPick={setClient} />
+          )}
+        </div>
 
         <div className="mt-4 flex items-center justify-between rounded-xl bg-mist px-3.5 py-3">
           <span className="text-sm">
@@ -1181,7 +1310,7 @@ const NewBookingModal: React.FC<{
           <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-line py-3 text-sm font-semibold text-ink hover:bg-mist cursor-pointer">
             Volver
           </button>
-          <button type="submit" disabled={busy || taken || !name.trim()} className="flex-1 rounded-xl bg-brand py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer">
+          <button type="submit" disabled={busy || taken || !client} className="flex-1 rounded-xl bg-brand py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer">
             {busy ? 'Guardando…' : 'Confirmar reserva'}
           </button>
         </div>

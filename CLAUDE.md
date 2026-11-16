@@ -40,6 +40,14 @@ Cada club tiene su app marca blanca sobre una sola plataforma multi-club. Jugado
 - Migración: `npx tsx scripts/importar-jugadores.ts --archivo <csv> --club <id> --salida <carpeta>` hace la prueba en seco. Cargar: sumar `--cargar --permiso "<quién del club autorizó y cuándo>"` (ley 18.331); `FIREBASE_EMULATORS=1` para emuladores. No manda mails. Plantilla: `scripts/migracion/plantilla-jugadores.csv`.
 - Sin hacer todavía: envío real de mails (informe y bienvenida), tareas del servidor (foto del día 1, vencimiento de la seña), Mercado Pago real, tope del fiado, aviso al cerrar la caja.
 
+## Clientes, cuponeras, saldo, venta suelta, libro y Números (rama claude/project-thread-hep7gi)
+- Especificación: project files informes/especificacion-clientes-ventas-kpis.md (sección 15 = qué se construyó; decisiones "a confirmar").
+- Lógica pura: `src/lib/clientes.ts` (celular, claves `uid` / `c:<fichaId>` / `g:<reservaId>`, duplicados, cuponeras, deudas, libro, `computeNumbers`, hojas) y `src/lib/planilla.ts` (.xlsx sin librería y .csv).
+- Servicio: `src/services/clientesService.ts`. Pantallas: `src/components/clientes/` (ficha, buscador/alta, venta suelta, libro, Números, cuponeras). Mostrador: botones "Venta suelta" y "Clientes"; Admin: Clientes, Números, Cuponeras, Caja (con el libro).
+- Colecciones nuevas en `clubs/{clubId}`: clients (las de la app con id `u_<uid>`), packTypes, clientPacks (campo `uid` para que el jugador las lea), sales, exportLogs. Reglas en firestore.rules; prueba: `cd scripts/reglas && npx -y firebase-tools@15 emulators:exec --only firestore "node clientes.rules-test.mjs ../../firestore.rules"` (necesita `@firebase/rules-unit-testing` y `firebase` instalados).
+- Servidor: `functions/src/clientes.ts` + disparador `clientesAlSumarse` (une por mail verificado, si no crea ficha; por celular solo marca repetido). Prueba en `functions/test/clientes.emulator.mjs` (corre con `npm test`). En la nube de Claude: `functions/.env.local` con `SIN_DISPARADORES=1` (el proxy impide registrar disparadores).
+- Pruebas: `npx tsx scripts/test-clientes.ts <carpeta>` (30) y de punta a punta `node scripts/verify-clientes.cjs <url> <carpeta>` (19, con la demo cargada).
+
 ## Reglas
 - Nada de afiliaciones FIP/AAP/Federación ni nivel decimal en la UI: solo categoría.
 - Español de Uruguay: "cancha", nunca "pista".

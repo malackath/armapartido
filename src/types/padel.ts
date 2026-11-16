@@ -58,6 +58,15 @@ export interface UserPrivateInfo {
   updatedAt?: unknown;
 }
 
+export interface ClubSponsor {
+  name: string;
+  tagline?: string;
+  logoUrl?: string;
+  /** Foto horizontal del auspiciante (16:9). */
+  imageUrl?: string;
+  url?: string;
+}
+
 export interface Club {
   id: string;
   name: string;
@@ -88,6 +97,10 @@ export interface Club {
   /** "Falta uno" automático (por defecto encendido) y diferencia de categoría permitida (1 o 2). */
   fillEnabled?: boolean;
   fillMaxGap?: 1 | 2;
+  /** Auspiciante que el club muestra en Inicio. Si no hay, el espacio no se muestra. */
+  sponsor?: ClubSponsor;
+  /** Varios auspiciantes: Inicio muestra uno y rota. Si falta, se usa `sponsor`. */
+  sponsors?: ClubSponsor[];
   courtCount: number;
   /** Plan contratado (para el informe mensual). Sin dato = Estándar. */
   plan?: 'entrada' | 'estandar';
@@ -116,6 +129,8 @@ export interface ClubMembership {
   uid: string;
   clubId: string;
   displayName: string;
+  /** Copia de la foto de perfil del jugador (users/{uid}.photoUrl) para mostrarla en listas. */
+  photoUrl?: string;
   role: ClubRole;
   category: number;
   gender: Gender;
@@ -146,6 +161,8 @@ export interface Booking {
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   holdExpiresAt: string;
+  /** Ficha del cliente (reservas por teléfono o mostrador). */
+  clientId?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -268,6 +285,7 @@ export interface PaymentRecord {
     | 'refund'
     | 'platform_subscription'
     | 'cantina'
+    | 'venta'
     | 'retiro'
     | 'anulacion';
   status: 'completed' | 'refunded';
@@ -283,6 +301,13 @@ export interface PaymentRecord {
   voidOfId?: string;
   /** Cobro hecho con la caja de ese día ya cerrada. */
   afterClose?: boolean;
+  /** Ficha del cliente que pagó (si la hay). */
+  clientId?: string;
+  /** Rubro de lo cobrado. Los cobros viejos no lo tienen y se deduce de kind (ver rubroOfPayment). */
+  rubro?: 'cancha' | 'cantina' | 'cuponeras' | 'saldo' | 'clases' | 'torneos' | 'alquiler' | 'otros';
+  /** Casilla de factura (fase 1 manual). Sin el campo = pendiente. */
+  invoiceStatus?: 'pendiente' | 'emitida' | 'no_corresponde';
+  invoiceNumber?: string;
   createdAt?: unknown;
 }
 

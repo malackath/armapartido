@@ -25,6 +25,7 @@ import type {
 } from '../types/padel';
 import { addDaysISO, getDayOfWeekFromISO, getTodayISO } from '../lib/padelUtils';
 import { addCantinaDemo } from './demoCantina';
+import { addClientesDemo } from './demoClientes';
 
 export const DEMO_CLUB_ID = 'los_jacarandas';
 export const DEMO_EMAIL_DOMAIN = 'demo.armapartido.com';
@@ -88,6 +89,11 @@ export const DEMO_CLUB_SUBCOLLECTIONS = [
   'migrations',
   'fillSearches',
   'fillInvites',
+  'clients',
+  'packTypes',
+  'clientPacks',
+  'sales',
+  'exportLogs',
 ];
 
 const SLOT = 90;
@@ -104,6 +110,14 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
   const club: Club = {
     id: C,
     name: 'Los Jacarandás Pádel',
+    sponsor: { name: 'Parrilla El Saque', tagline: 'Mostrá la app y la primera ronda después del partido va 2x1.', imageUrl: '/img/demo/auspiciantes/el-saque.webp' },
+    // Auspiciantes ficticios de la demo (fotos hechas por Ber en Flow, 15/11/2026). Rotan en Inicio.
+    sponsors: [
+      { name: 'Parrilla El Saque', tagline: 'Mostrá la app y la primera ronda después del partido va 2x1.', imageUrl: '/img/demo/auspiciantes/el-saque.webp' },
+      { name: 'Tienda Punto de Oro', tagline: 'Paletas y ropa de pádel. 10% para socios del club.', imageUrl: '/img/demo/auspiciantes/punto-de-oro.webp' },
+      { name: 'Kinesiología La Volea', tagline: 'Primera consulta sin cargo para jugadores del club.', imageUrl: '/img/demo/auspiciantes/la-volea.webp' },
+      { name: 'Heladería Bandeja', tagline: 'Licuado de frutas a mitad de precio después del partido.', imageUrl: '/img/demo/auspiciantes/bandeja.webp' },
+    ],
     slug: 'los-jacarandas',
     primaryColor: '#0a5761',
     accentColor: '#172123',
@@ -152,8 +166,12 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
   };
   const avail = (days: number[], from: number, to: number): AvailabilityWindow[] =>
     days.map((d) => ({ dayOfWeek: d, startMinute: from, endMinute: to }));
-  const people: { uid: string; name: string; category: number; gender: Gender; role: ClubRole; modality: Modality }[] = [
+  // Fotos de perfil ficticias (hechas por Ber en Flow, 15/11/2026), fijas en public/img/demo/perfiles.
+  const PHOTO_KEYS = new Set(['jugador', 'jugadora', 'dueno', 'mostrador', ...EXTRA_PLAYERS.map((p) => p.id)]);
+  const photoOf = (key: string) => (PHOTO_KEYS.has(key) ? `/img/demo/perfiles/${key}.webp` : '');
+  const people: { uid: string; name: string; category: number; gender: Gender; role: ClubRole; modality: Modality; photo: string }[] = [
     ...DEMO_ACCOUNTS.map((a) => ({
+      photo: photoOf(a.key),
       uid: uids[a.key],
       name: a.name,
       category: a.category,
@@ -161,7 +179,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
       role: roleOf[a.key],
       modality: 'mixto' as Modality,
     })),
-    ...EXTRA_PLAYERS.map((p) => ({ uid: p.id, name: p.name, category: p.category, gender: p.gender, role: 'player' as ClubRole, modality: 'mixto' as Modality })),
+    ...EXTRA_PLAYERS.map((p) => ({ photo: photoOf(p.id), uid: p.id, name: p.name, category: p.category, gender: p.gender, role: 'player' as ClubRole, modality: 'mixto' as Modality })),
   ];
   const nameOf = (uid: string) => people.find((p) => p.uid === uid)?.name ?? 'Jugador';
   const catOf = (uid: string) => people.find((p) => p.uid === uid)?.category ?? 5;
@@ -172,7 +190,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
     const profile: UserProfile = {
       uid: p.uid,
       displayName: p.name,
-      photoUrl: '',
+      photoUrl: p.photo,
       category: p.category,
       gender: p.gender,
       preferredModality: p.modality,
@@ -184,6 +202,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
       uid: p.uid,
       clubId: C,
       displayName: p.name,
+      ...(p.photo ? { photoUrl: p.photo } : {}),
       role: p.role,
       category: p.category,
       gender: p.gender,
@@ -384,7 +403,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
   const pairs: TournamentPair[] = [
     pair('pr1', uids.jugador, 'demo-p09', 5),
     pair('pr2', 'demo-p08', 'demo-p10', 5),
-    pair('pr3', 'demo-p11', 'demo-p12', 6),
+    { ...pair('pr3', 'demo-p11', 'demo-p12', 6), paid: false },
     pair('pr4', 'demo-p06', 'demo-p07', 4),
     pair('pr5', uids.jugadora, 'demo-p05', 4),
     pair('pr6', 'demo-p13', 'demo-p14', 6),
@@ -525,5 +544,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
 
   // Caja, cantina, turnos fijos, seña retenida, turnos recuperados e informe del mes pasado
   addCantinaDemo(docs, { base, clubId: C, today, uids, nameOf, catOf, genOf, price, ownerUid: uids.dueno });
+  // Clientes, cuponeras, saldo a favor, venta suelta y facturas
+  addClientesDemo(docs, { base, clubId: C, today, uids, nameOf, catOf, price });
   return docs;
 }

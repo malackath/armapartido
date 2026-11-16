@@ -8,6 +8,10 @@ import { accountOf, participantsOf } from '../../lib/caja';
 import { addConsumption, chargeAccounts, voidConsumption, type Staff } from '../../services/cajaService';
 import type { CounterPaymentMethod } from '../../services/firestoreService';
 import { MethodPicker, btnPrimary, btnSecondary, initials, useOps } from './ops';
+import { useClientes } from '../clientes/data';
+import { dmy, packUsableFor, participantsWithClients, VALIDITY_LABEL } from '../../lib/clientes';
+import { payTurnWithBalance, redeemPack } from '../../services/clientesService';
+import type { ClientPack, ClubClient } from '../../types/clientes';
 
 const methodLabel = (m: CounterPaymentMethod) => (m === 'efectivo' ? 'efectivo' : m === 'transferencia' ? 'transferencia' : 'tarjeta');
 
@@ -31,6 +35,21 @@ export const TurnAccount: React.FC<{
   const [method, setMethod] = useState<CounterPaymentMethod>('efectivo');
   const [choosing, setChoosing] = useState<Product | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [useBalance, setUseBalance] = useState(false);
+  const { clients, packs } = useClientes();
+  const unit: 'parte' | 'turno' = booking.type === 'matched' ? 'parte' : 'turno';
+  /** Ficha y cuponera usable de cada uno (W3). */
+  const extra = useMemo(() => {
+    const withClients = participantsWithClients(booking, match, nameOf, clients);
+    const map = new Map<string, { client?: ClubClient; pack?: ClientPack; packReason?: string; packCount: number }>();
+    for (const p of withClients) {
+      const mine = p.client ? packs.filter((x) => x.clientId === p.client!.id && x.status === 'active' && x.usesLeft > 0 && x.expiresOn >= today) : [];
+      const checks = mine.map((x) => ({ x, r: packUsableFor({ pack: x, club, date: booking.date, startMinute: booking.startMinute, unit, today }) }));
+      const ok = checks.filter((c) => c.r.ok).sort((a, b) => a.x.expiresOn.localeCompare(b.x.expiresOn))[0];
+      map.set(p.key, { client: p.client, pack: ok?.x, packReason: !ok && checks[0] ? checks[0].r.reason : undefined, packCount: mine.reduce((a, x) => a + x.usesLeft, 0) });
+    }
+    return map;
+  }, [booking, match, nameOf, clients, packs, club, today, unit]);
 
   const active = products.filter((p) => p.active);
   const quick = showAll ? active : active.slice(0, 6);
@@ -67,8 +86,31 @@ export const TurnAccount: React.FC<{
     else setChoosing(p);
   };
 
+  const pickedAccounts = accounts.filter((a) => picked.includes(a.key) && a.totalDue > 0);
+  const single = pickedAccounts.length === 1 ? pickedAccounts[0] : undefined;
+  const singleClient = single ? extra.get(single.key)?.client : undefined;
+  const canBalance = !!single && !!singleClient && singleClient.balance >= single.totalDue;
+  const packAccount = accounts.find((a) => a.canchaDue > 0 && extra.get(a.key)?.pack && (picked.includes(a.key) || !multi));
+  const packInfo = packAccount ? extra.get(packAccount.key)! : undefined;
+  const blockedPack = !packAccount ? accounts.map((a) => ({ a, e: extra.get(a.key) })).find((x) => x.a.canchaDue > 0 && x.e?.packReason && picked.includes(x.a.key)) : undefined;
+
+  const payWithPack = () =>
+    packAccount &&
+    packInfo?.pack &&
+    packInfo.client &&
+    run(
+      () => redeemPack({ club, pack: packInfo.pack!, client: packInfo.client!, booking, match, participantKey: packAccount.key, value: packAccount.canchaDue, staff, day: today }),
+      `Pagó con cuponera: le quedan ${packInfo.pack.usesLeft - 1}. No entra a la caja.`
+    );
+
   const charge = () =>
-    run(async () => {
+    useBalance && canBalance && single && singleClient
+      ? run(async () => {
+          await payTurnWithBalance({ club, client: singleClient, booking, match, participantKey: single.key, canchaDue: single.canchaDue, consumptions: turnCons, staff, day: today });
+          setPicked([]);
+          setUseBalance(false);
+        }, `Pagó con saldo a favor: ${formatUYU(single.totalDue)}. No entra a la caja.`)
+      : run(async () => {
       await chargeAccounts({ club, booking, match, accounts, keys: picked, consumptions: turnCons, method, staff, day: today, afterClose: closedToday });
       setPicked([]);
     }, `Cobro registrado: ${formatUYU(pickedDue)} en ${methodLabel(method)}.`);
@@ -191,6 +233,9 @@ export const TurnAccount: React.FC<{
                     <span className="block text-[11px] text-muted">cancha {formatUYU(a.canchaDue)} + cantina {formatUYU(a.consumptionDue)}</span>
                   )}
                   {done && <Check className="mt-0.5 h-4 w-4 text-green-700" />}
+                  {!done && (extra.get(a.key)?.packCount ?? 0) > 0 && <span className="mt-1 block text-[11px] font-semibold text-brand">Cuponera: {extra.get(a.key)!.packCount}</span>}
+                  {!done && !extra.get(a.key)?.client && a.key.startsWith('g:') && <span className="mt-1 block text-[11px] text-muted">sin ficha</span>}
+                  {!done && extra.get(a.key)?.client && !extra.get(a.key)!.client!.uid && <span className="mt-1 block text-[11px] text-muted">sin app</span>}
                 </button>
               );
             })}
@@ -198,15 +243,49 @@ export const TurnAccount: React.FC<{
         </div>
       )}
 
+      {packAccount && packInfo?.pack && (
+        <div className="rounded-xl bg-[#e6f3f3] p-3.5" data-testid="usar-cuponera">
+          <p className="text-sm font-bold text-ink">
+            {packAccount.name.split(' ')[0]} tiene "{packInfo.pack.name}"
+          </p>
+          <p className="text-[12.5px] text-muted">
+            Quedan {packInfo.pack.usesLeft} · vence {dmy(packInfo.pack.expiresOn)} · vale {VALIDITY_LABEL[packInfo.pack.validity]}
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            <button type="button" disabled={busy} onClick={payWithPack} className="rounded-full bg-brand px-3.5 py-2 text-[13px] font-semibold text-white disabled:opacity-50 cursor-pointer">
+              Usar cuponera (cancha {formatUYU(packAccount.canchaDue)})
+            </button>
+          </div>
+          {packAccount.consumptionDue > 0 && <p className="mt-2 text-[12px] text-muted">Lo de la cantina ({formatUYU(packAccount.consumptionDue)}) se paga aparte: la cuponera es solo de cancha.</p>}
+        </div>
+      )}
+      {blockedPack && (
+        <p className="rounded-xl bg-wait-bg px-3 py-2 text-[12.5px] text-wait">
+          {blockedPack.a.name.split(' ')[0]} tiene cuponera pero no sirve para este turno: {blockedPack.e!.packReason} Paga normal.
+        </p>
+      )}
+
       {totalDue > 0 ? (
         <>
           <div>
             <p className="mb-2 text-xs font-semibold tracking-wider text-muted uppercase">Forma de cobro</p>
-            <MethodPicker value={method} onChange={setMethod} />
+            <div className={useBalance ? 'pointer-events-none opacity-40' : ''}>
+              <MethodPicker value={method} onChange={setMethod} />
+            </div>
+            {singleClient && singleClient.balance > 0 && (
+              <button
+                type="button"
+                disabled={!canBalance}
+                onClick={() => setUseBalance((v) => !v)}
+                className={`mt-2 w-full rounded-xl border py-2.5 text-[13px] font-semibold cursor-pointer disabled:cursor-default disabled:opacity-50 ${useBalance ? 'border-2 border-emerald-600 bg-emerald-50 text-brand' : 'border-line bg-white text-ink'}`}
+              >
+                Saldo a favor de {singleClient.name.split(' ')[0]} ({formatUYU(singleClient.balance)}){!canBalance ? ' · no alcanza' : ''}
+              </button>
+            )}
           </div>
           {closedToday && <p className="rounded-xl bg-amber-50 px-3 py-2 text-[12.5px] text-amber-800">La caja de hoy ya está cerrada: este cobro queda marcado como cobrado después del cierre.</p>}
           <button type="button" disabled={busy || pickedDue <= 0} onClick={charge} className={btnPrimary}>
-            <Check className="h-4 w-4" /> Cobrar {formatUYU(pickedDue)}
+            <Check className="h-4 w-4" /> {useBalance && canBalance ? 'Pagar con saldo' : 'Cobrar'} {formatUYU(pickedDue)}
             {multi ? ` (${picked.filter((k) => accounts.find((a) => a.key === k && a.totalDue > 0)).length})` : ''}
           </button>
           <button
