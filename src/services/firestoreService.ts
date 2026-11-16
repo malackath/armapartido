@@ -89,6 +89,7 @@ const NOTIFICATION_CHANNELS: Record<NotificationEventType, { push: boolean; emai
   pair_invite: { push: true, email: true },
   tournament_next_match: { push: true, email: true },
   waitlist_slot_open: { push: true, email: false },
+  category_changed: { push: true, email: false },
 };
 
 function getDefaultTabForEvent(eventType: NotificationEventType): string {
@@ -109,6 +110,8 @@ function getDefaultTabForEvent(eventType: NotificationEventType): string {
     case 'tournament_new':
     case 'tournament_next_match':
       return 'tournaments';
+    case 'category_changed':
+      return 'profile';
     default:
       return 'notifications';
   }
@@ -1662,7 +1665,7 @@ export async function removeClubCourt(club: Club, courtId: string, currentCourts
 export async function updateMembershipByAdmin(
   clubId: string,
   memberUid: string,
-  updates: Partial<Pick<ClubMembership, 'role' | 'category' | 'blocked' | 'noShowCount'>>
+  updates: Partial<Pick<ClubMembership, 'role' | 'category' | 'blocked' | 'noShowCount' | 'categoryReview'>>
 ) {
   const path = `clubs/${clubId}/memberships/${memberUid}`;
   try {

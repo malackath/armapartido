@@ -36,6 +36,8 @@ import { ClientsPanel } from './clientes/ClientsPanel';
 import { Libro } from './clientes/Libro';
 import { Numeros } from './clientes/Numeros';
 import { CuponerasAdmin } from './clientes/CuponerasAdmin';
+import { NewMembersReview } from './registro/ClubReview';
+import { PlayerAvatar } from './ui/People';
 
 interface ClubAdminViewProps {
   club: Club;
@@ -301,6 +303,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
   };
 
   const current = SECTIONS.find((s) => s.id === section)!;
+  const pendingReviews = memberships.filter((m) => m.role === 'player' && m.categoryReview === 'pendiente').length;
   const showSave = section === 'courts' || section === 'prices' || section === 'fill' || section === 'club';
 
   return (
@@ -324,6 +327,11 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
             >
               <BrandIcon name={s.icon} size={18} className="hidden lg:block" />
               {s.label}
+              {s.id === 'members' && pendingReviews > 0 && (
+                <span className="ml-auto rounded-full bg-action px-1.5 text-xs font-bold text-on-action" aria-label={`${pendingReviews} por revisar`} data-testid="badge-nuevos">
+                  {pendingReviews}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -473,7 +481,12 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
           <FillSection club={club} enabled={fillEnabled} setEnabled={setFillEnabled} maxGap={fillMaxGap} setMaxGap={setFillMaxGap} />
         )}
 
-        {section === 'members' && <MembersCard club={club} memberships={memberships} userProfile={userProfile} onToast={onToast} />}
+        {section === 'members' && (
+          <>
+            <NewMembersReview club={club} memberships={memberships} userProfile={userProfile} onToast={onToast} />
+            <MembersCard club={club} memberships={memberships} userProfile={userProfile} onToast={onToast} />
+          </>
+        )}
 
         {section === 'tournaments' && (
           <TournamentsSection club={club} courts={courts} memberships={memberships} tournaments={tournaments} userProfile={userProfile} busy={busy} setBusy={setBusy} onToast={onToast} />
@@ -774,9 +787,7 @@ const MembersCard: React.FC<{ club: Club; memberships: ClubMembership[]; userPro
               return (
                 <tr key={m.uid} className="border-b border-[#eef5f5] last:border-0">
                   <td className="py-2.5 pr-3 whitespace-nowrap">
-                    <span className="mr-2.5 inline-grid h-8 w-8 place-items-center rounded-full bg-mist align-middle text-xs font-bold text-brand">
-                      {m.displayName.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
-                    </span>
+                    <PlayerAvatar name={m.displayName} photoUrl={m.photoUrl} size={32} className="mr-2.5 align-middle" />
                     <span className="font-semibold text-ink">{m.displayName}</span>
                     {isOwner && <span className="ml-2 text-xs text-muted">dueño</span>}
                   </td>
@@ -801,7 +812,7 @@ const MembersCard: React.FC<{ club: Club; memberships: ClubMembership[]; userPro
                     <select
                       value={m.category}
                       onChange={(e) =>
-                        updateMembershipByAdmin(club.id, m.uid, { category: Number(e.target.value) }).then(() =>
+                        updateMembershipByAdmin(club.id, m.uid, { category: Number(e.target.value), categoryReview: 'ok' }).then(() =>
                           onToast(`Categoría de ${m.displayName}: ${formatCategory(Number(e.target.value))}.`)
                         )
                       }

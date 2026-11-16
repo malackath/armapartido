@@ -1,35 +1,17 @@
+/**
+ * Perfil del jugador (rediseño aprobado por Ber el 16/11/2026): la ficha arriba (a la izquierda en la compu)
+ * y tres pestañas: Mi juego, Mi cuenta y Ajustes. Sin ranking ni gráficos.
+ * Vista previa: Paddle.URU/Pantallas/perfil-y-registro.
+ */
 import React, { useEffect, useMemo, useState } from 'react';
-import PhotoHeader from './PhotoHeader';
-import { MyAccount } from './caja/MyAccount';
-import { AlertPrefsSection } from './FaltaUno';
-import {
-  Activity,
-  BarChart3,
-  LogOut,
-  Mail,
-  Plus,
-  ShieldCheck,
-  Trash2,
-  Trophy,
-  X,
-} from 'lucide-react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Check, ChevronRight, Trash2, X } from 'lucide-react';
 import type {
   Booking,
   Club,
   ClubMembership,
+  CourtSide,
   Gender,
+  Hand,
   Modality,
   PlayerMatchResult,
   ProposedMatch,
@@ -37,21 +19,17 @@ import type {
   UserPrivateInfo,
   UserProfile,
 } from '../types/padel';
-import {
-  addDaysISO,
-  computeClubPlayerRanking,
-  computePlayerLevel,
-  formatCategory,
-  getDayOfWeekFromISO,
-  getTodayISO,
-  type PlayerLevelSummary, formatDateFriendly, CATEGORIES, MAX_CATEGORY } from '../lib/padelUtils';
-import {
-  deletePlayerMatchResult,
-  getUserPrivateInfo,
-  logPlayerMatchResult,
-  updateUserGlobalProfile,
-} from '../services/firestoreService';
+import { formatCategory, formatDateFriendly, getTodayISO, type PlayerLevelSummary } from '../lib/padelUtils';
+import { formatPhone, normalizePhone } from '../lib/clientes';
+import { describeWindows, gridFromWindows, windowsFromGrid, type GridKey } from '../lib/registro';
+import { deletePlayerMatchResult, getUserPrivateInfo, logPlayerMatchResult, saveUserFcmToken } from '../services/firestoreService';
+import { savePrivatePhone, saveProfileChanges } from '../services/registroService';
+import { uploadProfilePhoto } from '../services/photoService';
+import { obtainFcmDeviceToken } from '../lib/fcm';
+import { MyAccount } from './caja/MyAccount';
+import { AlertPrefsSection } from './FaltaUno';
 import { InstallGuideModal, PWAInstallButton } from './PWAInstallButton';
+import { AvailabilityGrid, CategoryLadder, MiniLadder, OptionGroup, PlayerFicha } from './registro/parts';
 
 interface ProfileViewProps {
   userProfile: UserProfile;
@@ -68,942 +46,710 @@ interface ProfileViewProps {
   onProfileUpdated: (next: UserProfile) => void;
   onLogout: () => void;
   onToast: (msg: string) => void;
+  onOpenTab?: (tab: 'friends') => void;
 }
 
-interface UnifiedMatchResult {
+type Tab = 'juego' | 'cuenta' | 'ajustes';
+
+interface ResultRow {
   id: string;
-  source: 'tournament' | 'manual';
+  manual: boolean;
   date: string;
-  clubName: string;
   title: string;
-  modalityLabel: string;
-  score: string;
-  outcome: 'win' | 'loss';
+  detail: string;
+  win: boolean;
 }
 
-const MODALITY_LABELS: Record<Modality, string> = {
-  masculino: 'Masculino',
-  femenino: 'Femenino',
-  mixto: 'Mixto',
-};
+const MODALITY_LABEL: Record<Modality, string> = { masculino: 'masculino', femenino: 'femenino', mixto: 'mixto' };
 
-const WEEKDAY_ORDER: { dow: number; label: string }[] = [
-  { dow: 1, label: 'Lun' },
-  { dow: 2, label: 'Mar' },
-  { dow: 3, label: 'Mié' },
-  { dow: 4, label: 'Jue' },
-  { dow: 5, label: 'Vie' },
-  { dow: 6, label: 'Sáb' },
-  { dow: 0, label: 'Dom' },
-];
-
-const SHORT_MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-
-function formatShortDate(iso: string): string {
-  const parts = iso.split('-');
-  if (parts.length !== 3) return iso;
-  const day = Number(parts[2]);
-  const monthIdx = Number(parts[1]) - 1;
-  return `${day} ${SHORT_MONTHS[monthIdx] ?? parts[1]}`;
-}
-
-function getMondayOfWeekISO(iso: string): string {
-  const dow = getDayOfWeekFromISO(iso); // 0=Dom..6=Sáb
-  const diffToMonday = dow === 0 ? -6 : 1 - dow;
-  return addDaysISO(iso, diffToMonday);
-}
+const card = 'rounded-xl border border-line bg-white p-4';
+const linkBtn = 'cursor-pointer text-sm font-semibold text-brand hover:underline';
+const btnDark = 'h-10 cursor-pointer rounded-xl bg-brand px-4 text-sm font-semibold text-white disabled:opacity-60';
+const btnGhost = 'h-10 cursor-pointer rounded-xl border border-line bg-white px-4 text-sm font-semibold text-ink hover:bg-mist';
 
 export const ProfileView: React.FC<ProfileViewProps> = ({
   userProfile,
   clubs,
   activeClub,
   membership,
-  memberships,
   bookings,
   proposedMatches,
   tournaments,
   playerMatchResults,
-  clubMatchResults,
-  playerLevel,
   onProfileUpdated,
   onLogout,
   onToast,
+  onOpenTab,
 }) => {
+  const [tab, setTab] = useState<Tab>('juego');
   const [privateInfo, setPrivateInfo] = useState<UserPrivateInfo | null>(null);
-  const [displayName, setDisplayName] = useState(userProfile.displayName);
-  const [category, setCategory] = useState(userProfile.category);
-  const [gender, setGender] = useState<Gender>(userProfile.gender);
-  const [modality, setModality] = useState<Modality>(userProfile.preferredModality);
   const [busy, setBusy] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [installGuideOpen, setInstallGuideOpen] = useState(false);
 
-  // Performance analytics state
-  const [frequencyView, setFrequencyView] = useState<'weekly' | 'weekday'>('weekly');
-  const [showLogForm, setShowLogForm] = useState(false);
-  const [resultClubId, setResultClubId] = useState(activeClub?.id || clubs[0]?.id || 'pocitos_padel');
-  const [resultDate, setResultDate] = useState(getTodayISO());
-  const [resultOutcome, setResultOutcome] = useState<'win' | 'loss'>('win');
-  const [resultScore, setResultScore] = useState('');
-  const [resultModality, setResultModality] = useState<Modality>(userProfile.preferredModality);
-  const [savingResult, setSavingResult] = useState(false);
-  const [deletingResultId, setDeletingResultId] = useState<string | null>(null);
-
   useEffect(() => {
-    getUserPrivateInfo(userProfile.uid).then(setPrivateInfo);
+    getUserPrivateInfo(userProfile.uid).then(setPrivateInfo).catch(() => undefined);
   }, [userProfile.uid]);
 
-  useEffect(() => {
-    if (activeClub?.id) {
-      setResultClubId((prev) => (clubs.some((c) => c.id === prev) ? prev : activeClub.id));
-    }
-  }, [activeClub?.id, clubs]);
+  const myClubIds = useMemo(() => {
+    const ids = new Set(userProfile.activeClubIds ?? []);
+    if (activeClub && membership) ids.add(activeClub.id);
+    return [...ids].filter((id) => clubs.some((c) => c.id === id));
+  }, [userProfile.activeClubIds, activeClub, membership, clubs]);
 
-  const activeClubRankingEntry = useMemo(() => {
-    if (!activeClub) return null;
-    const list = computeClubPlayerRanking({
-      clubId: activeClub.id,
-      memberships,
-      bookings,
-      proposedMatches,
-      tournaments,
-      playerMatchResults,
-      clubMatchResults,
-      currentUser: {
-        uid: userProfile.uid,
-        displayName: userProfile.displayName,
-        category: userProfile.category,
-      },
-    });
-    return list.find((r) => r.uid === userProfile.uid) ?? null;
-  }, [
-    activeClub,
-    memberships,
-    bookings,
-    proposedMatches,
-    tournaments,
-    playerMatchResults,
-    clubMatchResults,
-    userProfile.uid,
-    userProfile.displayName,
-    userProfile.category,
-  ]);
-
-  // 1. Aggregate Wins / Losses from completed tournament matches + manual Firestore results
-  const unifiedResults = useMemo<UnifiedMatchResult[]>(() => {
-    const items: UnifiedMatchResult[] = [];
-    const clubMap = new Map(clubs.map((c) => [c.id, c.name]));
-
-    for (const trn of tournaments) {
-      const myPairIds = new Set(
-        trn.pairs
-          .filter((p) => p.player1Uid === userProfile.uid || p.player2Uid === userProfile.uid)
-          .map((p) => p.id)
-      );
-      if (myPairIds.size === 0) continue;
-
-      for (const m of trn.matches) {
-        if (m.status !== 'completed') continue;
-        const inMatch = myPairIds.has(m.pair1Id) || myPairIds.has(m.pair2Id);
-        if (!inMatch) continue;
-        const won = myPairIds.has(m.winnerPairId);
-        const opponent = myPairIds.has(m.pair1Id) ? m.pair2Label : m.pair1Label;
-        items.push({
-          id: `trn_${trn.id}_${m.id}`,
-          source: 'tournament',
-          date: m.date,
-          clubName: clubMap.get(trn.clubId) || activeClub?.name || 'Torneo del club',
-          title: `${trn.name} · ${m.round} vs ${opponent}`,
-          modalityLabel: 'Torneo',
-          score: m.score || 'Finalizado',
-          outcome: won ? 'win' : 'loss',
-        });
-      }
-    }
-
-    for (const r of playerMatchResults) {
-      items.push({
-        id: r.id,
-        source: 'manual',
-        date: r.date,
-        clubName: r.clubName,
-        title: `Partido en ${r.clubName}`,
-        modalityLabel: MODALITY_LABELS[r.modality],
-        score: r.score || 'Sin marcador',
-        outcome: r.outcome,
-      });
-    }
-
-    return items.sort((a, b) => b.date.localeCompare(a.date));
-  }, [tournaments, playerMatchResults, clubs, activeClub?.name, userProfile.uid]);
-
-  const winLossStats = useMemo(() => {
-    let wins = 0;
-    let losses = 0;
-    for (const item of unifiedResults) {
-      if (item.outcome === 'win') wins += 1;
-      else losses += 1;
-    }
-    const total = wins + losses;
-    const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
-    return {
-      wins,
-      losses,
-      total,
-      winRate,
-      pieData: [
-        { name: 'Ganados', value: wins, color: '#00696b' },
-        { name: 'Perdidos', value: losses, color: '#DC2626' },
-      ],
-    };
-  }, [unifiedResults]);
-
-  // 2. Aggregate Play Frequency across bookings, confirmed matched games, tournament matches, and manual results
-  const frequencyAnalytics = useMemo(() => {
-    const activityDates: string[] = [];
-    const seenBookingIds = new Set<string>();
-
-    for (const b of bookings) {
-      if (b.status === 'cancelled' || b.status === 'no_show') continue;
-      const isMyBooking =
-        b.playerUids.includes(userProfile.uid) ||
-        (b.type !== 'counter' && b.createdByUid === userProfile.uid);
-      if (!isMyBooking) continue;
-      seenBookingIds.add(b.id);
-      if (b.date) activityDates.push(b.date);
-    }
-
-    for (const pm of proposedMatches) {
-      if (pm.status !== 'confirmed') continue;
-      if (!pm.playerUids.includes(userProfile.uid)) continue;
-      if (seenBookingIds.has(pm.bookingId)) continue;
-      seenBookingIds.add(pm.bookingId);
-      if (pm.date) activityDates.push(pm.date);
-    }
-
-    for (const trn of tournaments) {
-      const myPairIds = new Set(
-        trn.pairs
-          .filter((p) => p.player1Uid === userProfile.uid || p.player2Uid === userProfile.uid)
-          .map((p) => p.id)
-      );
-      if (myPairIds.size === 0) continue;
-      for (const m of trn.matches) {
-        if (myPairIds.has(m.pair1Id) || myPairIds.has(m.pair2Id)) {
-          if (m.date) activityDates.push(m.date);
-        }
-      }
-    }
-
-    for (const r of playerMatchResults) {
-      if (r.date) activityDates.push(r.date);
-    }
-
-    // Last 6 weeks (Monday to Sunday)
-    const todayISO = getTodayISO();
-    const currentWeekMonday = getMondayOfWeekISO(todayISO);
-    const weeklyBuckets = Array.from({ length: 6 }, (_, idx) => {
-      const offsetWeeks = idx - 5; // -5 .. 0
-      const startISO = addDaysISO(currentWeekMonday, offsetWeeks * 7);
-      const endISO = addDaysISO(startISO, 6);
-      return {
-        label: idx === 5 ? 'Esta sem.' : formatShortDate(startISO),
-        rangeLabel: `${formatShortDate(startISO)} – ${formatShortDate(endISO)}`,
-        startISO,
-        endISO,
-        partidos: 0,
-      };
-    });
-
-    const weekdayCounts = new Map<number, number>(WEEKDAY_ORDER.map((w) => [w.dow, 0]));
-
-    for (const dateISO of activityDates) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) continue;
-      const dow = getDayOfWeekFromISO(dateISO);
-      weekdayCounts.set(dow, (weekdayCounts.get(dow) ?? 0) + 1);
-
-      for (const bucket of weeklyBuckets) {
-        if (dateISO >= bucket.startISO && dateISO <= bucket.endISO) {
-          bucket.partidos += 1;
-          break;
-        }
-      }
-    }
-
-    const weekdaySeries = WEEKDAY_ORDER.map((w) => ({
-      label: w.label,
-      partidos: weekdayCounts.get(w.dow) ?? 0,
-    }));
-
-    const totalLast6Weeks = weeklyBuckets.reduce((acc, w) => acc + w.partidos, 0);
-    const weeklyAverage = (totalLast6Weeks / 6).toFixed(1);
-
-    return {
-      totalSessions: activityDates.length,
-      weeklyAverage,
-      weeklySeries: weeklyBuckets,
-      weekdaySeries,
-    };
-  }, [bookings, proposedMatches, tournaments, playerMatchResults, userProfile.uid]);
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const save = async (changes: Parameters<typeof saveProfileChanges>[1], msg: string) => {
     setBusy(true);
     try {
-      await updateUserGlobalProfile(
-        userProfile.uid,
-        {
-          displayName: displayName.trim() || userProfile.displayName,
-          category,
-          gender,
-          preferredModality: modality,
-        },
-        clubs.map((c) => c.id)
-      );
-      onProfileUpdated({
-        ...userProfile,
-        displayName: displayName.trim() || userProfile.displayName,
-        category,
-        gender,
-        preferredModality: modality,
-      });
-      onToast('Cuenta única actualizada en toda la plataforma.');
+      const next = await saveProfileChanges(userProfile, changes, myClubIds);
+      onProfileUpdated(next);
+      onToast(msg);
+      return true;
+    } catch {
+      onToast('No se pudo guardar. Revisá la conexión y probá de nuevo.');
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
-  const handleLogResult = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!resultDate || !/^\d{4}-\d{2}-\d{2}$/.test(resultDate)) {
-      onToast('Ingresá una fecha válida (AAAA-MM-DD).');
-      return;
+  // ---------- resultados (torneos + cargados a mano) ----------
+  const results = useMemo<ResultRow[]>(() => {
+    const items: ResultRow[] = [];
+    for (const trn of tournaments) {
+      const mine = new Set(trn.pairs.filter((p) => p.player1Uid === userProfile.uid || p.player2Uid === userProfile.uid).map((p) => p.id));
+      if (!mine.size) continue;
+      for (const m of trn.matches) {
+        if (m.status !== 'completed' || !(mine.has(m.pair1Id) || mine.has(m.pair2Id))) continue;
+        items.push({
+          id: `trn_${trn.id}_${m.id}`,
+          manual: false,
+          date: m.date,
+          title: `${trn.name}, ${m.round.toLowerCase()}`,
+          detail: `torneo, ${m.score || 'finalizado'}`,
+          win: mine.has(m.winnerPairId),
+        });
+      }
     }
-    const selectedClub = clubs.find((c) => c.id === resultClubId) || activeClub;
-    setSavingResult(true);
+    for (const r of playerMatchResults) {
+      items.push({
+        id: r.id,
+        manual: true,
+        date: r.date,
+        title: `Partido en ${r.clubName}`,
+        detail: `${MODALITY_LABEL[r.modality]}, ${r.score || 'sin marcador'}`,
+        win: r.outcome === 'win',
+      });
+    }
+    return items.sort((a, b) => b.date.localeCompare(a.date));
+  }, [tournaments, playerMatchResults, userProfile.uid]);
+  const wins = results.filter((r) => r.win).length;
+
+  const clubCategory = membership && membership.category !== userProfile.category ? membership.category : null;
+
+  const changePhoto = async (f: File | undefined) => {
+    if (!f) return;
+    setPhotoBusy(true);
+    try {
+      const url = await uploadProfilePhoto(userProfile.uid, myClubIds, f);
+      onProfileUpdated({ ...userProfile, photoUrl: url });
+      onToast('Listo, tu foto quedó en tu ficha.');
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : 'No se pudo subir la foto.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const [editing, setEditing] = useState(false);
+
+  const ficha = (layout: 'row' | 'column') => (
+    <PlayerFicha
+      profile={userProfile}
+      clubName={activeClub?.name}
+      layout={layout}
+      action={
+        layout === 'row' ? (
+          <button type="button" onClick={() => setEditing(true)} className="cursor-pointer rounded-[10px] bg-mist px-2.5 py-1.5 text-[13px] font-semibold text-brand">
+            Editar
+          </button>
+        ) : (
+          <button type="button" onClick={() => setEditing(true)} className={`${btnGhost} w-full`}>
+            Editar perfil
+          </button>
+        )
+      }
+    />
+  );
+
+  return (
+    <div className="lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start lg:gap-6" data-testid="perfil">
+      <div className="lg:sticky lg:top-28">
+        <div className="lg:hidden">{ficha('row')}</div>
+        <div className="hidden lg:block">{ficha('column')}</div>
+      </div>
+
+      <div className="min-w-0">
+        <div role="tablist" aria-label="Secciones del perfil" className="mt-4 grid grid-cols-3 gap-1 rounded-xl bg-line p-1 lg:mt-0 lg:max-w-md">
+          {(
+            [
+              ['juego', 'Mi juego'],
+              ['cuenta', 'Mi cuenta'],
+              ['ajustes', 'Ajustes'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => setTab(id)}
+              className={`h-[38px] cursor-pointer rounded-[9px] text-sm font-semibold ${tab === id ? 'bg-white text-ink shadow-[0_1px_2px_rgba(23,33,35,.12)]' : 'text-[#3a4a4a]'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'juego' && (
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <CategoryCard
+              value={userProfile.category}
+              clubCategory={clubCategory}
+              clubName={activeClub?.name}
+              busy={busy}
+              onSave={(c) => save({ category: c }, `Listo, ahora figurás en ${formatCategory(c)}. El club la va a revisar.`)}
+            />
+            <AvailabilityCard
+              profile={userProfile}
+              busy={busy}
+              onSave={(w) => save({ weeklyAvailability: w }, 'Listo, guardamos tus horarios.')}
+            />
+            <div className={`${card} lg:col-span-2`}>
+              <ResultsBlock
+                results={results}
+                wins={wins}
+                userProfile={userProfile}
+                club={activeClub}
+                onToast={onToast}
+              />
+            </div>
+            {onOpenTab && (
+              <button type="button" onClick={() => onOpenTab('friends')} className={`${card} flex cursor-pointer items-center justify-between text-left hover:bg-mist lg:col-span-2`}>
+                <span>
+                  <b className="block font-semibold text-ink">Amigos</b>
+                  <small className="text-[13px] text-muted">Para invitarlos a jugar o anotarte con ellos en torneos</small>
+                </span>
+                <ChevronRight className="h-5 w-5 text-muted" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {tab === 'cuenta' && (
+          <div className="mt-3">
+            {activeClub ? (
+              <MyAccount club={activeClub} userProfile={userProfile} bookings={bookings} proposedMatches={proposedMatches} />
+            ) : (
+              <p className={`${card} text-sm text-muted`}>Cuando te sumes a un club, acá vas a ver lo que debés, tus cuponeras y tu saldo.</p>
+            )}
+          </div>
+        )}
+
+        {tab === 'ajustes' && (
+          <div className="mt-3 grid gap-3">
+            <PushCard userProfile={userProfile} onToast={onToast} />
+            <AlertPrefsSection userProfile={userProfile} onProfileUpdated={onProfileUpdated} onToast={onToast} />
+            <MyDataCard
+              userProfile={userProfile}
+              info={privateInfo}
+              onSaved={setPrivateInfo}
+              onToast={onToast}
+            />
+            <div className={card}>
+              <h3 className="font-display text-base font-bold text-ink">Mis clubes</h3>
+              {myClubIds.length === 0 ? (
+                <p className="mt-1 text-sm text-muted">Todavía no estás en ningún club.</p>
+              ) : (
+                myClubIds.map((id) => (
+                  <p key={id} className="mt-2 border-t border-line pt-2 text-[14.5px] font-semibold text-ink first-of-type:border-0 first-of-type:pt-0">
+                    {clubs.find((c) => c.id === id)?.name}
+                  </p>
+                ))
+              )}
+            </div>
+            <div className={`${card} grid gap-3`}>
+              <PWAInstallButton onShowGuide={() => setInstallGuideOpen(true)} />
+              <InstallGuideModal open={installGuideOpen} onClose={() => setInstallGuideOpen(false)} />
+              <button type="button" onClick={onLogout} className={`${btnGhost} w-fit`}>
+                Cerrar sesión
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {editing && (
+        <EditSheet
+          profile={userProfile}
+          busy={busy || photoBusy}
+          photoBusy={photoBusy}
+          onPhoto={changePhoto}
+          onClose={() => setEditing(false)}
+          onSave={async (changes) => {
+            if (await save(changes, 'Listo, guardamos tu perfil.')) setEditing(false);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// ---------- Mi juego ----------
+
+const CategoryCard: React.FC<{
+  value: number;
+  clubCategory: number | null;
+  clubName?: string;
+  busy: boolean;
+  onSave: (c: number) => Promise<boolean>;
+}> = ({ value, clubCategory, clubName, busy, onSave }) => {
+  const [open, setOpen] = useState(false);
+  const [pick, setPick] = useState(value);
+  return (
+    <div className={card}>
+      <div className="flex items-center justify-between">
+        <h3 className="font-display text-base font-bold text-ink">Categoría</h3>
+        {!open && (
+          <button type="button" className={linkBtn} onClick={() => (setPick(value), setOpen(true))}>
+            Cambiar
+          </button>
+        )}
+      </div>
+      {open ? (
+        <div className="mt-3">
+          <CategoryLadder value={pick} onChange={setPick} compact />
+          <div className="mt-3 flex gap-2">
+            <button type="button" disabled={busy} className={btnDark} onClick={async () => (await onSave(pick)) && setOpen(false)}>
+              Guardar
+            </button>
+            <button type="button" className={btnGhost} onClick={() => setOpen(false)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="mt-3">
+            <MiniLadder value={clubCategory ?? value} />
+          </div>
+          <p className="mt-2.5 text-[13px] text-muted">
+            {clubCategory
+              ? `Elegiste ${formatCategory(value)}. En ${clubName ?? 'el club'} jugás en ${formatCategory(clubCategory)}: lo ajustó el club.`
+              : 'La elegiste vos. El club la puede corregir.'}
+          </p>
+        </>
+      )}
+    </div>
+  );
+};
+
+const AvailabilityCard: React.FC<{ profile: UserProfile; busy: boolean; onSave: (w: UserProfile['weeklyAvailability']) => Promise<boolean> }> = ({
+  profile,
+  busy,
+  onSave,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [grid, setGrid] = useState<Set<GridKey>>(new Set());
+  const rows = describeWindows(profile.weeklyAvailability ?? []);
+  return (
+    <div className={card}>
+      <div className="flex items-center justify-between">
+        <h3 className="font-display text-base font-bold text-ink">Cuándo puedo jugar</h3>
+        {!open && (
+          <button type="button" className={linkBtn} onClick={() => (setGrid(gridFromWindows(profile.weeklyAvailability ?? [])), setOpen(true))}>
+            Cambiar
+          </button>
+        )}
+      </div>
+      {open ? (
+        <div className="mt-3">
+          <AvailabilityGrid value={grid} onChange={setGrid} />
+          <div className="mt-3 flex gap-2">
+            <button type="button" disabled={busy} className={btnDark} onClick={async () => (await onSave(windowsFromGrid(grid))) && setOpen(false)}>
+              Guardar
+            </button>
+            <button type="button" className={btnGhost} onClick={() => setOpen(false)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : rows.length ? (
+        <div className="mt-1">
+          {rows.map((r) => (
+            <div key={r.days + r.hours} className="flex items-center justify-between gap-3 border-t border-line py-2.5 text-[14.5px] first:border-0">
+              <b className="font-semibold text-ink">{r.days}</b>
+              <span className="text-ink tabular-nums">{r.hours}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 text-sm text-muted">Sin horarios: la app no te puede armar partidos sola. Tocá “Cambiar” y marcá cuándo podés.</p>
+      )}
+    </div>
+  );
+};
+
+const ResultsBlock: React.FC<{
+  results: ResultRow[];
+  wins: number;
+  userProfile: UserProfile;
+  club: Club | null;
+  onToast: (m: string) => void;
+}> = ({ results, wins, userProfile, club, onToast }) => {
+  const [adding, setAdding] = useState(false);
+  const [date, setDate] = useState(getTodayISO());
+  const [win, setWin] = useState(true);
+  const [score, setScore] = useState('');
+  const [modality, setModality] = useState<Modality>(userProfile.preferredModality);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
+  const losses = results.length - wins;
+  const shown = all ? results : results.slice(0, 5);
+
+  const add = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!club) return;
+    setSaving(true);
     try {
       await logPlayerMatchResult({
         uid: userProfile.uid,
-        clubId: selectedClub?.id || 'pocitos_padel',
-        clubName: selectedClub?.name || 'Club Armá Partido',
-        date: resultDate,
-        outcome: resultOutcome,
-        score: resultScore.trim() || (resultOutcome === 'win' ? '6-4 / 6-3' : '4-6 / 3-6'),
-        modality: resultModality,
+        clubId: club.id,
+        clubName: club.name,
+        date,
+        outcome: win ? 'win' : 'loss',
+        score: score.trim(),
+        modality,
       });
-      setResultScore('');
-      setShowLogForm(false);
-      onToast('Resultado registrado en tu historial.');
+      setScore('');
+      setAdding(false);
+      onToast('Resultado guardado.');
     } catch {
-      onToast('No se pudo guardar el resultado. Revisá tu conexión.');
+      onToast('No se pudo guardar el resultado.');
     } finally {
-      setSavingResult(false);
+      setSaving(false);
     }
   };
-
-  const handleDeleteResult = async (resultId: string) => {
-    setDeletingResultId(resultId);
-    try {
-      await deletePlayerMatchResult(userProfile.uid, resultId);
-      onToast('Resultado eliminado de tu historial.');
-    } catch {
-      onToast('No se pudo eliminar el resultado.');
-    } finally {
-      setDeletingResultId(null);
-    }
-  };
-
-  const resolvedLevel = useMemo(
-    () =>
-      playerLevel ??
-      computePlayerLevel({
-        uid: userProfile.uid,
-        category: userProfile.category,
-        tournaments,
-        playerMatchResults,
-        clubMatchResults,
-      }),
-    [playerLevel, userProfile.uid, userProfile.category, tournaments, playerMatchResults, clubMatchResults]
-  );
-
-  const frequencyChartData =
-    frequencyView === 'weekly' ? frequencyAnalytics.weeklySeries : frequencyAnalytics.weekdaySeries;
 
   return (
-    <div className="space-y-8">
-      <PhotoHeader
-        image="/img/perfil-jugador.webp"
-        title={userProfile.displayName}
-        subtitle={`${formatCategory(userProfile.category)} categoría · tu cuenta sirve en todos los clubes de Armá Partido`}
-      />
-
-      {activeClub && <MyAccount club={activeClub} userProfile={userProfile} bookings={bookings} proposedMatches={proposedMatches} />}
-      <AlertPrefsSection userProfile={userProfile} onProfileUpdated={onProfileUpdated} onToast={onToast} />
-
-      {/* Player Performance Analytics Section (Recharts) */}
-      <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-              <BarChart3 className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="font-display text-lg font-bold text-slate-900">Rendimiento del jugador</h2>
-              <p className="text-xs text-slate-500">
-                Efectividad en partidos y frecuencia de juego según tus reservas, torneos y resultados
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowLogForm((prev) => !prev)}
-            className="inline-flex min-h-[40px] shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer"
-          >
-            {showLogForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            {showLogForm ? 'Cerrar formulario' : 'Registrar resultado'}
+    <>
+      <div className="flex items-center justify-between">
+        <h3 className="font-display text-base font-bold text-ink">Mis partidos</h3>
+        {!adding && club && (
+          <button type="button" className={linkBtn} onClick={() => setAdding(true)}>
+            Cargar resultado
           </button>
-        </div>
-
-        {/* Inline Log Match Result Form */}
-        {showLogForm && (
-          <form
-            onSubmit={handleLogResult}
-            className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-bold text-slate-900">Cargar resultado de partido</p>
-              <p className="text-[11px] text-slate-500">Se guarda en tu historial personal</p>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700">Club</label>
-                <select
-                  value={resultClubId}
-                  onChange={(e) => setResultClubId(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900"
-                >
-                  {clubs.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700">Fecha</label>
-                <input
-                  type="date"
-                  value={resultDate}
-                  onChange={(e) => setResultDate(e.target.value)}
-                  required
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700">Modalidad</label>
-                <select
-                  value={resultModality}
-                  onChange={(e) => setResultModality(e.target.value as Modality)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900"
-                >
-                  <option value="masculino">Masculino</option>
-                  <option value="femenino">Femenino</option>
-                  <option value="mixto">Mixto</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700">Resultado</label>
-                <div className="mt-1 grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setResultOutcome('win')}
-                    className={`rounded-xl border px-2.5 py-2 text-xs font-semibold cursor-pointer transition ${
-                      resultOutcome === 'win'
-                        ? 'border-emerald-600 bg-emerald-600 text-white'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    Ganado
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setResultOutcome('loss')}
-                    className={`rounded-xl border px-2.5 py-2 text-xs font-semibold cursor-pointer transition ${
-                      resultOutcome === 'loss'
-                        ? 'border-red-600 bg-red-600 text-white'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    Perdido
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700">Marcador (sets)</label>
-                <input
-                  type="text"
-                  value={resultScore}
-                  onChange={(e) => setResultScore(e.target.value)}
-                  maxLength={40}
-                  placeholder="Ej. 6-4 / 7-5"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={savingResult}
-                className="min-h-[40px] rounded-xl bg-emerald-600 px-5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 cursor-pointer"
-              >
-                {savingResult ? 'Guardando...' : 'Guardar resultado'}
-              </button>
-            </div>
-          </form>
         )}
-
-        {/* Categoría del jugador (1ra a 7ma) */}
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-slate-900">Categoría</p>
-            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
-              {formatCategory(userProfile.category)}
-            </span>
+      </div>
+      {adding && (
+        <form onSubmit={add} className="mt-3 grid gap-3 rounded-xl bg-surface p-3 sm:grid-cols-2">
+          <label className="grid gap-1 text-[13px] font-semibold">
+            Fecha
+            <input type="date" required value={date} max={getTodayISO()} onChange={(e) => setDate(e.target.value)} className="h-11 rounded-xl border border-line bg-white px-3 text-[15px] font-normal" />
+          </label>
+          <label className="grid gap-1 text-[13px] font-semibold">
+            Marcador
+            <input value={score} onChange={(e) => setScore(e.target.value)} placeholder="6-4 6-3" maxLength={40} className="h-11 rounded-xl border border-line bg-white px-3 text-[15px] font-normal" />
+          </label>
+          <div className="grid gap-1 text-[13px] font-semibold">
+            Resultado
+            <OptionGroup label="Resultado" value={win ? 'g' : 'p'} onChange={(v) => setWin(v === 'g')} options={[{ v: 'g', label: 'Gané' }, { v: 'p', label: 'Perdí' }]} />
           </div>
-          <div className="grid grid-cols-7 gap-1.5" aria-label={`Categoría ${formatCategory(userProfile.category)}`}>
-            {Array.from({ length: MAX_CATEGORY }, (_, idx) => {
-              const cat = idx + 1;
-              const active = cat === userProfile.category;
-              return (
-                <div
-                  key={cat}
-                  className={`rounded-lg py-2 text-center text-xs font-semibold ${
-                    active ? 'bg-emerald-700 text-white' : 'bg-white text-slate-400 border border-slate-200'
-                  }`}
-                >
-                  {formatCategory(cat)}
-                </div>
-              );
-            })}
-          </div>
-          <p className="text-[11px] text-slate-600">
-            Te proponemos partidos con jugadores de {formatCategory(Math.max(1, userProfile.category - 1))} a{' '}
-            {formatCategory(Math.min(MAX_CATEGORY, userProfile.category + 1))}.
-          </p>
-          {resolvedLevel.recentForm.length > 0 && (
-            <p className="text-[11px] text-slate-600">
-              Racha reciente:{' '}
-              <span className=" font-bold tracking-wider">
-                {resolvedLevel.recentForm.map((f, idx) => (
-                  <span key={idx} className={f === 'W' ? 'text-emerald-700' : 'text-red-600'}>
-                    {f === 'W' ? 'G' : 'P'}
-                    {idx < resolvedLevel.recentForm.length - 1 ? ' ' : ''}
-                  </span>
-                ))}
-              </span>
-            </p>
-          )}
-        </div>
-
-        {/* 4-KPI Summary Strip */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-[11px] font-semibold text-slate-500">Partidos con resultado</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
-              {winLossStats.total}
-            </p>
-            <p className="mt-0.5 text-[11px] tabular-nums text-slate-600">
-              {winLossStats.wins} ganados · {winLossStats.losses} perdidos
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-[11px] font-semibold text-slate-500">Efectividad</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700">
-              {winLossStats.total > 0 ? `${winLossStats.winRate}%` : '—'}
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-600">
-              {winLossStats.total > 0 ? 'Sobre partidos cerrados' : 'Sin resultados cargados'}
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-[11px] font-semibold text-slate-500">Turnos y partidos</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
-              {frequencyAnalytics.totalSessions}
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-600">Reservas, torneos y cargas</p>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-[11px] font-semibold text-slate-500">Frecuencia semanal</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
-              {frequencyAnalytics.weeklyAverage}
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-600">Promedio últimas 6 semanas</p>
-          </div>
-        </div>
-
-        {/* Recharts Grid */}
-        <div className="grid gap-6 lg:grid-cols-12">
-          {/* Chart 1: Wins vs Losses Donut */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 lg:col-span-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-display text-sm font-bold text-slate-900">
-                  Partidos ganados y perdidos
-                </h3>
-                <p className="text-[11px] text-slate-500">Torneos finalizados y partidos registrados</p>
-              </div>
-              <Trophy className="h-4 w-4 text-emerald-600" />
-            </div>
-
-            {winLossStats.total === 0 ? (
-              <div className="mt-4 flex h-[240px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-6 text-center">
-                <p className="text-xs font-semibold text-slate-700">Todavía no tenés resultados cargados</p>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  Registrá un partido o completá cruces de torneo para ver tu gráfico de efectividad.
-                </p>
-                {!showLogForm && (
-                  <button
-                    type="button"
-                    onClick={() => setShowLogForm(true)}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Cargar primer resultado
-                  </button>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="relative mt-2 h-[220px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={winLossStats.pieData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={58}
-                        outerRadius={84}
-                        paddingAngle={winLossStats.wins > 0 && winLossStats.losses > 0 ? 3 : 0}
-                        stroke="none"
-                      >
-                        {winLossStats.pieData.map((entry) => (
-                          <Cell key={entry.name} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value, name) => [`${value} partidos`, String(name)]}
-                        contentStyle={{
-                          borderRadius: '12px',
-                          border: '1px solid #E2E8F0',
-                          fontSize: '12px',
-                          boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                    <span className=" text-2xl font-bold tabular-nums text-slate-900">
-                      {winLossStats.winRate}%
-                    </span>
-                    <span className="text-[11px] font-medium text-slate-500">Efectividad</span>
-                  </div>
-                </div>
-
-                <div className="mt-2 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
-                  <div className="flex items-center justify-between rounded-lg bg-emerald-50/70 px-3 py-2 text-xs">
-                    <span className="flex items-center gap-2 font-medium text-slate-700">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-emerald-600" />
-                      Ganados
-                    </span>
-                    <span className=" font-bold tabular-nums text-emerald-700">
-                      {winLossStats.wins}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg bg-red-50/70 px-3 py-2 text-xs">
-                    <span className="flex items-center gap-2 font-medium text-slate-700">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-red-600" />
-                      Perdidos
-                    </span>
-                    <span className=" font-bold tabular-nums text-red-700">
-                      {winLossStats.losses}
-                    </span>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Chart 2: Play Frequency BarChart */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 lg:col-span-7">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="flex items-center gap-2 font-display text-sm font-bold text-slate-900">
-                  <Activity className="h-4 w-4 text-emerald-600" />
-                  Frecuencia de juego
-                </h3>
-                <p className="text-[11px] text-slate-500">
-                  {frequencyView === 'weekly'
-                    ? 'Cantidad de partidos y reservas por semana (últimas 6 semanas)'
-                    : 'Distribución acumulada según el día de la semana'}
-                </p>
-              </div>
-
-              <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
-                <button
-                  type="button"
-                  onClick={() => setFrequencyView('weekly')}
-                  className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-semibold cursor-pointer transition ${
-                    frequencyView === 'weekly'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Últimas 6 sem.
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFrequencyView('weekday')}
-                  className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-semibold cursor-pointer transition ${
-                    frequencyView === 'weekday'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Por día
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={frequencyChartData} margin={{ top: 10, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fill: '#64748B', fontSize: 11 }}
-                    axisLine={{ stroke: '#E2E8F0' }}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tick={{ fill: '#64748B', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    cursor={{ fill: '#F1F5F9' }}
-                    formatter={(value) => [`${value} partidos/turnos`, 'Actividad']}
-                    labelFormatter={(label, payload) => {
-                      const item = payload?.[0]?.payload as { rangeLabel?: string } | undefined;
-                      return item?.rangeLabel ? `${label} (${item.rangeLabel})` : String(label);
-                    }}
-                    contentStyle={{
-                      borderRadius: '12px',
-                      border: '1px solid #E2E8F0',
-                      fontSize: '12px',
-                      boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
-                    }}
-                  />
-                  <Bar
-                    dataKey="partidos"
-                    fill="#00696b"
-                    radius={[6, 6, 0, 0]}
-                    maxBarSize={42}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Results History */}
-        {unifiedResults.length > 0 && (
-          <div className="space-y-2 border-t border-slate-100 pt-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-900">
-                Historial reciente de resultados ({unifiedResults.length})
-              </h3>
-            </div>
-            <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
-              {unifiedResults.slice(0, 6).map((item) => (
-                <div
-                  key={item.id}
-                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-xs"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-slate-900">{item.title}</p>
-                    <p className="mt-0.5 text-[11px] text-slate-500">
-                      <span className="tabular-nums">{formatDateFriendly(item.date)}</span>
-                      <span className="mx-1.5" aria-hidden="true">·</span>
-                      {item.modalityLabel}
-                      <span className="mx-1.5" aria-hidden="true">·</span>
-                      <span className=" font-medium text-slate-700">{item.score}</span>
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`font-semibold ${
-                        item.outcome === 'win' ? 'text-emerald-700' : 'text-red-600'
-                      }`}
-                    >
-                      {item.outcome === 'win' ? 'Ganado' : 'Perdido'}
-                    </span>
-
-                    {item.source === 'manual' && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteResult(item.id)}
-                        disabled={deletingResultId === item.id}
-                        title="Eliminar resultado"
-                        aria-label="Eliminar resultado"
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-50 cursor-pointer"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </section>
-
-      <div className="grid gap-6 lg:grid-cols-12">
-        <form onSubmit={handleSave} className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 lg:col-span-7">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div>
-              <h2 className="font-display text-lg font-bold text-slate-900">Datos unificados</h2>
-              <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
-                <Mail className="h-3.5 w-3.5" />
-                {privateInfo?.email || 'Cuenta Google verificada'}
-              </p>
-            </div>
-            <PWAInstallButton onShowGuide={() => setInstallGuideOpen(true)} />
-            <InstallGuideModal open={installGuideOpen} onClose={() => setInstallGuideOpen(false)} />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700">Nombre visible</label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+          <div className="grid gap-1 text-[13px] font-semibold">
+            Partido
+            <OptionGroup
+              label="Tipo de partido"
+              value={modality}
+              onChange={setModality}
+              options={[
+                { v: 'masculino', label: 'Masc.' },
+                { v: 'femenino', label: 'Fem.' },
+                { v: 'mixto', label: 'Mixto' },
+              ]}
             />
           </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700">Categoría global</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(Number(e.target.value))}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold"
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {formatCategory(c)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700">Género</label>
-              <select
-                value={gender}
-                onChange={(e) => setGender(e.target.value as Gender)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-              >
-                <option value="masculino">Masculino</option>
-                <option value="femenino">Femenino</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700">Partidos preferidos</label>
-              <select
-                value={modality}
-                onChange={(e) => setModality(e.target.value as Modality)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-              >
-                <option value="masculino">Masculino</option>
-                <option value="femenino">Femenino</option>
-                <option value="mixto">Mixto</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-2">
-            <button
-              type="submit"
-              disabled={busy}
-              className="min-h-[44px] rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 cursor-pointer"
-            >
-              {busy ? 'Guardando...' : 'Guardar perfil global'}
+          <div className="flex gap-2 sm:col-span-2">
+            <button type="submit" disabled={saving} className={btnDark}>
+              {saving ? 'Guardando…' : 'Guardar resultado'}
             </button>
-
-            <button
-              type="button"
-              onClick={onLogout}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
-            >
-              <LogOut className="h-4 w-4" />
-              Cerrar sesión
+            <button type="button" className={btnGhost} onClick={() => setAdding(false)}>
+              Cancelar
             </button>
           </div>
         </form>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 lg:col-span-5">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
-            <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            <h2 className="font-display text-lg font-bold text-slate-900">Tu estado en clubes</h2>
-          </div>
-
-          {activeClub && (
-            <div className="rounded-xl bg-slate-50 p-4 text-xs">
-              <p className="font-semibold text-slate-900">{activeClub.name}</p>
-              <p className="mt-1 text-slate-600">
-                Rol actual: <strong className="capitalize">{membership?.role || 'player'}</strong>
-                <span className="mx-1.5" aria-hidden="true">·</span>
-                Ausencias registradas: <span className="">{membership?.noShowCount ?? 0}</span>/{activeClub.maxNoShowsBeforeBlock}
-              </p>
-              {activeClubRankingEntry && (
-                <p className="mt-1.5 text-slate-600">
-                  Ranking en el club:{' '}
-                  <strong className=" tabular-nums text-emerald-700">
-                    #{activeClubRankingEntry.rank}
-                  </strong>
-                  <span className="mx-1.5" aria-hidden="true">·</span>
-                  <span className=" tabular-nums font-semibold text-slate-900">
-                    {activeClubRankingEntry.points} pts
-                  </span>
-                </p>
-              )}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-700">Clubes compatibles con tu cuenta ({clubs.length})</p>
-            {clubs.map((c) => (
-              <div key={c.id} className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2 text-xs">
-                <span className="font-medium text-slate-900">{c.name}</span>
-                <span className="text-slate-500">{c.neighborhood || c.city}</span>
-              </div>
-            ))}
-          </div>
+      )}
+      <div className="mt-3 grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+        <div className="grid grid-cols-3 gap-2">
+          <Stat n={results.length} label={results.length === 1 ? 'jugado' : 'jugados'} />
+          <Stat n={wins} label={wins === 1 ? 'ganado' : 'ganados'} tone="ok" />
+          <Stat n={losses} label={losses === 1 ? 'perdido' : 'perdidos'} tone="due" />
         </div>
+        <div className="min-w-0">
+          {results.length === 0 ? (
+            <p className="text-sm text-muted">Todavía no hay partidos con resultado. Los de torneos aparecen solos; los demás los cargás vos.</p>
+          ) : (
+            shown.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-3 border-t border-line py-2.5 first:border-0 first:pt-0">
+                <span className="min-w-0">
+                  <b className="block truncate text-[14.5px] font-semibold text-ink">{r.title}</b>
+                  <small className="text-[12.5px] text-muted">
+                    {formatDateFriendly(r.date)}, {r.detail}
+                  </small>
+                </span>
+                <span className="flex shrink-0 items-center gap-1">
+                  <span className={`text-sm font-semibold ${r.win ? 'text-ok' : 'text-due'}`}>{r.win ? 'Ganado' : 'Perdido'}</span>
+                  {r.manual && (
+                    <button
+                      type="button"
+                      aria-label="Borrar este resultado"
+                      disabled={deleting === r.id}
+                      onClick={async () => {
+                        setDeleting(r.id);
+                        try {
+                          await deletePlayerMatchResult(userProfile.uid, r.id);
+                          onToast('Resultado borrado.');
+                        } catch {
+                          onToast('No se pudo borrar el resultado.');
+                        } finally {
+                          setDeleting(null);
+                        }
+                      }}
+                      className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-muted hover:bg-mist hover:text-due"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </span>
+              </div>
+            ))
+          )}
+          {results.length > 5 && (
+            <button type="button" className={`${linkBtn} mt-1`} onClick={() => setAll((v) => !v)}>
+              {all ? 'Ver menos' : `Ver los ${results.length}`}
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
+
+const Stat: React.FC<{ n: number; label: string; tone?: 'ok' | 'due' }> = ({ n, label, tone }) => (
+  <div className="rounded-[10px] bg-surface p-2.5">
+    <b className={`block font-display text-2xl leading-none font-bold ${tone === 'ok' ? 'text-ok' : tone === 'due' ? 'text-due' : 'text-ink'}`}>{n}</b>
+    <small className="text-xs text-muted">{label}</small>
+  </div>
+);
+
+// ---------- Ajustes ----------
+
+const PushCard: React.FC<{ userProfile: UserProfile; onToast: (m: string) => void }> = ({ userProfile, onToast }) => {
+  const supported = typeof window !== 'undefined' && 'Notification' in window;
+  const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>(supported ? Notification.permission : 'unsupported');
+  const [busy, setBusy] = useState(false);
+  const enable = async () => {
+    setBusy(true);
+    try {
+      const res = await obtainFcmDeviceToken(true);
+      setPerm(res.permission);
+      if (res.permission !== 'granted') {
+        onToast('El navegador no dio permiso para los avisos.');
+        return;
+      }
+      if (res.token && res.tokenId) {
+        await saveUserFcmToken({ uid: userProfile.uid, token: res.token, tokenId: res.tokenId, deviceLabel: res.deviceLabel, platform: res.platform });
+      }
+      onToast('Listo, los avisos llegan a este aparato.');
+    } catch {
+      onToast('No se pudieron activar los avisos.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className={`${card} flex items-center justify-between gap-3`}>
+      <span>
+        <b className="block font-display text-base font-bold text-ink">Avisos en este aparato</b>
+        <small className="text-[13px] text-muted">Partido armado, cambios de tu reserva y torneos. También los ves en la campanita.</small>
+      </span>
+      {perm === 'granted' ? (
+        <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-ok">
+          <Check className="h-4 w-4" /> Activados
+        </span>
+      ) : perm === 'unsupported' ? (
+        <span className="max-w-[40%] text-right text-[13px] text-muted">Este navegador no los permite.</span>
+      ) : perm === 'denied' ? (
+        <span className="max-w-[40%] text-right text-[13px] text-muted">Bloqueados en el navegador.</span>
+      ) : (
+        <button type="button" disabled={busy} onClick={enable} className={btnDark}>
+          Activar
+        </button>
+      )}
+    </div>
+  );
+};
+
+const MyDataCard: React.FC<{
+  userProfile: UserProfile;
+  info: UserPrivateInfo | null;
+  onSaved: (i: UserPrivateInfo) => void;
+  onToast: (m: string) => void;
+}> = ({ userProfile, info, onSaved, onToast }) => {
+  const [editPhone, setEditPhone] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    const p = normalizePhone(phone);
+    if (!p) {
+      onToast('Revisá el celular: son 9 números y empieza con 09.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await savePrivatePhone(userProfile.uid, info?.email ?? '', p);
+      onSaved({ uid: userProfile.uid, email: info?.email ?? '', phone: p });
+      setEditPhone(false);
+      onToast('Listo, guardamos tu celular.');
+    } catch {
+      onToast('No se pudo guardar el celular.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className={card}>
+      <h3 className="font-display text-base font-bold text-ink">Mis datos</h3>
+      <div className="mt-1 flex items-center justify-between gap-3 border-b border-line py-2.5 text-[14.5px]">
+        <span className="min-w-0">
+          <b className="block font-semibold">Mail</b>
+          <small className="break-all text-[13px] text-muted">{info?.email ?? '…'}</small>
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-3 py-2.5 text-[14.5px]">
+        {editPhone ? (
+          <span className="flex w-full flex-wrap items-center gap-2">
+            <input
+              autoFocus
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="099 123 456"
+              className="h-10 min-w-0 flex-1 rounded-xl border border-line px-3 text-[15px]"
+            />
+            <button type="button" disabled={busy} onClick={save} className={btnDark}>
+              Guardar
+            </button>
+            <button type="button" onClick={() => setEditPhone(false)} className={btnGhost}>
+              Cancelar
+            </button>
+          </span>
+        ) : (
+          <>
+            <span>
+              <b className="block font-semibold">Celular</b>
+              <small className="text-[13px] text-muted">{info?.phone ? formatPhone(info.phone) : 'Sin cargar'}</small>
+            </span>
+            <button type="button" className={linkBtn} onClick={() => (setPhone(info?.phone ? formatPhone(info.phone) : ''), setEditPhone(true))}>
+              Cambiar
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ---------- Editar perfil ----------
+
+const EditSheet: React.FC<{
+  profile: UserProfile;
+  busy: boolean;
+  photoBusy: boolean;
+  onPhoto: (f: File | undefined) => void;
+  onClose: () => void;
+  onSave: (changes: { displayName: string; gender: Gender; preferredModality: Modality; courtSide?: CourtSide; hand?: Hand }) => void;
+}> = ({ profile, busy, photoBusy, onPhoto, onClose, onSave }) => {
+  const [name, setName] = useState(profile.displayName);
+  const [gender, setGender] = useState<Gender>(profile.gender);
+  const [modality, setModality] = useState<Modality>(profile.preferredModality);
+  const [side, setSide] = useState<CourtSide | undefined>(profile.courtSide);
+  const [hand, setHand] = useState<Hand | undefined>(profile.hand);
+  return (
+    <div className="fixed inset-0 z-40 flex items-end bg-ink/50 sm:items-center sm:justify-center" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="editar-perfil"
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[92vh] w-full overflow-y-auto rounded-t-[20px] bg-surface px-5 pt-4 pb-[max(20px,env(safe-area-inset-bottom))] sm:max-w-lg sm:rounded-xl"
+      >
+        <div className="flex items-center justify-between">
+          <h2 id="editar-perfil" className="font-display text-xl font-bold text-ink">
+            Editar perfil
+          </h2>
+          <button type="button" aria-label="Cerrar" onClick={onClose} className="grid h-9 w-9 cursor-pointer place-items-center rounded-lg text-muted hover:bg-mist">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-white p-2.5">
+          {profile.photoUrl ? (
+            <img src={profile.photoUrl} alt="" className="h-14 w-14 rounded-[10px] object-cover" />
+          ) : (
+            <span className="grid h-14 w-14 place-items-center rounded-[10px] bg-avatar font-bold text-brand">{profile.displayName.slice(0, 1)}</span>
+          )}
+          <span className="text-[15px] font-semibold text-brand">{photoBusy ? 'Subiendo…' : profile.photoUrl ? 'Cambiar foto' : 'Poner foto'}</span>
+          <input type="file" accept="image/*" className="sr-only" disabled={photoBusy} onChange={(e) => onPhoto(e.target.files?.[0])} />
+        </label>
+        <label className="mt-4 grid gap-1.5 text-sm font-semibold">
+          Nombre y apellido
+          <input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} className="h-12 rounded-xl border border-line bg-white px-3.5 text-base font-normal" />
+        </label>
+        <p className="mt-4 mb-2 text-sm font-bold">Jugás en</p>
+        <OptionGroup label="Jugás en" value={gender} onChange={setGender} options={[{ v: 'masculino', label: 'Masculino' }, { v: 'femenino', label: 'Femenino' }]} />
+        <p className="mt-4 mb-2 text-sm font-bold">Querés que te armen partidos</p>
+        <OptionGroup
+          label="Partidos"
+          value={modality}
+          onChange={setModality}
+          options={[
+            { v: 'masculino', label: 'Masculinos' },
+            { v: 'femenino', label: 'Femeninos' },
+            { v: 'mixto', label: 'Mixtos' },
+          ]}
+        />
+        <p className="mt-4 mb-2 text-sm font-bold">Lado de la cancha</p>
+        <OptionGroup
+          label="Lado"
+          value={side}
+          onChange={setSide}
+          options={[
+            { v: 'drive', label: 'Drive' },
+            { v: 'reves', label: 'Revés' },
+            { v: 'indistinto', label: 'Me da igual' },
+          ]}
+        />
+        <p className="mt-4 mb-2 text-sm font-bold">Mano</p>
+        <OptionGroup label="Mano" value={hand} onChange={setHand} options={[{ v: 'derecha', label: 'Derecha' }, { v: 'izquierda', label: 'Izquierda' }]} />
+        <button
+          type="button"
+          disabled={busy || name.trim().length < 2}
+          onClick={() =>
+            onSave({ displayName: name.trim(), gender, preferredModality: modality, ...(side ? { courtSide: side } : {}), ...(hand ? { hand } : {}) })
+          }
+          className="mt-5 h-12 w-full cursor-pointer rounded-xl bg-action text-base font-semibold text-on-action disabled:opacity-50"
+        >
+          Guardar
+        </button>
       </div>
     </div>
   );
