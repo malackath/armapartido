@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DEFAULT_ALERT_PREFS, type AlertPrefs, type Club, type FillInvite, type FillSearch, type ProposedMatch, type UserProfile, type WeeklyInvites } from '../types/padel';
-import { formatCategory, formatDateFriendly, formatMinutes, formatUYU, getTodayISO } from '../lib/padelUtils';
+import { formatCategory, formatDateFriendly, formatMinutes, formatUYU, getTodayISO, MAX_CATEGORY } from '../lib/padelUtils';
 import { chooseFillOutcome, claimFillSeat, declineFillInvite, dropFromMatch, updateAlertPrefs } from '../services/firestoreService';
 
 // Pantallas de "Falta uno" (vista previa aprobada: Paddle.URU/docs/falta-uno-pantallas.png).
@@ -377,7 +377,7 @@ export const AlertPrefsSection: React.FC<{
   const cat = userProfile.category;
   const range = (gap: number) => {
     const lo = Math.max(1, cat - gap);
-    const hi = Math.min(8, cat + gap);
+    const hi = Math.min(MAX_CATEGORY, cat + gap);
     const list = Array.from({ length: hi - lo + 1 }, (_, i) => formatCategory(lo + i));
     return list.length <= 3 ? list.join(', ').replace(/, ([^,]*)$/, ' y $1') : `${list[0]} a ${list[list.length - 1]}`;
   };
