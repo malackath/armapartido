@@ -73,7 +73,7 @@ async function section(p, label) {
   await V(p.getByRole('button', { name: /^Cuponeras/ })).click().catch(() => {});
   await p.waitForTimeout(800);
   t = await body(p);
-  check('W1 Ficha → Cuponeras: "10 partes de cancha" con usos', t.includes('10 partes de cancha'), seg(t, '10 partes de cancha', 120));
+  check('W1 Ficha → Cuponeras: "5 turnos completos" con usos', t.includes('5 turnos completos'), seg(t, '5 turnos completos', 120));
   await shot(p, '03-ficha-cuponeras');
   await p.keyboard.press('Escape');
   await p.waitForTimeout(500);
@@ -81,6 +81,7 @@ async function section(p, label) {
   // W2: alta con celular repetido
   await p.reload();
   await p.waitForTimeout(5000);
+  if (!(await body(p)).includes('Venta suelta')) await menu(p, 'Mostrador');
   await V(p.getByRole('button', { name: /Clientes/ })).click();
   await p.waitForTimeout(1500);
   await V(p.getByRole('button', { name: /\+ Nuevo cliente/ })).click();
@@ -92,6 +93,7 @@ async function section(p, label) {
   await p.waitForTimeout(500);
   await V(p.getByPlaceholder('Nombre y apellido')).fill('Jorge Brum');
   await V(p.getByPlaceholder(/Celular/)).fill('099 333 444');
+  await V(p.getByText('Le avisé que sus datos quedan en el club')).click();
   await V(p.getByRole('button', { name: 'Guardar ficha' })).click();
   await p.waitForTimeout(1200);
   t = await body(p);
@@ -102,6 +104,7 @@ async function section(p, label) {
   // W3: cuenta del turno con cuponera (Ana, hoy 11:00, Cancha 3)
   await p.reload();
   await p.waitForTimeout(5000);
+  if (!(await body(p)).includes('Venta suelta')) await menu(p, 'Mostrador');
   const anaTurno = p.locator('button').filter({ hasText: /Ana Laura/ }).first();
   if (await anaTurno.count()) {
     await anaTurno.click();
@@ -123,8 +126,11 @@ async function section(p, label) {
   // W4: venta suelta a cuenta
   await p.reload();
   await p.waitForTimeout(5000);
+  if (!(await body(p)).includes('Venta suelta')) await menu(p, 'Mostrador');
   await V(p.getByRole('button', { name: /Venta suelta/ })).click();
   await p.waitForTimeout(1500);
+  await V(p.getByRole('button', { name: /Sin nombre/ })).click();
+  await p.waitForTimeout(800);
   t = await body(p);
   check('W4 Venta suelta: pestañas por rubro', t.includes('Cantina') && t.includes('Cuponeras y saldo') && t.includes('Clases'));
   await shot(p, '07-venta-suelta');
@@ -149,7 +155,7 @@ async function section(p, label) {
   await shot(p, '10-admin-libro', true);
   await section(p, 'Números');
   t = await body(p);
-  check('W6 Números: KPIs, rubros y mapa de calor', /Ocupaci|ocupad/i.test(t) && t.includes('Cuponeras') && /Dejaron de venir/.test(t), seg(t, 'Dejaron de venir', 80));
+  check('W6 Números: KPIs, rubros y mapa de calor', /Ocupaci|ocupad/i.test(t) && t.includes('Cuponeras') && /Dejaron de venir/i.test(t), seg(t, 'Dejaron de venir', 80));
   await shot(p, '11-admin-numeros', true);
   await section(p, 'Informe del mes');
   t = await body(p);
@@ -171,7 +177,7 @@ async function section(p, label) {
   await menu(p, 'Admin del club');
   await section(p, 'Números');
   t = await body(p);
-  check('Celular: Números', /Dejaron de venir/.test(t));
+  check('Celular: Números', /Dejaron de venir/i.test(t));
   await shot(p, '13-celular-numeros');
   await section(p, 'Caja');
   await p.locator('[data-testid="libro"]').scrollIntoViewIfNeeded().catch(() => {});

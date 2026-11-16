@@ -157,7 +157,8 @@ export function addClientesDemo(
   const packTypes: PackType[] = [
     { id: 'demo_cup_10partes', clubId: C, name: '10 partes de cancha', price: 4200, uses: 10, unit: 'parte', validity: 'todos', days: 90, active: true, order: 0 },
     { id: 'demo_cup_valle', clubId: C, name: 'Valle: 8 turnos', price: 11500, uses: 8, unit: 'turno', validity: 'valle', days: 60, active: true, order: 1 },
-    { id: 'demo_cup_verano', clubId: C, name: 'Promo verano (vieja)', price: 3500, uses: 10, unit: 'parte', validity: 'semana', days: 45, active: false, order: 2 },
+    { id: 'demo_cup_5turnos', clubId: C, name: '5 turnos completos', price: 8000, uses: 5, unit: 'turno', validity: 'todos', days: 90, active: true, order: 2 },
+    { id: 'demo_cup_verano', clubId: C, name: 'Promo verano (vieja)', price: 3500, uses: 10, unit: 'parte', validity: 'semana', days: 45, active: false, order: 3 },
   ];
   packTypes.forEach((t) => put(`${base}/packTypes/${t.id}`, t));
 
@@ -192,10 +193,10 @@ export function addClientesDemo(
     put(`${base}/clientPacks/${pack.id}`, pack);
   };
   const part = (n: number, h: number) => Math.round(price(day(n), T(h)) / 4);
-  // Ana compró la de 10 partes hace 20 días y usó 2 (las canchas de los martes)
-  sellPack('ana', cli('ana'), packTypes[0], -20, [
-    { bookingId: 'demo_bk_cli_ana1', date: day(-14), value: part(-14, 11) },
-    { bookingId: 'demo_bk_cli_ana2', date: day(-7), value: part(-7, 11) },
+  // Ana compró la de 5 turnos completos hace 20 días y usó 2 (sus turnos de las 11, que reserva entera)
+  sellPack('ana', cli('ana'), packTypes[2], -20, [
+    { bookingId: 'demo_bk_cli_ana1', date: day(-14), value: price(day(-14), T(11)) },
+    { bookingId: 'demo_bk_cli_ana2', date: day(-7), value: price(day(-7), T(11)) },
   ], 'efectivo', { invoiceStatus: 'emitida', invoiceNumber: 'A-1037' });
   // Martín (tiene la app) compró una y le quedan 6
   sellPack('martin', martin, packTypes[0], -30, [-26, -19, -12, -5].map((n) => ({ bookingId: '', date: day(n), value: part(n, 20) })), 'transferencia', { invoiceStatus: 'emitida', invoiceNumber: 'A-1031' });

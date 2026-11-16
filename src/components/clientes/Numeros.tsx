@@ -256,10 +256,10 @@ const Heat: React.FC<{ n: ClubNumbers }> = ({ n }) => {
   const at = (dow: number, s: number) => n.canchas.heat.find((h) => h.dow === dow && h.startMinute === s);
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[300px] border-separate border-spacing-1 text-[11px]">
+      <table className="w-full min-w-[300px] table-fixed border-separate border-spacing-1 text-[11px]">
         <thead>
           <tr>
-            <th />
+            <th className="w-12" />
             {DOW.map((d, i) => (
               <th key={i} className="font-semibold text-muted">
                 {d}
