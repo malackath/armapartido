@@ -41,7 +41,7 @@ export interface UserProfile {
   uid: string;
   displayName: string;
   photoUrl?: string;
-  category: number; // 1 (1ra) to 8 (8va)
+  category: number; // 1 (1ra) a 7 (7ma)
   gender: Gender;
   preferredModality: Modality;
   weeklyAvailability: AvailabilityWindow[];

@@ -44,7 +44,7 @@ import {
   formatCategory,
   getDayOfWeekFromISO,
   getTodayISO,
-  type PlayerLevelSummary, formatDateFriendly} from '../lib/padelUtils';
+  type PlayerLevelSummary, formatDateFriendly, CATEGORIES, MAX_CATEGORY } from '../lib/padelUtils';
 import {
   deletePlayerMatchResult,
   getUserPrivateInfo,
@@ -568,7 +568,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </form>
         )}
 
-        {/* Categoría del jugador (1ra a 8va) */}
+        {/* Categoría del jugador (1ra a 7ma) */}
         <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-semibold text-slate-900">Categoría</p>
@@ -576,8 +576,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               {formatCategory(userProfile.category)}
             </span>
           </div>
-          <div className="grid grid-cols-8 gap-1.5" aria-label={`Categoría ${formatCategory(userProfile.category)}`}>
-            {Array.from({ length: 8 }, (_, idx) => {
+          <div className="grid grid-cols-7 gap-1.5" aria-label={`Categoría ${formatCategory(userProfile.category)}`}>
+            {Array.from({ length: MAX_CATEGORY }, (_, idx) => {
               const cat = idx + 1;
               const active = cat === userProfile.category;
               return (
@@ -594,7 +594,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
           <p className="text-[11px] text-slate-600">
             Te proponemos partidos con jugadores de {formatCategory(Math.max(1, userProfile.category - 1))} a{' '}
-            {formatCategory(Math.min(8, userProfile.category + 1))}.
+            {formatCategory(Math.min(MAX_CATEGORY, userProfile.category + 1))}.
           </p>
           {resolvedLevel.recentForm.length > 0 && (
             <p className="text-[11px] text-slate-600">
@@ -913,7 +913,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 onChange={(e) => setCategory(Number(e.target.value))}
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold"
               >
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
+                {CATEGORIES.map((c) => (
                   <option key={c} value={c}>
                     {formatCategory(c)}
                   </option>

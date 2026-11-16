@@ -40,7 +40,7 @@ import {
   getDayOfWeekFromISO,
   getLevelTierLabel,
   getTodayISO,
-  type PlayerLevelSummary, formatDateFriendly} from '../lib/padelUtils';
+  type PlayerLevelSummary, formatDateFriendly, CATEGORIES, MAX_CATEGORY } from '../lib/padelUtils';
 import {
   acceptMatchPartnerInvite,
   createMatchRequestAndTryMatch,
@@ -452,7 +452,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
               <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-white/80">
                 <CategoryBadge category={userProfile.category} size={28} />
                 <span>
-                  Cruces de {formatCategory(Math.max(1, userProfile.category - 1))} a {formatCategory(Math.min(8, userProfile.category + 1))}
+                  Cruces de {formatCategory(Math.max(1, userProfile.category - 1))} a {formatCategory(Math.min(MAX_CATEGORY, userProfile.category + 1))}
                 </span>
               </div>
               <p className="mt-2 text-xs text-white/65">Una sola ficha para todos los clubes de Armá Partido.</p>
@@ -475,7 +475,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                 }
                 className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
               >
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
+                {CATEGORIES.map((c) => (
                   <option key={c} value={c}>
                     {formatCategory(c)} {c === 1 ? '(Más alta)' : c === 8 ? '(Inicial)' : ''}
                   </option>

@@ -121,7 +121,7 @@ service cloud.firestore {
         && isValidId(data.uid)
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
         && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 500))
-        && data.category is int && data.category >= 1 && data.category <= 8
+        && data.category is int && data.category >= 1 && data.category <= 7
         && data.gender is string && data.gender in ['masculino', 'femenino']
         && data.preferredModality is string && data.preferredModality in ['masculino', 'femenino', 'mixto']
         && data.weeklyAvailability is list && data.weeklyAvailability.size() <= 21
@@ -232,7 +232,7 @@ service cloud.firestore {
         && data.clubId == clubId && isValidId(data.clubId)
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
         && data.role is string && data.role in ['admin', 'staff', 'cantina', 'player']
-        && data.category is int && data.category >= 1 && data.category <= 8
+        && data.category is int && data.category >= 1 && data.category <= 7
         && data.gender is string && data.gender in ['masculino', 'femenino']
         && data.preferredModality is string && data.preferredModality in ['masculino', 'femenino', 'mixto']
         && data.weeklyAvailability is list && data.weeklyAvailability.size() <= 21
@@ -300,7 +300,7 @@ service cloud.firestore {
         && data.partnerUid is string && data.partnerUid.size() <= 128
         && data.partnerName is string && data.partnerName.size() <= 80
         && data.partnerAccepted is bool
-        && data.category is int && data.category >= 1 && data.category <= 8
+        && data.category is int && data.category >= 1 && data.category <= 7
         && data.modality is string && data.modality in ['masculino', 'femenino', 'mixto']
         && data.requestType is string && data.requestType in ['weekly', 'priority']
         && data.date is string && data.date.size() <= 10
@@ -459,7 +459,7 @@ service cloud.firestore {
         && data.uid == friendUid && isValidId(data.uid)
         && data.ownerUid == uid && isValidId(data.ownerUid)
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
-        && data.category is int && data.category >= 1 && data.category <= 8
+        && data.category is int && data.category >= 1 && data.category <= 7
         && data.gender is string && data.gender in ['masculino', 'femenino']
         && data.preferredModality is string && data.preferredModality in ['masculino', 'femenino', 'mixto']
         && data.primaryClubId is string && data.primaryClubId.size() <= 128

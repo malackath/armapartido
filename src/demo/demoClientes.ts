@@ -55,7 +55,7 @@ export function addClientesDemo(
     // Posible repetido: el encargado lo cargó de nuevo con el mismo celular
     ficha('jorge2', { name: 'Jorge Brum', phone: '+59899333444', category: 7, origin: 'mostrador', createdOn: day(-6), reviewDuplicate: true }),
     ficha('rosana', { name: 'Rosana Píriz', phone: '+59899555666', category: 5, origin: 'migracion', createdOn: day(-150), createdByName: 'Planilla de Wona' }),
-    ficha('emilio', { name: 'Emilio Larrosa', phone: '+59897777888', category: 8, origin: 'telefono', createdOn: day(-3) }),
+    ficha('emilio', { name: 'Emilio Larrosa', phone: '+59897777888', category: 7, origin: 'telefono', createdOn: day(-3) }),
     ficha('tito', { name: 'Tito (papá de Emilio)', noPhone: true, origin: 'mostrador', createdOn: day(-3), note: 'No usa celular. Viene con Emilio.' }),
     ficha('clara', { name: 'Clara Bentancor', phone: '+59899999000', category: 4, origin: 'torneo', createdOn: day(-25), email: 'clara.demo@ejemplo.uy' }),
   ];

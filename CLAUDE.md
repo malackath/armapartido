@@ -1,7 +1,7 @@
 # padel-uy
 
 SaaS para clubes de pádel en Uruguay Marca: **Armá Partido** (armapartido.com).
-Cada club tiene su app marca blanca sobre una sola plataforma multi-club. Jugador con cuenta y categoría (1ra a 8va) únicas.
+Cada club tiene su app marca blanca sobre una sola plataforma multi-club. Jugador con cuenta y categoría (1ra a 7ma) únicas.
 
 ## Origen
 - Prototipo generado en Google AI Studio (React 19 + Vite + Tailwind 4 + Firebase Auth/Firestore + Express `server.ts` para FCM).

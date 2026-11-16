@@ -15,7 +15,7 @@ import type {
   TournamentFormat,
   UserProfile,
 } from '../types/padel';
-import { addDaysISO, formatCategory, formatMinutes, formatUYU, generateDaySlots, getTodayISO, type PlayerLevelSummary } from '../lib/padelUtils';
+import { addDaysISO, formatCategory, formatMinutes, formatUYU, generateDaySlots, getTodayISO, type PlayerLevelSummary, CATEGORIES } from '../lib/padelUtils';
 import {
   addClubCourt,
   closeRegistrationAndDraw,
@@ -807,7 +807,7 @@ const MembersCard: React.FC<{ club: Club; memberships: ClubMembership[]; userPro
                       }
                       className={selectCls}
                     >
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
+                      {CATEGORIES.map((c) => (
                         <option key={c} value={c}>{formatCategory(c)}</option>
                       ))}
                     </select>
@@ -986,7 +986,7 @@ const TournamentsSection: React.FC<{
           </div>
           <p className={`${labelCls} mt-3`}>Categorías que juegan</p>
           <div className="mt-1.5 grid grid-cols-4 gap-1.5">
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => {
+            {CATEGORIES.map((c) => {
               const on = cats.includes(c);
               return (
                 <button

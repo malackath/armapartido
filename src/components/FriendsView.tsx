@@ -23,8 +23,7 @@ import {
   formatCategory,
   formatMinutes,
   getDayName,
-  type PlayerLevelSummary,
-} from '../lib/padelUtils';
+  type PlayerLevelSummary, CATEGORIES } from '../lib/padelUtils';
 import { followUser, unfollowUser } from '../services/firestoreService';
 
 interface FriendsViewProps {
@@ -529,7 +528,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
                 className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-800"
               >
                 <option value="all">Todas las categorías</option>
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((cat) => (
+                {CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
                     {formatCategory(cat)}
                   </option>

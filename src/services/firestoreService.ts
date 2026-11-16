@@ -27,8 +27,7 @@ import {
   generateTournamentDraw,
   getDayOfWeekFromISO,
   getTodayISO,
-  sanitizeId,
-} from '../lib/padelUtils';
+  sanitizeId, MAX_CATEGORY } from '../lib/padelUtils';
 import { sendServerFcmPush, showServiceWorkerNotification } from '../lib/fcm';
 import type {
   AvailabilityWindow,
@@ -1921,7 +1920,7 @@ export async function followUser(params: {
     uid: target.uid,
     ownerUid,
     displayName: target.displayName.trim().slice(0, 80) || 'Jugador',
-    category: Math.min(8, Math.max(1, Math.round(target.category || 5))),
+    category: Math.min(MAX_CATEGORY, Math.max(1, Math.round(target.category || 5))),
     gender: target.gender,
     preferredModality: target.preferredModality,
     primaryClubId: target.primaryClubId.slice(0, 128),

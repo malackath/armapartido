@@ -1,5 +1,5 @@
 /**
- * Mundo de demo de Armá Partido: un club ficticio de Montevideo con canchas, jugadores de 1ra a 8va,
+ * Mundo de demo de Armá Partido: un club ficticio de Montevideo con canchas, jugadores de 1ra a 7ma,
  * reservas pasadas y futuras, partidos armados y abiertos, y torneos.
  * Lo usan el script `npm run demo:seed` y el botón "Reiniciar demo" de la app.
  * Las fechas se arman relativas al día en que se carga, así la demo siempre parece "de hoy".
@@ -45,7 +45,7 @@ export const DEMO_ACCOUNTS = [
 export type DemoAccountKey = (typeof DEMO_ACCOUNTS)[number]['key'];
 export type DemoUids = Record<DemoAccountKey, string>;
 
-/** Jugadores del club sin cuenta para entrar (solo datos), de 1ra a 8va. */
+/** Jugadores del club sin cuenta para entrar (solo datos), de 1ra a 7ma. */
 const EXTRA_PLAYERS: { id: string; name: string; category: number; gender: Gender }[] = [
   { id: 'demo-p01', name: 'Federico Acosta', category: 1, gender: 'masculino' },
   { id: 'demo-p02', name: 'Valentina Suárez', category: 2, gender: 'femenino' },
@@ -62,8 +62,8 @@ const EXTRA_PLAYERS: { id: string; name: string; category: number; gender: Gende
   { id: 'demo-p13', name: 'Paula Martínez', category: 6, gender: 'femenino' },
   { id: 'demo-p14', name: 'Ignacio Benítez', category: 7, gender: 'masculino' },
   { id: 'demo-p15', name: 'Lorena Sosa', category: 7, gender: 'femenino' },
-  { id: 'demo-p16', name: 'Pablo Rodríguez', category: 8, gender: 'masculino' },
-  { id: 'demo-p17', name: 'Andrea Ferreira', category: 8, gender: 'femenino' },
+  { id: 'demo-p16', name: 'Pablo Rodríguez', category: 7, gender: 'masculino' },
+  { id: 'demo-p17', name: 'Andrea Ferreira', category: 7, gender: 'femenino' },
 ];
 
 export interface DemoDoc {

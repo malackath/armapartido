@@ -113,7 +113,7 @@ export function normalizePhone(raw: string): string {
 
 export const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s);
 
-const ORD = ['primera', 'segunda', 'tercera', 'cuarta', 'quinta', 'sexta', 'septima', 'octava'];
+const ORD = ['primera', 'segunda', 'tercera', 'cuarta', 'quinta', 'sexta', 'septima'];
 /** "5ta", "5", "quinta", "5° cat" → 5. Nivel decimal o algo raro → null (lo elige el jugador al entrar). */
 export function parseCategory(raw: string): number | null {
   const s = norm(raw);
@@ -121,7 +121,7 @@ export function parseCategory(raw: string): number | null {
   const ord = ORD.findIndex((o) => s.startsWith(o));
   if (ord >= 0) return ord + 1;
   if (/[.,]/.test(raw)) return null;
-  const m = s.match(/^([1-8])(ra|da|ta|ma|va|a|o|cat|categoria)?$/) ?? s.match(/^(?:cat|categoria)([1-8])$/);
+  const m = s.match(/^([1-7])(ra|da|ta|ma|va|a|o|cat|categoria)?$/) ?? s.match(/^(?:cat|categoria)([1-7])$/);
   return m ? Number(m[1]) : null;
 }
 

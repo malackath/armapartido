@@ -16,7 +16,7 @@ import {
   pendingValue,
   VALIDITY_LABEL,
 } from '../../lib/clientes';
-import { addDaysISO, formatCategory, formatMinutes, formatUYU } from '../../lib/padelUtils';
+import { addDaysISO, formatCategory, formatMinutes, formatUYU, CATEGORIES } from '../../lib/padelUtils';
 import type { Staff } from '../../services/cajaService';
 import {
   eraseClient,
@@ -375,7 +375,7 @@ const SellPackInline: React.FC<{
   );
 };
 
-const CATS = [1, 2, 3, 4, 5, 6, 7, 8];
+const CATS = CATEGORIES;
 
 const DatosTab: React.FC<{
   club: Club;

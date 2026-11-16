@@ -8,8 +8,7 @@ import {
   generateDaySlots,
   getTodayISO,
   getUpcomingDays,
-  calculateSlotPrice,
-} from '../lib/padelUtils';
+  calculateSlotPrice, MAX_CATEGORY } from '../lib/padelUtils';
 import { BrandIcon } from './BrandIcon';
 import { CategoryBadge, PairAvatar, PlayerAvatar, StatusChip } from './ui/People';
 import { BADGE_CLASSES, DropMatchButton, FillInvitesSection, MatchFillStatus, fillBadge, searchForMatch } from './FaltaUno';
@@ -373,7 +372,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             {open.map((r) => {
               const names = [r.creatorName, ...(r.partnerName ? [r.partnerName] : [])];
               const minCat = Math.max(1, r.category - 1);
-              const maxCat = Math.min(8, r.category + 1);
+              const maxCat = Math.min(MAX_CATEGORY, r.category + 1);
               const dayOfWeek = r.dayOfWeek;
               const when = r.date ? dayLabel(r.date) : `Los ${DAYS_LONG[dayOfWeek].toLowerCase()}`;
               const price = r.date ? calculateSlotPrice(club, r.date, r.startMinute) / 4 : club.basePrice / 4;

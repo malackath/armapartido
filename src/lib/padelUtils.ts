@@ -23,8 +23,11 @@ const CATEGORY_LABELS: Record<number, string> = {
   5: '5ta',
   6: '6ta',
   7: '7ma',
-  8: '8va',
 };
+
+/** Las categorías van de 1ra a 7ma (Ber, 16/11/2026: no existe 8va). */
+export const MAX_CATEGORY = 7;
+export const CATEGORIES = [1, 2, 3, 4, 5, 6, 7];
 
 const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const DAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];

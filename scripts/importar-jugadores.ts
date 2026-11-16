@@ -34,7 +34,7 @@ if (!file || !clubId) {
 
 const DAYS = ['domingos', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábados'];
 const hhmm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
-const CAT = ['1ra', '2da', '3ra', '4ta', '5ta', '6ta', '7ma', '8va'];
+const CAT = ['1ra', '2da', '3ra', '4ta', '5ta', '6ta', '7ma'];
 const courtLabel = (c: string) => (/^\d+$/.test(c.trim()) ? `Cancha ${c.trim()}` : c);
 const fixedText = (p: CleanPlayer) => (p.fixed ? `los ${DAYS[p.fixed.dayOfWeek]} a las ${hhmm(p.fixed.startMinute)}${p.fixed.court ? ` en ${courtLabel(p.fixed.court)}` : ''}` : undefined);
 
