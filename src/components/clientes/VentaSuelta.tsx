@@ -186,16 +186,17 @@ export const VentaSuelta: React.FC<{
                         q > 0 && !target ? 'border-2 border-emerald-600' : 'border-line hover:shadow-[0_0_0_2px_var(--color-line)]'
                       }`}
                     >
-                      <span className="grid aspect-[16/10] w-full place-items-center bg-mist">
+                      <span className="grid aspect-[2/1] w-full place-items-center bg-mist">
                         {p.photoUrl ? (
                           <img src={p.photoUrl} alt="" className="h-full w-full object-cover" />
                         ) : (
-                          <ProductIcon product={p} size={52} className="bg-white" />
+                          <ProductIcon product={p} size={64} className="bg-white" />
                         )}
                       </span>
-                      <span className="flex items-end justify-between gap-2 px-3 pt-2 pb-2.5">
+                      <span className="flex min-h-[3.4rem] items-end justify-between gap-2 px-3 pt-2 pb-2.5">
                         <span className="min-w-0">
                           <span className="block truncate text-[14px] leading-tight font-semibold text-ink">{p.name}</span>
+                          {p.stock === null && <span className="invisible text-[11.5px]">·</span>}
                           {p.stock !== null && (
                             <span className={`text-[11.5px] ${out || p.stock <= p.minStock ? 'font-bold text-due' : 'text-muted'}`}>{out ? 'sin stock' : `quedan ${p.stock}`}</span>
                           )}
