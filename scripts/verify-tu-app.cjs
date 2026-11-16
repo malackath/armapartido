@@ -1,0 +1,52 @@
+// Verifica "Tu app" (parte 2.2): sección del Admin, cartel A4, story y la app abierta con ?club=.
+// Uso: node scripts/verify-tu-app.cjs http://127.0.0.1:5173 <carpeta>
+const { chromium } = require('playwright');
+const path = require('path');
+const fs = require('fs');
+const URL = process.argv[2] || 'http://127.0.0.1:5173';
+const OUT = path.resolve(process.argv[3] || '.');
+fs.mkdirSync(OUT, { recursive: true });
+const results = [];
+const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'OK  ' : 'FALLA'} ${name}${detail ? ' · ' + detail : ''}`); };
+(async () => {
+  const b = await chromium.launch();
+  const c = await b.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2, locale: 'es-UY', acceptDownloads: true });
+  const p = await c.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(URL);
+  await p.waitForSelector('text=/Probá la demo|Entrá a tu club/', { timeout: 40000 });
+  await p.getByRole('button', { name: /Sofía Rodríguez/ }).click();
+  await p.waitForTimeout(6000);
+  await p.goto(`${URL}/?tab=admin`); await p.waitForTimeout(5000);
+  await p.getByRole('button', { name: /^Tu app/ }).locator('visible=true').first().click();
+  await p.waitForSelector('[data-testid=tu-app] img[alt^="Código QR"]', { timeout: 15000 });
+  await p.waitForTimeout(800);
+  check('Muestra el link del club', /losjacarandas\.armapartido\.com/.test(await p.getByTestId('tu-app-url').innerText()));
+  check('Ícono del club en el celular de muestra', (await p.getByTestId('tu-app-icono').innerText()).includes('Jacarandás'));
+  await p.screenshot({ path: `${OUT}/1-tu-app.png` });
+  const [pop] = await Promise.all([p.waitForEvent('popup'), p.getByRole('button', { name: 'Imprimir cartel A4' }).click()]);
+  await pop.waitForLoadState('load'); await pop.waitForTimeout(1500);
+  await pop.setViewportSize({ width: 900, height: 1250 });
+  await pop.screenshot({ path: `${OUT}/2-cartel-a4.png`, fullPage: true });
+  check('Cartel A4 con nombre y QR', (await pop.locator('h1').innerText()).includes('Los Jacarandás'));
+  await pop.close();
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.getByRole('button', { name: 'Story de Instagram' }).click()]);
+  await dl.saveAs(`${OUT}/3-story.png`);
+  check('Story bajada', fs.statSync(`${OUT}/3-story.png`).size > 20000, dl.suggestedFilename());
+  // Jugador desde el celular con la dirección del club
+  const m = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: 'es-UY' });
+  const q = await m.newPage();
+  await q.goto(`${URL}/?club=losjacarandas`); await q.waitForTimeout(2500);
+  const href = await q.evaluate(() => document.querySelector('link[rel=manifest]')?.getAttribute('href'));
+  const apple = await q.evaluate(() => document.querySelector('link[rel=apple-touch-icon]')?.getAttribute('href'));
+  check('Usa el manifiesto y el ícono del club', href === '/clubes/losjacarandas/manifest.webmanifest' && apple === '/clubes/losjacarandas/apple-touch-icon.png', `${href} · ${apple}`);
+  const man = await q.evaluate(async (h) => (await fetch(h)).json(), href);
+  check('El manifiesto dice "Jacarandás"', man.short_name === 'Jacarandás' && man.start_url === '/?club=losjacarandas');
+  await q.getByRole('button', { name: /Martín Silva/ }).click(); await q.waitForTimeout(6000);
+  const t = await q.evaluate(() => [document.title, document.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute('content')]);
+  check('Título y nombre bajo el ícono en iPhone', t[0] === 'Los Jacarandás Pádel' && t[1] === 'Jacarandás', t.join(' · '));
+  check('Sin errores en la página', errs.length === 0, errs.join(' / '));
+  await b.close();
+  const bad = results.filter((x) => !x).length;
+  console.log(`${results.length - bad} de ${results.length} bien`);
+  process.exit(bad ? 1 : 0);
+})().catch((e) => { console.error('FALLA', e.message); process.exit(1); });

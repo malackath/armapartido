@@ -62,6 +62,7 @@ import { CantinaView } from './components/cantina/CantinaView';
 import { TopBar, type ActiveTab } from './components/TopBar';
 import { TournamentsView } from './components/TournamentsView';
 import { PAGE_CONTAINER } from './lib/layout';
+import { clubAppKey, currentClubSlug, shortClubName } from './lib/appDelClub';
 
 const PLATFORM_OWNER_EMAILS = (import.meta.env.VITE_PLATFORM_OWNER_EMAILS || '')
   .split(',')
@@ -269,10 +270,36 @@ export default function App() {
     };
   }, [authUser, userProfile]);
 
+  // App del club (parte 2.2): en <club>.armapartido.com (o ?club=) se abre directo en ese club.
+  const appClubSlug = useMemo(() => currentClubSlug(), []);
   const activeClub = useMemo(
-    () => clubs.find((c) => c.id === activeClubId) || clubs[0] || null,
-    [clubs, activeClubId]
+    () => clubs.find((c) => c.id === activeClubId) || (appClubSlug && clubs.find((c) => clubAppKey(c) === appClubSlug)) || clubs[0] || null,
+    [clubs, activeClubId, appClubSlug]
   );
+
+  // Nombre del club en la pestaña y debajo del ícono en el iPhone (el Android lo toma del manifiesto).
+  useEffect(() => {
+    if (!appClubSlug || !activeClub || clubAppKey(activeClub) !== appClubSlug) return;
+    let alive = true;
+    const apply = (short: string) => {
+      if (!alive) return;
+      document.title = activeClub.name;
+      let meta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.setAttribute('name', 'apple-mobile-web-app-title');
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute('content', short);
+    };
+    fetch(`/clubes/${appClubSlug}/manifest.webmanifest`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m) => apply((m && m.short_name) || shortClubName(activeClub.name)))
+      .catch(() => apply(shortClubName(activeClub.name)));
+    return () => {
+      alive = false;
+    };
+  }, [appClubSlug, activeClub]);
 
   // Load discoverable players across all active clubs for Amigos search & availability
   useEffect(() => {

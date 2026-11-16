@@ -34,6 +34,27 @@
     />
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased selection:bg-emerald-100 selection:text-emerald-950">
+    <script>
+      // App del club (parte 2.2): en <club>.armapartido.com o con ?club=<club>, el ícono y el nombre son del club.
+      (function () {
+        try {
+          var q = new URLSearchParams(location.search).get('club') || '';
+          var m = location.hostname.toLowerCase().match(/^([a-z0-9-]{2,40})\.armapartido\.com$/);
+          var reserved = { www: 1, demo: 1, app: 1, admin: 1, api: 1, mail: 1 };
+          var slug = (/^[a-z0-9-]{2,40}$/.test(q) ? q : m && !reserved[m[1]] ? m[1] : '').replace(/-/g, '');
+          if (!slug) { try { slug = localStorage.getItem('ap-club') || ''; } catch (e) {} }
+          if (!slug) return;
+          var base = '/clubes/' + slug;
+          var set = function (rel, href) {
+            var l = document.querySelector('link[rel="' + rel + '"]');
+            if (!l) { l = document.createElement('link'); l.rel = rel; document.head.appendChild(l); }
+            l.href = href;
+          };
+          set('manifest', base + '/manifest.webmanifest');
+          set('apple-touch-icon', base + '/apple-touch-icon.png');
+        } catch (e) {}
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -38,6 +38,7 @@ import { Numeros } from './clientes/Numeros';
 import { CuponerasAdmin } from './clientes/CuponerasAdmin';
 import { NewMembersReview } from './registro/ClubReview';
 import { PlayerAvatar } from './ui/People';
+import { TuApp } from './appclub/TuApp';
 
 interface ClubAdminViewProps {
   club: Club;
@@ -54,7 +55,7 @@ interface ClubAdminViewProps {
   onToast: (msg: string) => void;
 }
 
-type Section = 'courts' | 'prices' | 'fill' | 'members' | 'clients' | 'numbers' | 'tournaments' | 'cash' | 'packs' | 'cantina' | 'fixed' | 'report' | 'club';
+type Section = 'courts' | 'prices' | 'fill' | 'members' | 'clients' | 'numbers' | 'tournaments' | 'cash' | 'packs' | 'cantina' | 'fixed' | 'report' | 'app' | 'club';
 
 const SECTIONS: { id: Section; label: string; icon: BrandIconName; title: string; subtitle: string }[] = [
   { id: 'courts', label: 'Canchas y horarios', icon: 'cancha', title: 'Canchas y horarios', subtitle: 'Lo que cambies acá se ve al instante en la app de los jugadores y en el Mostrador.' },
@@ -69,6 +70,7 @@ const SECTIONS: { id: Section; label: string; icon: BrandIconName; title: string
   { id: 'cantina', label: 'Cantina', icon: 'paleta', title: 'Cantina', subtitle: 'Elegí del catálogo lo que vendés, poné precios y mirá cuántos quedan. Se venden en la Cantina y en el Mostrador, sueltos o cargados a la cuenta de una cancha.' },
   { id: 'fixed', label: 'Turnos fijos', icon: 'horario', title: 'Turnos fijos', subtitle: 'Reservas que se repiten todas las semanas.' },
   { id: 'report', label: 'Informe del mes', icon: 'resultado', title: 'Lo que ganaste con Armá Partido', subtitle: 'Los turnos que llenaron nuestros avisos, en pesos, al lado de la cuota. Llega por mail el día 1.' },
+  { id: 'app', label: 'Tu app', icon: 'compartir', title: 'Tu app, con tu nombre', subtitle: 'Tus jugadores instalan la app de tu club: el ícono y el nombre son los tuyos. Imprimí el cartel o subí la story.' },
   { id: 'club', label: 'Datos del club', icon: 'ubicacion', title: 'Datos del club', subtitle: 'Nombre y color de la app del club.' },
 ];
 
@@ -516,6 +518,8 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
         {section === 'report' && (
           <MonthlyReportAdmin club={club} courts={courts} bookings={bookings} matches={proposedMatches} memberships={memberships} userProfile={userProfile} onToast={onToast} />
         )}
+
+        {section === 'app' && <TuApp club={club} onToast={onToast} />}
 
         {section === 'club' && (
           <Card className="max-w-xl">
