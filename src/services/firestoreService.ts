@@ -2218,6 +2218,46 @@ export async function claimFillSeat(club: Club, searchId: string) {
   return res.result;
 }
 
+/** Lo que muestra la página pública del link (sin cuenta). */
+export interface PublicFillLink {
+  status: 'open' | 'filled' | 'closed';
+  clubName: string;
+  clubAddress: string;
+  clubCity: string;
+  mapsQuery: string;
+  date: string;
+  startMinute: number;
+  endMinute: number;
+  courtName: string;
+  modality: string;
+  seatsLeft: number;
+  minCategory: number;
+  maxCategory: number;
+  pricePerPlayer: number;
+}
+
+export async function getPublicFillLink(clubId: string, searchId: string): Promise<PublicFillLink | null> {
+  try {
+    const res = await httpsCallable<Record<string, unknown>, PublicFillLink>(functions, 'faltaUnoLink')({ clubId, searchId });
+    return res.data;
+  } catch (err) {
+    if ((err as { code?: string }).code === 'functions/not-found' || (err as { code?: string }).code === 'functions/invalid-argument') return null;
+    throw err;
+  }
+}
+
+export type LinkClaimResult = 'won' | 'late' | 'closed' | 'busy' | 'category' | 'gender' | 'blocked' | 'already_in' | 'left' | 'not_member';
+
+export async function claimFillSeatByLink(clubId: string, searchId: string): Promise<LinkClaimResult> {
+  try {
+    const res = await httpsCallable<Record<string, unknown>, { result: LinkClaimResult }>(functions, 'faltaUnoSumarmePorLink')({ clubId, searchId });
+    return res.data.result;
+  } catch (err) {
+    if ((err as { code?: string }).code === 'functions/permission-denied') return 'not_member';
+    throw err;
+  }
+}
+
 export async function declineFillInvite(club: Club, searchId: string) {
   await callArmado('faltaUnoNoPuedo', { clubId: club.id, searchId }, `clubs/${club.id}/fillSearches/${searchId}`);
 }

@@ -66,3 +66,12 @@ Cada club tiene su app marca blanca sobre una sola plataforma multi-club. Jugado
 2. Migrar a Firebase propio de Ber.
 3. Restringir el selector de rol (solo para demo).
 4. Mercado Pago real (cuenta de cada club, OAuth).
+
+## Mejoras de diferenciación (16/11, rama claude/project-thread-to3pa4)
+- Propuesta y wireframes: project files informes/diferenciacion-mejoras/.
+- Link para compartir el "Falta uno": `/f/<club>/<búsqueda>` abre `src/components/FaltaUnoLinkPage.tsx` sin cuenta (sin nombres ni fotos, Ley 18.331). Callables `faltaUnoLink` (sin cuenta) y `faltaUnoSumarmePorLink` (`claimFromLink` en `functions/src/fill.ts`: mismas reglas de categoría, género y bloqueo; sin disponibilidad ni tope). El invite y el recuperado quedan con `via: 'link'`. Botón "Compartir por WhatsApp / Copiar link" en `ShareFillLink` (FaltaUno.tsx). Helpers en `src/lib/compartir.ts`.
+- "Cómo llegar" (Google Maps, sin API) en la invitación, la tarjeta del partido, el perfil del club y la página del link.
+- "No sé mi categoría": 5 preguntas, `suggestCategory` en `src/lib/registro.ts` (sugiere 7ma a 5ta; "Con categoría" → la de su último torneo).
+- Informe del mes: renglones informativos `appBookings`, `matchesBuilt`, `viaLink` (no suman al total).
+- Verificar: `node scripts/verify-compartir.cjs <url> <carpeta>` (necesita un partido buscando reemplazo donde esté el jugador de la demo). Pruebas del servidor E7–E9 en `functions/test/faltauno.emulator.mjs`.
+- Para publicar hace falta también `deploy --only functions` (callables nuevas).

@@ -584,6 +584,9 @@ export const MonthlyReportAdmin: React.FC<{
           <Row label="Clientes nuevos" value={report.newPlayers} />
           {report.newFromApp !== undefined && <Row label="Llegaron por Armá Partido" value={report.newFromApp} />}
           <Row label="Quedó sin cobrar" value={formatUYU(report.uncollected)} />
+          {report.appBookings !== undefined && <Row label="Reservas hechas por la app (no suman)" value={report.appBookings} />}
+          {report.matchesBuilt !== undefined && <Row label="Partidos que armó la app sola" value={report.matchesBuilt} />}
+          {!!report.viaLink && <Row label="Lugares llenados por el link compartido" value={report.viaLink} />}
           {report.tip && <Hint><b>Para el mes que viene:</b> {report.tip}</Hint>}
         </Card>
       </div>

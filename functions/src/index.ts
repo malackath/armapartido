@@ -10,7 +10,7 @@ import { db, isFakePlayer, makeId, now } from './admin';
 import { respondToMatch, sweepClub } from './engine';
 import { runClock } from './clock';
 import { notify } from './notify';
-import { chooseUnfilled, claimSeat, declineInvite, dropFromMatch, stopSearch } from './fill';
+import { chooseUnfilled, claimFromLink, claimSeat, declineInvite, dropFromMatch, publicFillLink, stopSearch } from './fill';
 import type { FillChoice } from '../../src/types/padel';
 
 // São Paulo: misma región que Firestore de la demo. Tope de instancias para que un error no dispare costos.
@@ -190,6 +190,26 @@ export const faltaUnoMeSumo = onCall(async (req) => {
   const clubId = str(d.clubId);
   await requireMember(clubId, uid);
   return { result: await claimSeat({ clubId, searchId: str(d.searchId), uid }) };
+});
+
+/** Página pública del link de "Falta uno": no pide cuenta y no devuelve datos de los jugadores. */
+export const faltaUnoLink = onCall(async (req) => {
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  const searchId = str(d.searchId);
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(clubId) || !/^[a-zA-Z0-9_-]{1,128}$/.test(searchId)) throw new HttpsError('invalid-argument', 'Link inválido.');
+  const info = await publicFillLink(clubId, searchId);
+  if (!info) throw new HttpsError('not-found', 'Este link no existe.');
+  return info;
+});
+
+/** "Quiero jugar" desde el link compartido. */
+export const faltaUnoSumarmePorLink = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  return { result: await claimFromLink({ clubId, searchId: str(d.searchId), uid }) };
 });
 
 /** "No puedo" en una invitación. */

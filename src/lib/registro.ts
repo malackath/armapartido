@@ -106,3 +106,35 @@ export function playStyleChips(p: Pick<UserProfile, 'courtSide' | 'hand' | 'pref
 export function needsSignup(profile: Pick<UserProfile, 'signupDone'> | null): boolean {
   return !profile || profile.signupDone === false;
 }
+
+// -----------------------------------------------------------------------------
+// "No sé mi categoría": 5 preguntas de un toque que sugieren una categoría (16/11/2026).
+// Solo sugiere de 7ma a 5ta: quien jugó torneos con categoría ya la sabe. El club la confirma después.
+// Puntaje mío, a ajustar con lo que digan los clubes en las entrevistas [hipótesis].
+// -----------------------------------------------------------------------------
+
+export interface CategoryQuestion {
+  id: 'tiempo' | 'frecuencia' | 'torneos' | 'pared' | 'golpes';
+  q: string;
+  options: [string, string, string];
+}
+
+export const CATEGORY_QUESTIONS: CategoryQuestion[] = [
+  { id: 'tiempo', q: '¿Hace cuánto jugás pádel?', options: ['Menos de 6 meses', '6 meses a 2 años', 'Más de 2 años'] },
+  { id: 'frecuencia', q: '¿Cuántas veces por semana?', options: ['Menos de 1', '1 o 2', '3 o más'] },
+  { id: 'torneos', q: '¿Jugaste torneos?', options: ['Nunca', 'De club', 'Con categoría'] },
+  { id: 'pared', q: '¿Devolvés después de que pega en la pared?', options: ['Casi nunca', 'A veces', 'Casi siempre'] },
+  { id: 'golpes', q: '¿Hacés bandeja o víbora?', options: ['No', 'Bandeja', 'Las dos'] },
+];
+
+export type CategoryAnswers = Partial<Record<CategoryQuestion['id'], 0 | 1 | 2>>;
+
+/** null = faltan respuestas · 'torneo' = que use la de su último torneo · número = categoría sugerida (5 a 7). */
+export function suggestCategory(a: CategoryAnswers): number | 'torneo' | null {
+  if (CATEGORY_QUESTIONS.some((x) => a[x.id] === undefined)) return null;
+  if (a.torneos === 2) return 'torneo';
+  const score = CATEGORY_QUESTIONS.reduce((t, x) => t + (a[x.id] ?? 0), 0);
+  if (score >= 6) return 5;
+  if (score >= 3) return 6;
+  return 7;
+}

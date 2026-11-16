@@ -125,6 +125,8 @@ export interface Recovery {
   filledByUid: string;
   filledAt: string;
   seatsFilled: number;
+  /** Entró por aviso de la app o por el link compartido (16/11). */
+  via?: 'aviso' | 'link';
   amountRecovered: number;
   status: 'pending' | 'counted' | 'voided';
   voidReason?: string;
@@ -160,6 +162,11 @@ export interface MonthlyReport {
   /** De los nuevos, cuántos llegaron por Armá Partido (la app o Falta uno). Falta en informes viejos. */
   newFromApp?: number;
   uncollected: number;
+  /** Contexto, no suma (16/11): reservas jugadas que se hicieron desde la app y partidos que armó la app sola. */
+  appBookings?: number;
+  matchesBuilt?: number;
+  /** De lo que suma, cuántos lugares se llenaron por el link compartido de "Falta uno". */
+  viaLink?: number;
   // Consejo para el mes que viene
   tip: string;
   recoveryIds: string[];

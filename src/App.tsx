@@ -8,6 +8,8 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, db, DEMO_MODE, logoutUser, testFirestoreConnection } from './lib/firebase';
 import { readDemoUids, resetDemoWorld } from './demo/resetDemo';
 import { RegistroFlow } from './components/registro/RegistroFlow';
+import { FaltaUnoLinkPage } from './components/FaltaUnoLinkPage';
+import { parseFillLink } from './lib/compartir';
 import { getUserProfileOrNull, joinClub } from './services/registroService';
 import {
   obtainFcmDeviceToken,
@@ -102,7 +104,10 @@ export default function App() {
   const [bootError, setBootError] = useState<string | null>(null);
 
   const [clubs, setClubs] = useState<Club[]>([]);
-  const [activeClubId, setActiveClubId] = useState<string>(initialDeepLink.clubId);
+  // Link compartido de "Falta uno" (/f/<club>/<búsqueda>): se ve sin cuenta.
+  const [fillLink, setFillLink] = useState(() => (typeof window === 'undefined' ? null : parseFillLink(window.location.pathname)));
+  const [linkWantsLogin, setLinkWantsLogin] = useState(false);
+  const [activeClubId, setActiveClubId] = useState<string>(initialDeepLink.clubId || fillLink?.clubId || '');
   const [perspectiveRole, setPerspectiveRole] = useState<PerspectiveRole>('player');
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialDeepLink.tab);
 
@@ -430,6 +435,7 @@ export default function App() {
     return (
       <RegistroFlow
         authUser={authUser}
+        preferredClubId={fillLink?.clubId}
         onLogout={logoutUser}
         onDone={async (profile, go) => {
           if (!DEMO_MODE) await seedPilotDataIfNeeded(authUser, profile).catch(() => undefined);
@@ -438,6 +444,29 @@ export default function App() {
           setActiveTab(go);
         }}
       />
+    );
+  }
+
+  if (fillLink && (authUser || !linkWantsLogin)) {
+    const exitLink = (tab: ActiveTab = 'home') => {
+      window.history.replaceState({}, '', '/');
+      setFillLink(null);
+      setLinkWantsLogin(false);
+      setActiveClubId(fillLink.clubId);
+      setActiveTab(tab);
+    };
+    return (
+      <>
+        <FaltaUnoLinkPage
+          clubId={fillLink.clubId}
+          searchId={fillLink.searchId}
+          authUser={authUser}
+          ready={!!userProfile}
+          onLogin={() => setLinkWantsLogin(true)}
+          onExit={() => exitLink(authUser ? 'matchmaking' : 'home')}
+        />
+        <OfflineIndicator />
+      </>
     );
   }
 

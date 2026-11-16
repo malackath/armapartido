@@ -173,6 +173,9 @@ export function addHistory(docs: { path: string; data: Record<string, unknown> }
     const playerUids = [creator, ...Array.from({ length: extra }, (_, k) => people[(i + 3 + k * 5) % people.length])].filter((u, k, a) => a.indexOf(u) === k);
     const total = price(p.date, p.start);
     const method = methods[Math.floor(rand() * methods.length)];
+    // Historial creíble para el informe: la mitad se reserva en el mostrador, un 8 % lo armó la app sola.
+    const rt = rand();
+    const type = rt < 0.5 ? 'counter' : rt < 0.92 ? 'direct' : 'matched';
     const id = `demo_bk_h${String(i + 1).padStart(4, '0')}`;
     docs.push({
       path: `${base}/bookings/${id}`,
@@ -184,7 +187,7 @@ export function addHistory(docs: { path: string; data: Record<string, unknown> }
         date: p.date,
         startMinute: p.start,
         endMinute: p.start + 90,
-        type: 'direct',
+        type,
         status,
         createdByUid: creator,
         playerUids,

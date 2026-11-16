@@ -48,6 +48,7 @@ import { ClubRankingSection } from './ClubRankingSection';
 import { MercadoPagoModal } from './MercadoPagoModal';
 import { depositFor } from '../lib/caja';
 import { BrandIcon } from './BrandIcon';
+import { mapsUrl } from '../lib/compartir';
 
 interface PlayerBookingViewProps {
   club: Club;
@@ -665,6 +666,10 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
             <h2 className="font-display text-lg font-bold text-slate-900">{club.name}</h2>
             <p className="mt-0.5 text-xs text-slate-500">
               {club.address}, {club.city}
+              <span className="mx-1.5" aria-hidden="true">·</span>
+              <a href={mapsUrl(club)} target="_blank" rel="noopener noreferrer" className="font-semibold text-brand underline-offset-2 hover:underline">
+                Cómo llegar
+              </a>
               <span className="mx-1.5" aria-hidden="true">·</span>
               Horario <span className=" tabular-nums">{String(club.openHour).padStart(2, '0')}:00–{String(club.closeHour).padStart(2, '0')}:00</span> hs
               <span className="mx-1.5" aria-hidden="true">·</span>

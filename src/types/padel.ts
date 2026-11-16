@@ -463,6 +463,8 @@ export interface FillInvite {
   status: 'sent' | 'won' | 'late' | 'declined' | 'expired';
   countsForCap: boolean;
   sentAt: string;
+  /** Cómo llegó: aviso de la app (por defecto) o el link compartido por un jugador. */
+  via?: 'aviso' | 'link';
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -483,6 +485,8 @@ export interface RecoveryRecord {
   filledByUid: string;
   filledAt: string;
   seatsFilled: number;
+  /** Entró por aviso de la app o por el link compartido. */
+  via?: 'aviso' | 'link';
   amountRecovered: number;
   status: 'pending' | 'counted' | 'voided';
   voidReason: string;

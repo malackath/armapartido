@@ -226,5 +226,50 @@ await step('E6. Al terminar el turno, el recuperado cuenta (y se anula si se can
   assert.equal((await club.collection('recoveries').doc(bad).get()).get('voidReason'), 'cancelado');
 });
 
+// ---------- link para compartir (16/11) ----------
+const anon = (() => {
+  const app = initializeApp({ apiKey: 'demo', projectId: 'demo-armapartido' }, 'fu-anon');
+  const fns = getFunctions(app, 'southamerica-east1');
+  connectFunctionsEmulator(fns, '127.0.0.1', 5001);
+  return (fn, data) => httpsCallable(fns, fn)(data).then((r) => r.data);
+})();
+let linkSearch = null;
+await step('E7. Link público: se abre sin cuenta y no trae nombres de los jugadores', async () => {
+  await reset();
+  // Plataforma no puede ese día según su disponibilidad: no le llega aviso, entra solo por el link.
+  await club.collection('memberships').doc(plataforma.uid).update({ weeklyAvailability: [] });
+  const { id } = await confirmedMatch([[jugador.uid, 'Martín Silva', 5], ['demo-p08', 'Florencia', 5], ['demo-p09', 'Rodrigo', 5], ['demo-p10', 'Mateo', 5]]);
+  await jugador.call('faltaUnoBajarme', { clubId: CLUB, matchId: id });
+  linkSearch = await searchOf(id);
+  const info = await anon('faltaUnoLink', { clubId: CLUB, searchId: linkSearch.id });
+  assert.equal(info.status, 'open'); assert.equal(info.seatsLeft, 1);
+  assert.equal(info.minCategory, 4); assert.equal(info.maxCategory, 6); assert.equal(info.pricePerPlayer, 550);
+  const txt = JSON.stringify(info);
+  for (const n of ['Florencia', 'Rodrigo', 'Mateo', 'demo-p0', jugador.uid]) assert.ok(!txt.includes(n), `filtra ${n}`);
+  await assert.rejects(anon('faltaUnoLink', { clubId: CLUB, searchId: 'no_existe' }));
+});
+await step('E8. Por el link: categoría que no entra, el que se bajó y sin cuenta no pasan', async () => {
+  await club.collection('memberships').doc(mostrador.uid).update({ category: 7 });
+  try {
+    assert.equal((await mostrador.call('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: linkSearch.id })).result, 'category');
+  } finally {
+    await club.collection('memberships').doc(mostrador.uid).update({ category: 6 });
+  }
+  assert.equal((await jugador.call('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: linkSearch.id })).result, 'left');
+  await assert.rejects(anon('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: linkSearch.id }));
+});
+await step('E9. Por el link entra el primero que confirma, sin gastar su tope de avisos, y el recuperado dice "link"', async () => {
+  const r = await plataforma.call('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: linkSearch.id });
+  assert.equal(r.result, 'won');
+  const s = await searchOf(linkSearch.matchId);
+  assert.equal(s.status, 'filled');
+  const inv = (await club.collection('fillInvites').doc(`${linkSearch.id}_${plataforma.uid}`).get()).data();
+  assert.equal(inv.status, 'won'); assert.equal(inv.countsForCap, false);
+  const rec = (await club.collection('recoveries').where('searchId', '==', linkSearch.id).get()).docs.map((d) => d.data());
+  assert.equal(rec.length, 1); assert.equal(rec[0].via, 'link');
+  assert.equal((await anon('faltaUnoLink', { clubId: CLUB, searchId: linkSearch.id })).status, 'filled');
+  assert.equal((await mostrador.call('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: linkSearch.id })).result, 'late');
+});
+
 console.log('\n' + results.join('\n'));
 process.exit(results.some((r) => r.startsWith('FALLA')) ? 1 : 0);

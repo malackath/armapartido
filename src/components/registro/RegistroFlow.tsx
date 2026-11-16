@@ -9,7 +9,8 @@ import { ArrowLeft, Camera, Check, ImageIcon, Mail } from 'lucide-react';
 import { DEMO_MODE } from '../../lib/firebase';
 import { normalizePhone } from '../../lib/clientes';
 import { formatCategory, MAX_CATEGORY } from '../../lib/padelUtils';
-import { availabilitySentence, windowsFromGrid, type GridKey } from '../../lib/registro';
+import { CATEGORY_QUESTIONS, availabilitySentence, suggestCategory, windowsFromGrid, type CategoryAnswers, type GridKey } from '../../lib/registro';
+import { CategoryBadge } from '../ui/People';
 import { subscribeClubs } from '../../services/firestoreService';
 import { finishSignup, uploadSignupPhoto } from '../../services/registroService';
 import type { AlertPrefs, Club, CourtSide, Gender, Hand, Modality, UserProfile, WeeklyInvites } from '../../types/padel';
@@ -41,7 +42,9 @@ export const RegistroFlow: React.FC<{
   authUser: User;
   onDone: (profile: UserProfile, go: AfterSignup) => void;
   onLogout: () => void;
-}> = ({ authUser, onDone, onLogout }) => {
+  /** Llegó por el link de un "Falta uno": se suma a ese club. */
+  preferredClubId?: string;
+}> = ({ authUser, onDone, onLogout, preferredClubId }) => {
   const [step, setStep] = useState<Step>('vos');
   const [clubs, setClubs] = useState<Club[]>([]);
   const [name, setName] = useState((authUser.displayName ?? '').slice(0, 80));
@@ -50,6 +53,8 @@ export const RegistroFlow: React.FC<{
   const [photoUrl, setPhotoUrl] = useState(authUser.photoURL ?? '');
   const [photoBusy, setPhotoBusy] = useState(false);
   const [category, setCategory] = useState<number | null>(null);
+  const [answers, setAnswers] = useState<CategoryAnswers>({});
+  const suggestion = suggestCategory(answers);
   const [gender, setGender] = useState<Gender | null>(null);
   const [modality, setModality] = useState<Modality>('mixto');
   const [side, setSide] = useState<CourtSide | null>(null);
@@ -66,7 +71,7 @@ export const RegistroFlow: React.FC<{
 
   useEffect(() => subscribeClubs(setClubs), []);
   // La app de cada club: en la demo hay un solo club (Los Jacarandás).
-  const club = clubs[0] ?? null;
+  const club = clubs.find((c) => c.id === preferredClubId) ?? clubs[0] ?? null;
   const clubName = club?.name ?? (DEMO_MODE ? 'Los Jacarandás Pádel' : 'tu club');
 
   useEffect(() => {
@@ -506,28 +511,73 @@ export const RegistroFlow: React.FC<{
             aria-modal="true"
             aria-labelledby="ayuda-cat"
             onClick={(e) => e.stopPropagation()}
-            className="w-full rounded-t-[20px] bg-white px-5 pt-3 pb-[max(24px,env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-xl sm:pt-5"
+            className="max-h-[92vh] w-full overflow-y-auto rounded-t-[20px] bg-white px-5 pt-3 pb-[max(24px,env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-xl sm:pt-5"
           >
             <div className="mx-auto mb-4 h-[5px] w-10 rounded-full bg-[#c9d8d9] sm:hidden" />
             <h3 id="ayuda-cat" className="font-display text-xl font-bold text-ink">
-              Cómo elegir tu categoría
+              Te ayudamos a elegir
             </h3>
-            <ol className="mt-3 grid gap-2.5">
-              {[
-                'Si jugaste torneos, elegí la categoría en la que jugaste el último.',
-                'Si te la dijo el profe o el club, usá esa.',
-                `Si recién empezás o nunca jugaste torneos, elegí ${formatCategory(MAX_CATEGORY)}.`,
-              ].map((t, i) => (
-                <li key={t} className="grid grid-cols-[28px_1fr] gap-2.5 text-[14.5px] leading-snug">
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-mist text-[13px] font-bold">{i + 1}</span>
-                  {t}
-                </li>
+            <p className="mt-1 text-[13.5px] text-muted">5 preguntas de un toque.</p>
+            <div className="mt-2 grid gap-3">
+              {CATEGORY_QUESTIONS.map((x, qi) => (
+                <fieldset key={x.id}>
+                  <legend className="mb-1.5 text-[14.5px] font-semibold text-ink">
+                    {qi + 1}. {x.q}
+                  </legend>
+                  <div className="flex flex-wrap gap-1.5">
+                    {x.options.map((o, oi) => {
+                      const on = answers[x.id] === oi;
+                      return (
+                        <button
+                          key={o}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() => setAnswers({ ...answers, [x.id]: oi as 0 | 1 | 2 })}
+                          className={`h-9 cursor-pointer rounded-full border px-3 text-[13.5px] font-semibold ${on ? 'border-brand bg-brand text-white' : 'border-line bg-white text-ink'}`}
+                        >
+                          {o}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
               ))}
-            </ol>
-            <p className="mt-3.5 text-[13.5px] leading-snug text-muted">No pasa nada si le errás: después de verte jugar, el club la ajusta y te avisamos.</p>
-            <button type="button" className={`${btnPri} mt-4`} onClick={() => go('categoria')}>
-              Entendido
-            </button>
+            </div>
+            {suggestion === 'torneo' ? (
+              <div className="mt-4 rounded-xl border-2 border-brand/30 bg-mist p-3.5" data-testid="sugerencia-categoria">
+                <p className="font-semibold text-ink">Usá la categoría de tu último torneo</p>
+                <p className="mt-1 text-[13px] text-muted">Es la mejor referencia. El club la confirma después de verte jugar.</p>
+              </div>
+            ) : typeof suggestion === 'number' ? (
+              <div className="mt-4 flex items-center gap-3 rounded-xl border-2 border-brand/30 bg-mist p-3.5" data-testid="sugerencia-categoria">
+                <CategoryBadge category={suggestion} size={40} />
+                <div>
+                  <p className="font-semibold text-ink">Te sugerimos {formatCategory(suggestion)}</p>
+                  <p className="mt-0.5 text-[13px] leading-snug text-muted">Es una sugerencia. Tu club la confirma después de verte jugar.</p>
+                </div>
+              </div>
+            ) : null}
+            {typeof suggestion === 'number' ? (
+              <>
+                <button
+                  type="button"
+                  className={`${btnPri} mt-4`}
+                  onClick={() => {
+                    setCategory(suggestion);
+                    go('categoria');
+                  }}
+                >
+                  Usar {formatCategory(suggestion)}
+                </button>
+                <button type="button" onClick={() => go('categoria')} className="mt-2 h-11 w-full cursor-pointer rounded-2xl border border-line bg-white text-[15px] font-semibold text-brand">
+                  Elegir otra
+                </button>
+              </>
+            ) : (
+              <button type="button" className={`${btnPri} mt-4`} onClick={() => go('categoria')}>
+                {suggestion === 'torneo' ? 'Elegir mi categoría' : 'Volver'}
+              </button>
+            )}
           </div>
         </div>
       )}
