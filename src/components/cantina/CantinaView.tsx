@@ -13,6 +13,11 @@ import { ClubOpsContext, useClubOps } from '../caja/ops';
 import { ClientesContext, useClientesData } from '../clientes/data';
 import { VentaSuelta } from '../clientes/VentaSuelta';
 import { TurnAccount } from '../caja/TurnAccount';
+import { FullscreenButton } from '../ui/FullscreenButton';
+import { participantsOf } from '../../lib/caja';
+import { addConsumption } from '../../services/cajaService';
+import type { Product } from '../../types/caja';
+import { soldAt } from '../../lib/catalogo';
 
 const nowMinute = () => {
   const d = new Date();
@@ -96,10 +101,21 @@ export const CantinaView: React.FC<{
 
   const turn = openTurn ? bookings.find((b) => b.id === openTurn) : null;
 
+  // Con una cancha abierta, tocar un producto lo carga a la cuenta del turno, dividido entre todos.
+  const loadToTurn = (p: Product) => {
+    if (!turn) return;
+    const parts = participantsOf(turn, proposedMatches.find((m) => m.bookingId === turn.id), nameOf).map((x) => ({ key: x.key, name: x.name }));
+    void run(
+      () => addConsumption({ club, product: p, qty: 1, date: turn.date, bookingId: turn.id, shared: parts.length > 1, participants: parts.length ? parts : [{ key: `g:${turn.id}`, name: 'Cliente' }], staff }),
+      `${p.name} cargado ${parts.length > 1 ? 'entre todos ' : ''}en ${courtName(turn.courtId)}.`
+    );
+  };
+
   return (
     <ClubOpsContext.Provider value={ops}>
       <ClientesContext.Provider value={clientes}>
         <div className="space-y-5">
+          <div className="flex items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Cantina</p>
             <h1 className="mt-1 flex items-baseline gap-3 font-display text-2xl font-bold text-ink sm:text-3xl">
@@ -107,6 +123,8 @@ export const CantinaView: React.FC<{
               <span className="font-display text-3xl font-bold text-brand tabular-nums">{formatMinutes(minute)}</span>
             </h1>
             <p className="mt-1 text-sm text-muted">Vendé, cargá lo que consumen en la cancha y mirá lo cobrado. Las canchas y las reservas las maneja el mostrador.</p>
+          </div>
+          <FullscreenButton />
           </div>
 
           {!day && ops.ready && (
@@ -121,7 +139,7 @@ export const CantinaView: React.FC<{
               <VentaSuelta
                 club={club}
                 memberships={memberships}
-                products={ops.products.filter((p) => p.active)}
+                products={ops.products.filter((p) => p.active && soldAt(p, 'cantina'))}
                 tournaments={[]}
                 staff={staff}
                 today={today}
@@ -130,6 +148,8 @@ export const CantinaView: React.FC<{
                 run={run}
                 debtOf={(c) => debts.find((d) => d.key === clientKey(c))?.amount ?? 0}
                 tabs={['cantina', 'alquiler', 'otros']}
+                tiles
+                target={turn ? { label: courtName(turn.courtId), onPick: loadToTurn, onClear: () => setOpenTurn(null) } : null}
               />
             </section>
 
@@ -163,6 +183,7 @@ export const CantinaView: React.FC<{
                     onClose={() => setOpenTurn(null)}
                     itemsOnly
                     placeLabel={courtName(turn.courtId)}
+                    hideQuickAdd
                   />
                   </>
                 ) : (

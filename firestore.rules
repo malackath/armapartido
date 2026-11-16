@@ -890,7 +890,8 @@ service cloud.firestore {
         allow create, update: if isValidId(clubId) && isValidId(productId)
           && (isClubStaffOrAdmin(clubId) || isPlatformAdmin())
           && incoming().clubId == clubId && incoming().id == productId
-          && incoming().keys().hasOnly(['id', 'clubId', 'name', 'price', 'stock', 'minStock', 'active', 'order', 'createdAt', 'updatedAt'])
+          && incoming().keys().hasOnly(['id', 'clubId', 'name', 'price', 'stock', 'minStock', 'active', 'order', 'icon', 'photoUrl', 'catalogId', 'where', 'createdAt', 'updatedAt'])
+          && (!('where' in incoming()) || incoming().where in ['ambos', 'cantina', 'mostrador'])
           && incoming().name is string && incoming().name.size() >= 1 && incoming().name.size() <= 60
           && incoming().price is number && incoming().price >= 0 && incoming().price <= 50000
           && (incoming().stock == null || incoming().stock is int)

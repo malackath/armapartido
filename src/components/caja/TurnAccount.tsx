@@ -13,6 +13,7 @@ import { dmy, packUsableFor, participantsWithClients, VALIDITY_LABEL } from '../
 import { payTurnWithBalance, redeemPack } from '../../services/clientesService';
 import type { ClientPack, ClubClient } from '../../types/clientes';
 import { ProductIcon } from '../mostrador/ProductIcon';
+import { soldAt } from '../../lib/catalogo';
 
 const methodLabel = (m: CounterPaymentMethod) =>
   m === 'efectivo' ? 'efectivo' : m === 'transferencia' ? 'transferencia' : m === 'mercadopago' ? 'Mercado Pago' : 'tarjeta';
@@ -32,7 +33,9 @@ export const TurnAccount: React.FC<{
   itemsOnly?: boolean;
   /** Nombre de la cancha para el aviso al cargar (cantina): "… en Cancha 1". */
   placeLabel?: string;
-}> = ({ club, booking, match, nameOf, staff, today, busy, setBusy, onToast, onClose, itemsOnly, placeLabel }) => {
+  /** Oculta los botoncitos de productos (la Cantina usa los botones grandes de la izquierda). */
+  hideQuickAdd?: boolean;
+}> = ({ club, booking, match, nameOf, staff, today, busy, setBusy, onToast, onClose, itemsOnly, placeLabel, hideQuickAdd }) => {
   const { products, consumptions, cashDays } = useOps();
   const participants = useMemo(() => participantsOf(booking, match, nameOf), [booking, match, nameOf]);
   const turnCons = useMemo(() => consumptions.filter((c) => c.bookingId === booking.id && c.status !== 'voided'), [consumptions, booking.id]);
@@ -57,7 +60,7 @@ export const TurnAccount: React.FC<{
     return map;
   }, [booking, match, nameOf, clients, packs, club, today, unit]);
 
-  const active = products.filter((p) => p.active);
+  const active = products.filter((p) => p.active && soldAt(p, 'mostrador'));
   const quick = showAll ? active : active.slice(0, 6);
   const multi = participants.length > 1;
   const pickedDue = accounts.filter((a) => picked.includes(a.key)).reduce((s, a) => s + a.totalDue, 0);
@@ -164,7 +167,8 @@ export const TurnAccount: React.FC<{
         </div>
       </div>
 
-      {/* Agregar de la cantina */}
+      {/* Agregar de la cantina (en la pantalla Cantina se carga tocando los productos grandes) */}
+      {!hideQuickAdd && (
       <div>
         <p className="mb-2 text-xs font-semibold tracking-wider text-muted uppercase">Agregar de la cantina</p>
         {active.length === 0 ? (
@@ -212,9 +216,10 @@ export const TurnAccount: React.FC<{
           </div>
         )}
       </div>
+      )}
 
       {itemsOnly ? (
-        <p className="rounded-xl bg-mist px-3 py-2.5 text-[13px] text-ink">Lo que cargás acá queda en la cuenta del turno y se cobra en el mostrador junto con la cancha.</p>
+        <p className="rounded-xl bg-mist px-3 py-2.5 text-[13px] text-ink">{hideQuickAdd ? "Tocá los productos de la izquierda para sumarlos a esta cancha. " : ""}Lo que cargás acá queda en la cuenta del turno y se cobra en el mostrador junto con la cancha.</p>
       ) : (
       <>
       {/* Quién paga qué */}

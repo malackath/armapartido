@@ -12,6 +12,7 @@ import { StatusChip } from '../ui/People';
 import { addWithdrawal, closeCashDay, openCashDay, voidPayment, type Staff } from '../../services/cajaService';
 import type { CounterPaymentMethod } from '../../services/firestoreService';
 import { KIND_LABEL, MethodPicker, Row, btnPrimary, btnSecondary, inputCls, labelCls, useOps } from './ops';
+import { soldAt } from '../../lib/catalogo';
 
 type Tab = 'caja' | 'deben' | 'venta';
 
@@ -115,7 +116,7 @@ export const CashPanel: React.FC<{
         <VentaSuelta
           club={club}
           memberships={memberships}
-          products={products.filter((p) => p.active)}
+          products={products.filter((p) => p.active && soldAt(p, 'mostrador'))}
           tournaments={tournaments}
           staff={staff}
           today={today}

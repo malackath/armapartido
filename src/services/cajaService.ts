@@ -92,6 +92,10 @@ export async function saveProduct(club: Club, p: Partial<Product> & { name: stri
     minStock: Math.max(0, Math.round(p.minStock ?? 0)),
     active: p.active ?? true,
     order: p.order ?? Date.now(),
+    ...(p.icon ? { icon: p.icon } : {}),
+    ...(p.photoUrl ? { photoUrl: p.photoUrl } : {}),
+    ...(p.catalogId ? { catalogId: p.catalogId } : {}),
+    ...(p.where ? { where: p.where } : {}),
   };
   try {
     await setDoc(ref(club.id, 'products', id), { ...data, updatedAt: serverTimestamp(), ...(p.id ? {} : { createdAt: serverTimestamp() }) }, { merge: true });

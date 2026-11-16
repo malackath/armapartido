@@ -50,10 +50,14 @@ export const VentaSuelta: React.FC<{
   debtOf?: (c: ClubClient) => number;
   /** Pestañas que se muestran (la cantina ve solo cantina, alquiler y otros). */
   tabs?: Tab[];
-}> = ({ club, memberships, products, tournaments, staff, today, closed, busy, run, debtOf, tabs }) => {
+  /** Cantina: productos como botones grandes con foto y precio; arranca en "Sin nombre". */
+  tiles?: boolean;
+  /** Si hay una cancha elegida, tocar un producto lo carga a esa cancha en vez de sumarlo a la venta. */
+  target?: { label: string; onPick: (p: Product) => void; onClear: () => void } | null;
+}> = ({ club, memberships, products, tournaments, staff, today, closed, busy, run, debtOf, tabs, tiles, target }) => {
   const { packTypes, clients } = useClientes();
   const [clientId, setClientId] = useState<string | null>(null);
-  const [anon, setAnon] = useState(false);
+  const [anon, setAnon] = useState(!!tiles);
   const [tab, setTab] = useState<Tab>('cantina');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [pack, setPack] = useState<PackType | null>(null);
@@ -154,7 +158,70 @@ export const VentaSuelta: React.FC<{
             ))}
           </div>
 
-          {(tab === 'cantina' || tab === 'alquiler') && (
+          {tiles && target && (tab === 'cantina' || tab === 'alquiler') && (
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-live-fill px-3.5 py-2.5 text-[13.5px] text-ink">
+              <span>
+                Tocá un producto para cargarlo a <b>{target.label}</b>
+              </span>
+              <button type="button" onClick={target.onClear} className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-[13px] font-semibold cursor-pointer hover:bg-mist">
+                Volver a vender
+              </button>
+            </div>
+          )}
+          {tiles && (tab === 'cantina' || tab === 'alquiler') && (
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
+              {(tab === 'cantina' ? cantina : rentals).length === 0 && <p className="col-span-full rounded-xl bg-mist px-3 py-3 text-[13px] text-muted">{tab === 'cantina' ? 'El club todavía no cargó productos (Admin, Cantina).' : 'No hay productos de alquiler. Se cargan en Admin, Cantina, con un nombre que empiece con "Alquiler".'}</p>}
+              {(tab === 'cantina' ? cantina : rentals).map((p) => {
+                const rubro: Rubro = tab === 'cantina' ? 'cantina' : 'alquiler';
+                const q = qtyOf(`p:${p.id}:${rubro}`);
+                const out = p.stock !== null && p.stock <= 0;
+                return (
+                  <div key={p.id} className="relative">
+                    <button
+                      type="button"
+                      disabled={out || busy}
+                      aria-label={`${target ? `Cargar a ${target.label}` : 'Sumar'} ${p.name}`}
+                      onClick={() => (target ? target.onPick(p) : bump(p, rubro, 1))}
+                      className={`flex w-full flex-col overflow-hidden rounded-xl border bg-white text-left transition-shadow cursor-pointer disabled:cursor-not-allowed disabled:opacity-45 ${
+                        q > 0 && !target ? 'border-2 border-emerald-600' : 'border-line hover:shadow-[0_0_0_2px_var(--color-line)]'
+                      }`}
+                    >
+                      <span className="grid aspect-[16/10] w-full place-items-center bg-mist">
+                        {p.photoUrl ? (
+                          <img src={p.photoUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <ProductIcon product={p} size={52} className="bg-white" />
+                        )}
+                      </span>
+                      <span className="flex items-end justify-between gap-2 px-3 pt-2 pb-2.5">
+                        <span className="min-w-0">
+                          <span className="block truncate text-[14px] leading-tight font-semibold text-ink">{p.name}</span>
+                          {p.stock !== null && (
+                            <span className={`text-[11.5px] ${out || p.stock <= p.minStock ? 'font-bold text-due' : 'text-muted'}`}>{out ? 'sin stock' : `quedan ${p.stock}`}</span>
+                          )}
+                        </span>
+                        <span className="shrink-0 font-display text-lg font-bold text-brand tabular-nums">{formatUYU(p.price)}</span>
+                      </span>
+                    </button>
+                    {q > 0 && !target && (
+                      <>
+                        <span className="pointer-events-none absolute top-2 right-2 grid h-8 min-w-8 place-items-center rounded-full bg-action px-2 text-sm font-bold text-on-action shadow">{q}</span>
+                        <button
+                          type="button"
+                          aria-label={`Menos ${p.name}`}
+                          onClick={() => bump(p, rubro, -1)}
+                          className="absolute top-2 left-2 grid h-8 w-8 place-items-center rounded-full bg-white text-ink shadow cursor-pointer hover:bg-mist"
+                        >
+                          <Minus className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {!tiles && (tab === 'cantina' || tab === 'alquiler') && (
             <ul className="rounded-xl border border-line bg-white px-3">
               {(tab === 'cantina' ? cantina : rentals).length === 0 && <li className="py-3 text-[13px] text-muted">{tab === 'cantina' ? 'El club todavía no cargó productos (Admin, Cantina).' : 'No hay productos de alquiler. Se cargan en Admin, Cantina, con un nombre que empiece con "Alquiler". También podés cargarlo en "Otros".'}</li>}
               {(tab === 'cantina' ? cantina : rentals).map((p) => {

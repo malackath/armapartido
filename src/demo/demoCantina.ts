@@ -4,6 +4,7 @@
  * Todo es ficticio y relativo al día en que se carga.
  */
 import type { Booking, Gender, PaymentRecord, ProposedMatch } from '../types/padel';
+import { CATALOG, type ProductPlace } from '../lib/catalogo';
 import type { CashDay, Consumption, FixedBooking, MonthlyReport, Product, Recovery } from '../types/caja';
 import { addDaysISO, getDayOfWeekFromISO } from '../lib/padelUtils';
 import { monthOf, previousMonth, lastDayOfMonth, PLAN_PRICES_USD, USD_TO_UYU } from '../lib/caja';
@@ -37,24 +38,36 @@ export function addCantinaDemo(
   const staffName = 'Diego Fernández';
 
   // ---------- Productos ----------
-  const products: Product[] = [
-    ['agua', 'Agua 500 ml', 90, 38, 10],
-    ['agua_gas', 'Agua con gas', 100, 20, 6],
-    ['cerveza', 'Cerveza lata', 180, 4, 12],
-    ['gatorade', 'Gatorade', 120, 0, 6],
-    ['pelotas', 'Tubo de pelotas', 450, 15, 5],
-    ['paleta', 'Alquiler de paleta', 150, null, 0],
-    ['grip', 'Grip', 250, 9, 3],
-    ['cafe', 'Café', 80, null, 0],
-  ].map(([id, name, priceP, stock, min], i) => ({
+  // Productos activados del catálogo base (src/lib/catalogo.ts) con precios de ejemplo.
+  // [id, nombre, precio, stock, mínimo, id del catálogo, dónde se vende]
+  const rows: [string, string, number, number | null, number, string, ProductPlace][] = [
+    ['agua', 'Agua 500 ml', 90, 38, 10, 'agua', 'ambos'],
+    ['agua_gas', 'Agua con gas', 100, 20, 6, 'agua_gas', 'ambos'],
+    ['gatorade', 'Gatorade', 120, 0, 6, 'isotonica', 'ambos'],
+    ['refresco', 'Refresco lata', 140, 24, 8, 'refresco', 'ambos'],
+    ['cerveza', 'Cerveza lata', 180, 4, 12, 'cerveza', 'ambos'],
+    ['energizante', 'Energizante', 160, 10, 4, 'energizante', 'cantina'],
+    ['cafe', 'Café', 80, null, 0, 'cafe', 'ambos'],
+    ['cafe_leche', 'Café con leche', 110, null, 0, 'cafe_leche', 'cantina'],
+    ['alfajor', 'Alfajor', 70, 30, 10, 'alfajor', 'ambos'],
+    ['barrita', 'Barrita de cereal', 90, 18, 6, 'barrita', 'ambos'],
+    ['tostado', 'Tostado', 220, null, 0, 'tostado', 'cantina'],
+    ['pelotas', 'Tubo de pelotas', 450, 15, 5, 'pelotas', 'ambos'],
+    ['grip', 'Grip', 250, 9, 3, 'grip', 'ambos'],
+    ['paleta', 'Alquiler de paleta', 150, null, 0, 'alq_paleta', 'ambos'],
+  ];
+  const products: Product[] = rows.map(([id, name, price, stock, minStock, catalogId, where], i) => ({
     id: `demo_prod_${id}`,
     clubId: C,
-    name: name as string,
-    price: priceP as number,
-    stock: stock as number | null,
-    minStock: min as number,
+    name,
+    price,
+    stock,
+    minStock,
     active: true,
     order: i,
+    catalogId,
+    icon: CATALOG.find((c) => c.id === catalogId)?.icon,
+    where,
   }));
   products.forEach((p) => put(`${base}/products/${p.id}`, p));
   const prod = (id: string) => products.find((p) => p.id === `demo_prod_${id}`)!;

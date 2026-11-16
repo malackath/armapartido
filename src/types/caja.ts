@@ -17,6 +17,10 @@ export interface Product {
   icon?: string;
   /** Foto del producto o de la marca (acuerdos con auspiciantes), más adelante. */
   photoUrl?: string;
+  /** Producto del catálogo base (src/lib/catalogo.ts), si salió de ahí. */
+  catalogId?: string;
+  /** Dónde se vende: en los dos (por defecto), solo en la Cantina o solo en el Mostrador. */
+  where?: 'ambos' | 'cantina' | 'mostrador';
   createdAt?: unknown;
   updatedAt?: unknown;
 }

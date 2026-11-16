@@ -16,6 +16,8 @@ import {
   saveReportEmails,
 } from '../../services/cajaService';
 import { Card, Hint, Row, inputCls, labelCls, useOps } from './ops';
+import { CatalogPicker } from './CatalogPicker';
+import { CATALOG } from '../../lib/catalogo';
 import { useClientes } from '../clientes/data';
 
 type Run = (fn: () => Promise<unknown>, msg: string) => Promise<void>;
@@ -47,6 +49,8 @@ export const CantinaAdmin: React.FC<{ club: Club; onToast: (m: string) => void }
   const [editing, setEditing] = useState<Product | null>(null);
   const [draft, setDraft] = useState({ name: '', price: '', stock: '', min: '', tracks: true });
   const [restock, setRestock] = useState<Record<string, string> | null>(null);
+  const [catalogOpen, setCatalogOpen] = useState(products.length === 0);
+  const fromCatalog = products.filter((p) => p.active && p.catalogId).length;
   const low = products.filter((p) => p.active && p.stock !== null && p.stock <= p.minStock);
 
   const sold30 = useMemo(() => {
@@ -81,6 +85,24 @@ export const CantinaAdmin: React.FC<{ club: Club; onToast: (m: string) => void }
 
   return (
     <div className="grid items-start gap-5 xl:grid-cols-[1.4fr_1fr]">
+      <div className="xl:col-span-2">
+        <Card
+          title="Catálogo de productos"
+          action={
+            <button type="button" onClick={() => setCatalogOpen((v) => !v)} className="rounded-xl border border-line px-3 py-2 text-[13px] font-semibold text-ink hover:bg-mist cursor-pointer">
+              {catalogOpen ? 'Cerrar' : 'Elegir del catálogo'}
+            </button>
+          }
+        >
+          {catalogOpen ? (
+            <CatalogPicker club={club} products={products} busy={busy} run={run} onDone={() => setCatalogOpen(false)} />
+          ) : (
+            <p className="text-[13px] text-muted">
+              Vendés {fromCatalog} de los {CATALOG.length} productos típicos de un club. Tocá "Elegir del catálogo" para sumar o sacar y poner precios.
+            </p>
+          )}
+        </Card>
+      </div>
       <Card
         title="Productos"
         action={
