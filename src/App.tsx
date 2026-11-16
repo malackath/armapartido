@@ -44,7 +44,7 @@ import type {
   UserFriend,
   UserProfile,
 } from './types/padel';
-import { AuthScreen } from './components/AuthScreen';
+import { AuthScreen, DEMO_LANDING_KEY } from './components/AuthScreen';
 import { ClubAdminView } from './components/ClubAdminView';
 import { FriendsView } from './components/FriendsView';
 import { HomeView } from './components/HomeView';
@@ -99,6 +99,18 @@ export default function App() {
   const [activeClubId, setActiveClubId] = useState<string>(initialDeepLink.clubId);
   const [perspectiveRole, setPerspectiveRole] = useState<PerspectiveRole>('player');
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialDeepLink.tab);
+
+  // Demo: la cuenta elegida con un toque entra directo a su pantalla (dueño → Admin, mostrador → Mostrador…).
+  useEffect(() => {
+    if (!DEMO_MODE || !authUser) return;
+    try {
+      const landing = sessionStorage.getItem(DEMO_LANDING_KEY) as ActiveTab | null;
+      sessionStorage.removeItem(DEMO_LANDING_KEY);
+      if (landing && VALID_TABS.includes(landing)) setActiveTab(landing);
+    } catch {
+      /* sin sessionStorage queda en Inicio */
+    }
+  }, [authUser]);
 
   // La vista de gestión se deriva de la sección abierta: no hay selector de rol a la vista.
   useEffect(() => {

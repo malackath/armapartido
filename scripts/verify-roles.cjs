@@ -11,8 +11,11 @@ for (const who of ['jugador','mostrador','dueno','plataforma']){
  else{await p.fill('input[type=email]',who+'@demo.armapartido.com');await p.fill('input[type=password]',PW);await p.keyboard.press('Enter');}
  await p.waitForTimeout(7000);await p.screenshot({path:OUT+'/rol-'+who+'.png'});
  const body=(await p.innerText('body')).slice(0,200).replace(/\n+/g,' | ');
+ const entra=(await p.locator('main h1').first().innerText().catch(()=>'')).replace(/\s+/g,' ');
+ // Cada rol entra directo a su pantalla; para ver el menú del avatar primero se vuelve a la app.
+ const back=p.getByText('Volver a la app');if(await back.count()){await back.first().click();await p.waitForTimeout(1500);}
  await p.locator('header button').last().click().catch(()=>{});await p.waitForTimeout(800);
  const menu=(await p.innerText('body')).match(/(Mostrador|Admin del club|Plataforma|Reiniciar demo|Cerrar sesión)/g);
- console.log(who,'|',body.slice(0,120),'\n  menu:',[...new Set(menu||[])].join(', '),'errors:',errs.length);
+ console.log(who,'| entra a:',entra,'|',body.slice(0,80),'\n  menu:',[...new Set(menu||[])].join(', '),'errors:',errs.length);
  await c.close();}
 await b.close()})()

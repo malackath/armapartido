@@ -4,6 +4,18 @@ import { refreshDemoIfStale } from '../demo/resetDemo';
 import { DEMO_ACCOUNTS } from '../demo/demoWorld';
 import { BrandIcon } from './BrandIcon';
 
+/** Clave de sessionStorage con la pantalla a la que entra la cuenta de demo elegida. */
+export const DEMO_LANDING_KEY = 'demoLanding';
+
+/** A qué pantalla entra cada cuenta de demo y qué ve ahí. */
+const DEMO_ROLE_INFO: Record<(typeof DEMO_ACCOUNTS)[number]['key'], { tab: string; sees: string }> = {
+  plataforma: { tab: 'platform', sees: 'todos los clubes y lo que pagan' },
+  dueno: { tab: 'admin', sees: 'administración, caja, clientes y números' },
+  mostrador: { tab: 'staff', sees: 'canchas en vivo, cobros y venta suelta' },
+  jugador: { tab: 'home', sees: 'reservar, armar partido y torneos' },
+  jugadora: { tab: 'home', sees: 'su partido armado y avisos' },
+};
+
 interface AuthScreenProps {
   onError?: (msg: string) => void;
 }
@@ -40,7 +52,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
 
   // Demo: un toque entra con la cuenta de prueba. La clave de demo llega por variable de build
   // (VITE_DEMO_PASSWORD, fuera del repo) y solo existe en el proyecto Firebase de la demo.
-  const handleDemo = async (demoEmail: string) => {
+  const handleDemo = async (demoEmail: string, landing: string) => {
+    // Cada cuenta de demo entra directo a su pantalla (la lee App al iniciar sesión).
+    try {
+      sessionStorage.setItem(DEMO_LANDING_KEY, landing);
+    } catch {
+      /* sin sessionStorage entra a Inicio */
+    }
     setLoading(true);
     setError(null);
     setEmail(demoEmail);
@@ -163,14 +181,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
                   key={a.key}
                   type="button"
                   disabled={loading}
-                  onClick={() => handleDemo(a.email)}
+                  onClick={() => handleDemo(a.email, DEMO_ROLE_INFO[a.key].tab)}
                   className={`flex min-h-[60px] cursor-pointer items-center justify-between rounded-2xl border bg-white px-4 py-2.5 text-left hover:bg-mist disabled:opacity-60 ${
                     loading && email === a.email ? 'border-emerald-600' : 'border-line'
                   }`}
                 >
                   <span>
                     <span className="block text-[15px] font-semibold">Entrar como {a.label.toLowerCase()}</span>
-                    <span className="block text-[13px] text-muted">{a.name}</span>
+                    <span className="block text-[13px] text-muted">
+                      {a.name} · {DEMO_ROLE_INFO[a.key].sees}
+                    </span>
                   </span>
                   <span className="text-sm font-semibold text-brand">
                     {loading && email === a.email ? 'Entrando…' : <BrandIcon name="perfil" size={20} className="text-brand" />}

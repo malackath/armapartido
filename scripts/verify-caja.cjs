@@ -24,7 +24,7 @@ async function enter(b, who, vp) {
 }
 const V = (l) => l.locator('visible=true').first();
 async function menu(p, label) {
-  await p.locator('header button').last().click();
+  await p.locator('header button[aria-expanded]').first().click();
   await p.waitForTimeout(700);
   await p.getByText(label).first().click();
   await p.waitForTimeout(3500);
