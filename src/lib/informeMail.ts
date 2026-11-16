@@ -62,7 +62,7 @@ export function buildMonthlyReportEmail(r: MonthlyReport, o: MonthlyMailOptions)
     [`${r.occupancyPct} %`, 'canchas ocupadas'],
     [String(r.noShows), 'ausencias sin aviso'],
     [pesos(r.cantinaCollected), 'cobrado en cantina'],
-    [String(r.newPlayers), 'jugadores nuevos'],
+    [String(r.newPlayers), r.newFromApp !== undefined ? `clientes nuevos, ${r.newFromApp} por Armá Partido` : 'jugadores nuevos'],
     [pesos(r.uncollected), 'quedó sin cobrar'],
   ];
 

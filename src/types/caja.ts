@@ -149,6 +149,8 @@ export interface MonthlyReport {
   noShows: number;
   cantinaCollected: number;
   newPlayers: number;
+  /** De los nuevos, cuántos llegaron por Armá Partido (la app o Falta uno). Falta en informes viejos. */
+  newFromApp?: number;
   uncollected: number;
   // Consejo para el mes que viene
   tip: string;

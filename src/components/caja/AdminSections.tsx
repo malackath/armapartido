@@ -16,6 +16,7 @@ import {
   saveReportEmails,
 } from '../../services/cajaService';
 import { Card, Hint, Row, inputCls, labelCls, useOps } from './ops';
+import { useClientes } from '../clientes/data';
 
 type Run = (fn: () => Promise<unknown>, msg: string) => Promise<void>;
 const useRun = (onToast: (m: string) => void) => {
@@ -500,11 +501,12 @@ export const MonthlyReportAdmin: React.FC<{
   const [showMail, setShowMail] = useState(false);
   const [emails, setEmails] = useState((club.reportEmails ?? []).join(', '));
 
+  const { clients } = useClientes();
   const report: MonthlyReport = useMemo(() => {
     const saved = ops.reports.find((r) => r.month === month);
     if (saved && month !== current) return saved;
-    return computeMonthlyReport({ club, month, today, courts, bookings, matches, payments: ops.allPayments, consumptions: ops.consumptions, recoveries: ops.recoveries, memberships });
-  }, [ops, month, current, club, today, courts, bookings, matches, memberships]);
+    return computeMonthlyReport({ club, month, today, courts, bookings, matches, payments: ops.allPayments, consumptions: ops.consumptions, recoveries: ops.recoveries, memberships, clients });
+  }, [ops, month, current, club, today, courts, bookings, matches, memberships, clients]);
   const isSnapshot = !!ops.reports.find((r) => r.month === month) && month !== current;
   const recs = ops.recoveries.filter((r) => report.recoveryIds.includes(r.id)).sort((a, b) => a.date.localeCompare(b.date) || a.startMinute - b.startMinute);
   const kept = bookings.filter((b) => b.date >= report.fromDate && b.date <= report.toDate && b.status === 'no_show' && b.paymentStatus === 'deposit_paid' && b.paidAmount > 0);
@@ -557,7 +559,8 @@ export const MonthlyReportAdmin: React.FC<{
           <Row label="Canchas ocupadas" value={`${report.occupancyPct} %`} />
           <Row label="Ausencias sin aviso" value={report.noShows} />
           <Row label="Cobrado en cantina" value={formatUYU(report.cantinaCollected)} />
-          <Row label="Jugadores nuevos" value={report.newPlayers} />
+          <Row label="Clientes nuevos" value={report.newPlayers} />
+          {report.newFromApp !== undefined && <Row label="Llegaron por Armá Partido" value={report.newFromApp} />}
           <Row label="Quedó sin cobrar" value={formatUYU(report.uncollected)} />
           {report.tip && <Hint><b>Para el mes que viene:</b> {report.tip}</Hint>}
         </Card>

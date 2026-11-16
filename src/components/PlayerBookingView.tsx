@@ -115,7 +115,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
       bookings
         .filter(
           (b) =>
-            (b.createdByUid === userProfile.uid || b.playerUids.includes(userProfile.uid)) &&
+            ((b.type !== 'counter' && b.createdByUid === userProfile.uid) || b.playerUids.includes(userProfile.uid)) &&
             b.status !== 'cancelled'
         )
         .sort((a, b) => a.date.localeCompare(b.date) || a.startMinute - b.startMinute),
@@ -362,7 +362,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                   const isHeld = occupied?.status === 'held';
                   const isOwnBooking =
                     !!occupied &&
-                    (occupied.createdByUid === userProfile.uid ||
+                    ((occupied.type !== 'counter' && occupied.createdByUid === userProfile.uid) ||
                       occupied.playerUids.includes(userProfile.uid));
                   const slotWaitlist = activeWaitlistOnDate.filter(
                     (w) =>

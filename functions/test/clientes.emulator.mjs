@@ -49,7 +49,7 @@ await step('C1. Martín (de la demo) tiene una sola ficha aunque el servidor tam
   const f = await fichasDe(martin);
   assert.equal(f.length, 1);
   assert.equal(f[0].id, `u_${martin}`);
-  assert.equal(f[0].balance, 300);
+  assert.equal(f[0].balance, 260);
 });
 
 await step('C2. Mail verificado igual al de una ficha sin app: se une sola y pasan sus cuponeras', async () => {

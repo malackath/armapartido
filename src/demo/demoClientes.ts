@@ -44,7 +44,7 @@ export function addClientesDemo(
 
   const clients: ClubClient[] = [
     // Con la app
-    app(uids.jugador, '+59899123456', day(-120), { balance: 300, acceptsNews: true }),
+    app(uids.jugador, '+59899123456', day(-120), { balance: 260, acceptsNews: true }),
     app(uids.jugadora, '+59898234567', day(-95)),
     app('demo-p07', '+59894345678', day(-60)),
     app('demo-p09', '+59891456789', day(-18), { origin: 'falta_uno' }),

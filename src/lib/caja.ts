@@ -3,6 +3,7 @@
  * para poder probarlo con `npx tsx scripts/test-caja.ts` y reusarlo en el servidor.
  */
 import type { Booking, Club, ClubMembership, Court, PaymentRecord, ProposedMatch } from '../types/padel';
+import type { ClubClient } from '../types/clientes';
 import type { CashDay, Consumption, MonthlyReport, Recovery } from '../types/caja';
 import { addDaysISO, generateDaySlots, getDayOfWeekFromISO } from './padelUtils';
 
@@ -242,6 +243,8 @@ export function computeMonthlyReport(params: {
   consumptions: Consumption[];
   recoveries: Recovery[];
   memberships: ClubMembership[];
+  /** Fichas del club: si vienen, los nuevos se cuentan por ficha (con y sin app). */
+  clients?: ClubClient[];
 }): MonthlyReport {
   const { club, month, today, courts, bookings, matches, payments, consumptions, recoveries, memberships } = params;
   const fromDate = `${month}-01`;
@@ -285,10 +288,15 @@ export function computeMonthlyReport(params: {
     if (isCantinaPayment(p, byId)) cantinaCollected += p.amount;
   }
 
-  const newPlayers = memberships.filter((m) => {
-    const d = toDateValue(m.createdAt);
-    return d ? inMonth(isoOf(d)) : false;
-  }).length;
+  const newFichas = (params.clients ?? []).filter((c) => !c.mergedInto && inMonth(c.createdOn));
+  const newPlayers = params.clients?.length
+    ? newFichas.length
+    : memberships.filter((m) => {
+        const d = toDateValue(m.createdAt);
+        return d ? inMonth(isoOf(d)) : false;
+      }).length;
+  // Decisión 8 (a confirmar): clientes nuevos que llegaron por Armá Partido (la app o un aviso de Falta uno)
+  const newFromApp = params.clients?.length ? newFichas.filter((c) => c.origin === 'app' || c.origin === 'falta_uno').length : undefined;
 
   const nameOf = (uid: string) => memberships.find((m) => m.uid === uid)?.displayName ?? 'Jugador';
   const uncollected = debtsOf({
@@ -322,6 +330,7 @@ export function computeMonthlyReport(params: {
     noShows: monthBookings.filter((b) => b.status === 'no_show').length,
     cantinaCollected,
     newPlayers,
+    ...(newFromApp !== undefined ? { newFromApp } : {}),
     uncollected,
     tip: emptiestSlotTip({ club, fromDate, toDate, played, activeCourts, memberships }),
     recoveryIds: counted.map((r) => r.id),

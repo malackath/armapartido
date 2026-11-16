@@ -160,7 +160,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           (b) =>
             (b.status === 'confirmed' || b.status === 'held') &&
             !matchBookingIds.has(b.id) &&
-            (b.createdByUid === userProfile.uid || b.playerUids.includes(userProfile.uid)) &&
+            ((b.type !== 'counter' && b.createdByUid === userProfile.uid) || b.playerUids.includes(userProfile.uid)) &&
             isFuture(b.date, b.endMinute)
         )
         .map((booking) => ({
