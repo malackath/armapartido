@@ -105,6 +105,7 @@ async function section(p, label) {
   await p.reload();
   await p.waitForTimeout(5000);
   if (!(await body(p)).includes('Venta suelta')) await menu(p, 'Mostrador');
+  { const g = V(p.getByRole('tab', { name: 'Grilla' })); if (await g.count()) { await g.click(); await p.waitForTimeout(800); } } // vista Canchas: los turnos pasados están en la grilla
   const anaTurno = p.locator('button').filter({ hasText: /Ana Laura/ }).first();
   if (await anaTurno.count()) {
     await anaTurno.click();

@@ -63,6 +63,7 @@ async function adminSection(p, label, file, key) {
   let t = await p.innerText('body');
   check('Mostrador: botones Caja y Venta suelta', /Caja/.test(t) && t.includes('Venta suelta'));
   await p.screenshot({ path: `${OUT}/7-mostrador.png` });
+  { const g = V(p.getByRole('tab', { name: 'Grilla' })); if (await g.count()) { await g.click(); await p.waitForTimeout(800); } } // vista Canchas: los turnos pasados están en la grilla
   const turno = p.locator('button').filter({ hasText: /Partido armado/i }).first();
   if (await turno.count()) {
     await turno.click(); await p.waitForTimeout(2000);
