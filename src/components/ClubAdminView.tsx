@@ -64,7 +64,7 @@ const SECTIONS: { id: Section; label: string; icon: BrandIconName; title: string
   { id: 'tournaments', label: 'Torneos', icon: 'torneos', title: 'Torneos', subtitle: 'Creá torneos, seguí la inscripción y sorteá el cuadro.' },
   { id: 'cash', label: 'Caja', icon: 'pago-online', title: 'Caja', subtitle: 'Cierres de cada día y el libro del club: cada cobro con su rubro, medio y factura.' },
   { id: 'packs', label: 'Cuponeras', icon: 'pago-en-club', title: 'Cuponeras', subtitle: 'Paquetes de partes o turnos que se venden en el Mostrador. Usarlas no es plata nueva.' },
-  { id: 'cantina', label: 'Cantina', icon: 'paleta', title: 'Cantina', subtitle: 'Productos, precios y cuántos quedan. Se venden desde el Mostrador, pegados al turno.' },
+  { id: 'cantina', label: 'Cantina', icon: 'paleta', title: 'Cantina', subtitle: 'Elegí del catálogo lo que vendés, poné precios y mirá cuántos quedan. Se venden en la Cantina y en el Mostrador, sueltos o cargados a la cuenta de una cancha.' },
   { id: 'fixed', label: 'Turnos fijos', icon: 'horario', title: 'Turnos fijos', subtitle: 'Reservas que se repiten todas las semanas.' },
   { id: 'report', label: 'Informe del mes', icon: 'resultado', title: 'Lo que ganaste con Armá Partido', subtitle: 'Los turnos que llenaron nuestros avisos, en pesos, al lado de la cuota. Llega por mail el día 1.' },
   { id: 'club', label: 'Datos del club', icon: 'ubicacion', title: 'Datos del club', subtitle: 'Nombre y color de la app del club.' },

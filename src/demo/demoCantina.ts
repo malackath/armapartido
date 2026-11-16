@@ -43,7 +43,7 @@ export function addCantinaDemo(
   const rows: [string, string, number, number | null, number, string, ProductPlace][] = [
     ['agua', 'Agua 500 ml', 90, 38, 10, 'agua', 'ambos'],
     ['agua_gas', 'Agua con gas', 100, 20, 6, 'agua_gas', 'ambos'],
-    ['gatorade', 'Gatorade', 120, 0, 6, 'isotonica', 'ambos'],
+    ['gatorade', 'Bebida isotónica', 120, 0, 6, 'isotonica', 'ambos'],
     ['refresco', 'Refresco lata', 140, 24, 8, 'refresco', 'ambos'],
     ['cerveza', 'Cerveza lata', 180, 4, 12, 'cerveza', 'ambos'],
     ['energizante', 'Energizante', 160, 10, 4, 'energizante', 'cantina'],

@@ -642,14 +642,14 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
     const seller = uids.cantina ? { uid: uids.cantina, name: 'Romina Ferreira' } : { uid: uids.mostrador, name: 'Diego Fernández' };
     const SALES: [string, number, PaymentRecord['method']][] = [
       ['Agua 500 ml', 90, 'efectivo'],
-      ['Gatorade', 120, 'debito_club'],
+      ['Bebida isotónica', 120, 'debito_club'],
       ['Cerveza lata ×2', 360, 'efectivo'],
       ['Tubo de pelotas', 450, 'debito_club'],
       ['Café ×2', 160, 'efectivo'],
       ['Agua 500 ml ×4', 360, 'mercadopago'],
       ['Grip', 250, 'efectivo'],
       ['Cerveza lata', 180, 'transferencia'],
-      ['Gatorade ×2', 240, 'efectivo'],
+      ['Bebida isotónica ×2', 240, 'efectivo'],
       ['Agua 500 ml', 90, 'efectivo'],
     ];
     const n = Math.min(SALES.length, Math.max(0, Math.floor((nowMinute - club.openHour * 60) / 90)));

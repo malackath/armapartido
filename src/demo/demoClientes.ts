@@ -214,7 +214,7 @@ export function addClientesDemo(
   sale(day(-30), cli('jorge'), { rubro: 'saldo', concept: 'Carga de saldo (+ $ 200 de regalo)', amount: 1000, bonus: 200, method: 'transferencia', paymentId: pj.id });
   const pm = payment(day(-15), martin, 500, 'efectivo', 'saldo', martin.id);
   sale(day(-15), martin, { rubro: 'saldo', concept: 'Carga de saldo', amount: 500, method: 'efectivo', paymentId: pm.id });
-  sale(day(-8), martin, { rubro: 'cantina', concept: '2 Gatorade', qty: 2, amount: 240, method: 'saldo' });
+  sale(day(-8), martin, { rubro: 'cantina', concept: '2 Bebida isotónica', qty: 2, amount: 240, method: 'saldo' });
 
   // ---------- Venta suelta ----------
   const pc = payment(day(-4), cli('ana'), 1200, 'efectivo', 'clases', 'demo_sale_clase');
