@@ -12,6 +12,7 @@ import { StatusChip } from '../ui/People';
 import { Chip, ClientLine, useClientes } from './data';
 import { ClientPicker } from './ClientPicker';
 import { ClientCard } from './ClientCard';
+import { ImportarPlanilla } from './ImportarPlanilla';
 
 type Filter = 'todos' | 'deben' | 'sinapp' | 'cuponera' | 'repetidos';
 
@@ -29,10 +30,13 @@ export const ClientsPanel: React.FC<{
   closedToday: boolean;
   onToast: (msg: string) => void;
   initialClientId?: string;
-}> = ({ club, memberships, bookings, matches, payments, consumptions, staff, isOwner, today, nowMinute, closedToday, onToast, initialClientId }) => {
+  /** Solo en Admin: "Importar planilla" (parte 2.3). */
+  canImport?: boolean;
+}> = ({ club, memberships, bookings, matches, payments, consumptions, staff, isOwner, today, nowMinute, closedToday, onToast, initialClientId, canImport }) => {
   const { clients, packs, sales, ready } = useClientes();
   const [openId, setOpenId] = useState<string | null>(initialClientId ?? null);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [filter, setFilter] = useState<Filter>('todos');
   const [q, setQ] = useState('');
   const active = useMemo(() => clients.filter((c) => c.status === 'active'), [clients]);
@@ -46,6 +50,8 @@ export const ClientsPanel: React.FC<{
     packs.forEach((p) => pendingValue(p, today) > 0 && m.set(p.clientId, (m.get(p.clientId) ?? 0) + p.usesLeft));
     return m;
   }, [packs, today]);
+
+  if (importing) return <ImportarPlanilla club={club} staff={staff} onToast={onToast} onClose={() => setImporting(false)} />;
 
   const open = clients.find((c) => c.id === openId);
   if (open) {
@@ -105,7 +111,12 @@ export const ClientsPanel: React.FC<{
         <p className="text-[13px] text-muted">
           <b className="text-ink">{active.length}</b> clientes · {withApp} con app · {active.length - withApp} sin app
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {canImport && (
+            <button type="button" onClick={() => setImporting(true)} className="rounded-full border border-line bg-white px-3.5 py-1.5 text-[13px] font-semibold text-brand hover:bg-mist cursor-pointer">
+              Importar planilla
+            </button>
+          )}
           {isOwner && (
             <button type="button" onClick={bajar} className="rounded-full border border-line bg-white px-3.5 py-1.5 text-[13px] font-semibold text-brand hover:bg-mist cursor-pointer">
               Bajar a planilla

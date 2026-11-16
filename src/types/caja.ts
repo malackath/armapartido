@@ -84,6 +84,8 @@ export interface FixedBooking {
   endMinute: number;
   holderName: string;
   holderUid: string;
+  /** Ficha del cliente (turno fijo cargado de una planilla, sin app todavía). */
+  clientId?: string;
   phone: string;
   fromDate: string;
   untilDate: string;

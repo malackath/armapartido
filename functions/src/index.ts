@@ -11,6 +11,7 @@ import { respondToMatch, sweepClub } from './engine';
 import { runClock } from './clock';
 import { notify } from './notify';
 import { openFreeSlot, previewFreeSlot, simulateAnswers } from './hueco';
+import { cleanRows, importClients } from './importar';
 import { chooseUnfilled, claimFromLink, claimSeat, declineInvite, dropFromMatch, publicFillLink, stopSearch } from './fill';
 import type { FillChoice } from '../../src/types/padel';
 
@@ -256,6 +257,31 @@ export const huecoSimular = onCall(async (req) => {
   const clubId = str(d.clubId);
   await requireStaff(clubId, uid);
   return { won: await simulateAnswers({ clubId, searchId: str(d.searchId), n: int(d.n ?? 1, 1, 4, 'cantidad') }) };
+});
+
+// -----------------------------------------------------------------------------
+// Importar la planilla de jugadores (Admin → Clientes, 16/11)
+// -----------------------------------------------------------------------------
+
+export const clientesImportar = onCall({ timeoutSeconds: 300, memory: '512MiB' }, async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  const member = await requireMember(clubId, uid);
+  if (member.get('role') !== 'admin') throw new HttpsError('permission-denied', 'Solo el dueño o el administrador del club.');
+  const permission = str(d.permission, 300).trim();
+  if (permission.length < 10) throw new HttpsError('invalid-argument', 'Falta el permiso de los jugadores (Ley 18.331).');
+  return importClients({
+    clubId,
+    staffUid: uid,
+    staffName: String(member.get('displayName') ?? 'Administrador'),
+    rows: cleanRows(d.rows),
+    permission,
+    sourceFile: str(d.sourceFile, 120),
+    fileRows: int(d.fileRows ?? 0, 0, 100000, 'filas'),
+    merged: int(d.merged ?? 0, 0, 100000, 'repetidos'),
+    discarded: int(d.discarded ?? 0, 0, 100000, 'descartadas'),
+  });
 });
 
 /** "No puedo" en una invitación. */

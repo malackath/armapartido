@@ -501,7 +501,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
 
         {section === 'clients' && (
           <div className="max-w-3xl">
-            <ClientsPanel club={club} memberships={memberships} bookings={bookings} matches={proposedMatches} payments={ops.allPayments} consumptions={ops.consumptions} staff={staff} isOwner={isOwner} today={today} nowMinute={new Date().getHours() * 60 + new Date().getMinutes()} closedToday={ops.cashDays.find((d) => d.id === today)?.status === 'closed'} onToast={onToast} />
+            <ClientsPanel club={club} memberships={memberships} bookings={bookings} matches={proposedMatches} payments={ops.allPayments} consumptions={ops.consumptions} staff={staff} isOwner={isOwner} today={today} nowMinute={new Date().getHours() * 60 + new Date().getMinutes()} closedToday={ops.cashDays.find((d) => d.id === today)?.status === 'closed'} onToast={onToast} canImport />
           </div>
         )}
 
