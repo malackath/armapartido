@@ -37,10 +37,8 @@ const URL=process.argv[2]||'http://127.0.0.1:5173', OUT=process.argv[3]||'.', hh
   check('Abre la cuenta del turno solo para cargar', t.includes('se cobra en el mostrador') && !/Quién paga qué/i.test(t));
   check('Muestra a qué cancha está cargando', /Cargando a\s*\n?\s*Cancha \d/i.test(t), (t.match(/Cargando a\s*\n?\s*(Cancha \d)/i)||[])[1]);
   const before2=(t.match(/Falta cobrar\s*\$\s?([\d.]+)/)||[])[1];
-  await p.locator('section').filter({hasText:'Agregar de la cantina'}).getByRole('button',{name:/Agua con gas/}).first().click(); await p.waitForTimeout(800);
-  const todos=p.getByRole('button',{name:/Para todos|Todos|Compartido/}).first(); if(await todos.count()){await todos.click(); await p.waitForTimeout(400);}
-  const add=p.getByRole('button',{name:/^Agregar|^Cargar/}).first(); if(await add.count()){await add.click();}
-  const toast2=await p.waitForSelector('text=/sumado/',{timeout:10000}).then(e=>e.innerText()).catch(()=>'sin aviso');
+  await p.getByRole('button',{name:/^Cargar a Cancha \d+ Agua con gas/}).first().click(); await p.waitForTimeout(800);
+  const toast2=await p.waitForSelector('text=/sumado|cargado entre todos/',{timeout:10000}).then(e=>e.innerText()).catch(()=>'sin aviso');
   check('El aviso dice en qué cancha quedó', /en Cancha \d/.test(toast2), toast2);
   await p.waitForTimeout(2000); t=await p.innerText('body');
   const after2=(t.match(/Falta cobrar\s*\$\s?([\d.]+)/)||[])[1];
