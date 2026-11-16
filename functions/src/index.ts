@@ -12,9 +12,13 @@ import { runClock } from './clock';
 import { notify } from './notify';
 import { chooseUnfilled, claimSeat, declineInvite, dropFromMatch, stopSearch } from './fill';
 import type { FillChoice } from '../../src/types/padel';
+import { getAuth } from 'firebase-admin/auth';
+import { MAIL_SOLO_A, RESEND_API_KEY, sendMail } from './mail';
+import { APP_URL, confirmAccountMail, noticeMail } from './mailTemplates';
 
 // São Paulo: misma región que Firestore de la demo. Tope de instancias para que un error no dispare costos.
-setGlobalOptions({ region: 'southamerica-east1', maxInstances: 3, memory: '256MiB' });
+// Los secretos de Resend van en todas: cualquier aviso puede llevar mail (notify.ts).
+setGlobalOptions({ region: 'southamerica-east1', maxInstances: 3, memory: '256MiB', secrets: [RESEND_API_KEY, MAIL_SOLO_A] });
 
 const MODALITIES: Modality[] = ['masculino', 'femenino', 'mixto'];
 
@@ -234,4 +238,58 @@ export const faltaUnoDejarDeBuscar = onCall(async (req) => {
 export const clientesAlSumarse = process.env.SIN_DISPARADORES === '1' ? undefined : onDocumentCreated('clubs/{clubId}/memberships/{uid}', async (event) => {
   const res = await linkOrCreateClient(event.params.clubId, event.params.uid);
   logger.info('clientes', { clubId: event.params.clubId, uid: event.params.uid, ...res });
+});
+
+// ─── Mails (Resend) ───────────────────────────────────────────────────────────
+
+const PLATFORM_EMAILS = ['bernardo@awalabs.com', 'plataforma@demo.armapartido.com'];
+
+/** Manda el mail "Confirmá tu cuenta" al mail de quien lo pide (para el registro). Máximo uno cada 2 minutos. */
+export const mailConfirmarCuenta = onCall(async (req) => {
+  const uid = requireUid(req);
+  const user = await getAuth().getUser(uid);
+  if (!user.email) throw new HttpsError('failed-precondition', 'Tu cuenta no tiene mail.');
+  if (user.emailVerified) return { status: 'ya_confirmada' };
+  const stateRef = db.doc(`mailState/${uid}`);
+  const last = (await stateRef.get()).get('confirmSentAt');
+  if (last && Date.now() - last.toMillis() < 2 * 60 * 1000) {
+    throw new HttpsError('resource-exhausted', 'Ya te mandamos el mail hace un ratito. Revisá tu casilla (y el correo no deseado).');
+  }
+  const link = await getAuth().generateEmailVerificationLink(user.email, { url: APP_URL });
+  const firstName = (user.displayName || '').split(' ')[0] || '';
+  const clubId = str(req.data?.clubId);
+  let clubName: string | undefined;
+  if (/^[a-zA-Z0-9_-]{1,128}$/.test(clubId)) {
+    const club = await db.doc(`clubs/${clubId}`).get();
+    if (typeof club.get('name') === 'string') clubName = club.get('name');
+  }
+  const r = await sendMail(user.email, confirmAccountMail({ firstName, link, clubName }), 'confirmar-cuenta');
+  await stateRef.set({ confirmSentAt: now() }, { merge: true });
+  return { status: r.status };
+});
+
+/** Prueba de mails para la plataforma: manda las plantillas al mail indicado (igual pasa por MAIL_SOLO_A). */
+export const mailPrueba = onCall(async (req) => {
+  requireUid(req);
+  const email = String(req.auth?.token.email || '').toLowerCase();
+  const isAdmin = PLATFORM_EMAILS.includes(email) || (await db.doc(`admins/${req.auth!.uid}`).get()).exists;
+  if (!isAdmin) throw new HttpsError('permission-denied', 'Solo la plataforma puede mandar mails de prueba.');
+  const to = str(req.data?.to, 254);
+  const confirm = await sendMail(
+    to,
+    confirmAccountMail({ firstName: 'Ber', link: `${APP_URL}/?prueba=confirmar`, clubName: 'Club de prueba' }),
+    'prueba:confirmar-cuenta'
+  );
+  const notice = await sendMail(
+    to,
+    noticeMail({
+      title: 'Tu partido está confirmado',
+      body: 'Sábado 21 a las 19:30 en la Cancha 2. Ya son 4 de la misma categoría. (Mail de prueba)',
+      url: `${APP_URL}/?tab=matchmaking`,
+      clubName: 'Club de prueba',
+    }),
+    'prueba:aviso'
+  );
+  logger.info('mailPrueba', { by: email, confirm, notice });
+  return { confirm, notice };
 });

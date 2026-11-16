@@ -56,13 +56,21 @@ Cada club tiene su app marca blanca sobre una sola plataforma multi-club. Jugado
 - Tarjeta de cancha (`src/components/mostrador/CourtCard.tsx`): cancha 2:1 fija, azul = vidrio y verde = hormigón (`COURT_SURFACE`), insignia de pago sobre la foto. Ber odia el marrón: el color `wait` es naranja (#c2410c), nada de ocre.
 - Botón de pantalla completa en el Mostrador (`FullscreenButton`, API Fullscreen).
 
+## Mails con Resend (16/11, rama claude/project-thread-4a3ata)
+- `functions/src/mail.ts`: `sendMail(to, mail, tag)` llama a la API de Resend con `fetch` (sin librería), nunca tira error y deja registro en `mailLog` (solo servidor). Remitente `Armá Partido <avisos@armapartido.com>` (cambia con `MAIL_FROM`).
+- Secretos en Secret Manager (nunca en el código): `RESEND_API_KEY` y `MAIL_SOLO_A` (mails permitidos separados por coma; `*` = todos; vacío = no sale nada). En la demo `MAIL_SOLO_A` = el mail de Ber. Las cuentas `@demo.armapartido.com` nunca reciben mail.
+- Cargar secretos (en la Mac): `npx firebase-tools@15 functions:secrets:set RESEND_API_KEY --project armapartido-demo` (y lo mismo con `MAIL_SOLO_A`). Sin esos dos secretos el deploy de funciones falla.
+- `functions/src/mailTemplates.ts`: base común + "Confirmá tu cuenta" + aviso genérico. El informe mensual sigue en `src/lib/informeMail.ts` (diseño esperando OK de Ber).
+- `notify.ts` ahora manda mail en los avisos que lo llevan (matriz CHANNELS), solo a mails verificados. Callables nuevas: `mailConfirmarCuenta` (para el registro, 1 cada 2 min) y `mailPrueba` (solo plataforma).
+- En la nube de Claude, `functions/.env.local` con `SIN_DISPARADORES=1` no se sube al repo.
+
 ## Reglas
 - Nada de afiliaciones FIP/AAP/Federación ni nivel decimal en la UI: solo categoría.
 - Español de Uruguay: "cancha", nunca "pista".
 - Sin claves en el código: secretos en Secret Manager. `firebase-applet-config.json` es el proyecto de AI Studio y se reemplaza por el Firebase propio.
 
 ## Pendientes técnicos
-1. Hecho en `functions/` el armado, los vencimientos y sus avisos. Falta: avisos de cancelación y lista de espera de reservas comunes, mails (Resend), reglas de seguridad que impidan al celular escribir partidos armados.
+1. Hecho en `functions/` el armado, los vencimientos y sus avisos. Falta: avisos de cancelación y lista de espera de reservas comunes, informe mensual por mail (espera OK del diseño), reglas de seguridad que impidan al celular escribir partidos armados.
 2. Migrar a Firebase propio de Ber.
 3. Restringir el selector de rol (solo para demo).
 4. Mercado Pago real (cuenta de cada club, OAuth).

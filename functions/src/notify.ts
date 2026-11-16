@@ -1,6 +1,9 @@
 import { logger } from 'firebase-functions';
 import type { NotificationEventType } from '../../src/types/padel';
+import { getAuth } from 'firebase-admin/auth';
 import { db, isFakePlayer, makeId, messaging, now } from './admin';
+import { sendMail } from './mail';
+import { APP_URL, noticeMail } from './mailTemplates';
 
 // Misma matriz de canales que la app (reglas del producto, página 3).
 const CHANNELS: Record<NotificationEventType, { push: boolean; email: boolean }> = {
@@ -46,7 +49,7 @@ export interface NotifyParams {
 
 /**
  * Guarda el aviso en la bandeja del jugador y le manda el push a sus dispositivos.
- * El mail todavía no sale (queda marcado como antes, `emailSent`): se suma con Resend en otro paso.
+ * Si el tipo de aviso lleva mail (CHANNELS), también lo manda por Resend (ver mail.ts: en la demo solo a MAIL_SOLO_A).
  * Nunca tira error: un aviso que falla no puede romper el armado.
  */
 export async function notify(p: NotifyParams): Promise<void> {
@@ -64,12 +67,16 @@ export async function notify(p: NotifyParams): Promise<void> {
       title,
       body,
       pushSent: channels.push,
-      emailSent: channels.email,
+      emailSent: false,
       read: false,
       createdAt: now(),
     });
     if (channels.push && !isFakePlayer(p.recipientUid)) {
       await sendPush(p.recipientUid, { title, body, eventType: p.eventType, clubId: p.clubId, tab, tag: id });
+    }
+    if (channels.email && !isFakePlayer(p.recipientUid)) {
+      const sent = await sendNoticeMail(p.recipientUid, p.clubId, { title, body, tab, eventType: p.eventType });
+      if (sent) await db.doc(`clubs/${p.clubId}/notifications/${id}`).update({ emailSent: true });
     }
   } catch (err) {
     logger.error('notify failed', { recipient: p.recipientUid, eventType: p.eventType, err: String(err) });
@@ -105,4 +112,24 @@ async function sendPush(
       return undefined;
     })
   );
+}
+
+async function sendNoticeMail(
+  uid: string,
+  clubId: string,
+  m: { title: string; body: string; tab: string; eventType: string }
+): Promise<boolean> {
+  let email = '';
+  try {
+    const u = await getAuth().getUser(uid);
+    if (u.emailVerified) email = u.email || '';
+  } catch {
+    return false;
+  }
+  if (!email) return false;
+  const club = await db.doc(`clubs/${clubId}`).get();
+  const clubName = typeof club.get('name') === 'string' ? (club.get('name') as string) : undefined;
+  const url = `${APP_URL}/?tab=${encodeURIComponent(m.tab)}&clubId=${encodeURIComponent(clubId)}`;
+  const r = await sendMail(email, noticeMail({ title: m.title, body: m.body, url, clubName }), `aviso:${m.eventType}`);
+  return r.status === 'enviado';
 }
