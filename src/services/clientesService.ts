@@ -287,7 +287,7 @@ function newSale(club: Club, staff: Staff, day: string, f: Omit<Sale, 'id' | 'cl
 
 const setSale = (batch: Batch, club: Club, s: Sale) => batch.set(ref(club.id, 'sales', s.id), { ...s, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 
-const isMoney = (m: SaleMethod): m is CounterPaymentMethod => m === 'efectivo' || m === 'transferencia' || m === 'debito_club';
+const isMoney = (m: SaleMethod): m is CounterPaymentMethod => m === 'efectivo' || m === 'transferencia' || m === 'debito_club' || m === 'mercadopago';
 
 /** Vender una cuponera en el mostrador (W4). Necesita ficha. */
 export async function sellPack(params: { club: Club; client: ClubClient; packType: PackType; method: CounterPaymentMethod | 'saldo'; staff: Staff; day: string; afterClose: boolean }) {
@@ -356,7 +356,7 @@ export interface SaleItem {
  */
 export async function ventaSuelta(params: { club: Club; client: ClubClient | null; items: SaleItem[]; method: CounterPaymentMethod | 'saldo' | 'cuenta'; staff: Staff; day: string; afterClose: boolean }) {
   const { club, client, items, method, staff, day, afterClose } = params;
-  if (!client && method !== 'efectivo' && method !== 'transferencia' && method !== 'debito_club') throw new Error('Sin nombre solo se cobra en el momento.');
+  if (!client && !isMoney(method)) throw new Error('Sin nombre solo se cobra en el momento.');
   const batch = writeBatch(db);
   const who = client ? client.name : 'Sin nombre';
   const saleRef = makeId('vs');

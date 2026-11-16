@@ -87,6 +87,7 @@ export const VentaSuelta: React.FC<{
       ['efectivo', 'Efectivo', true],
       ['transferencia', 'Transferencia', true],
       ['debito_club', 'Tarjeta', true],
+      ['mercadopago', 'Mercado Pago', true],
     ];
     if (client) {
       list.push(['saldo', `Saldo a favor (${formatUYU(balance)})`, !loadAmount && balance >= total && total > 0]);

@@ -70,6 +70,7 @@ export const PAY_METHODS: { id: CounterPaymentMethod; label: string }[] = [
   { id: 'efectivo', label: 'Efectivo' },
   { id: 'transferencia', label: 'Transferencia' },
   { id: 'debito_club', label: 'Tarjeta' },
+  { id: 'mercadopago', label: 'Mercado Pago' },
 ];
 
 export const payMethodLabel = (m: string) =>
@@ -338,7 +339,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
     return { total: byMethod.efectivo + byMethod.transferencia + byMethod.debito_club, byMethod };
   }, [payments, today]);
   const cashToday = ops.ready
-    ? { total: opsSummary.byMethod.efectivo + opsSummary.byMethod.transferencia + opsSummary.byMethod.debito_club, byMethod: opsSummary.byMethod as Record<string, number> }
+    ? { total: opsSummary.total, byMethod: opsSummary.byMethod as Record<string, number> }
     : legacyCashToday;
 
   const freeCount = useMemo(
@@ -624,6 +625,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
           <p className="font-display text-3xl font-bold tabular-nums text-ok">{formatUYU(cashToday.total)}</p>
           <p className="mt-1.5 text-xs text-muted">
             Efectivo {formatUYU(cashToday.byMethod.efectivo)} · Transf. {formatUYU(cashToday.byMethod.transferencia)} · Tarjeta {formatUYU(cashToday.byMethod.debito_club)}
+            {cashToday.byMethod.mercadopago ? ` · MP ${formatUYU(cashToday.byMethod.mercadopago)}` : ''}
           </p>
         </Kpi>
         <Kpi icon="pago-online" tone="due" title="Por cobrar">
@@ -1139,7 +1141,7 @@ const MobileRow: React.FC<{ court: Court; info: CellInfo; booking: Booking; play
 );
 
 const MethodPicker: React.FC<{ value: CounterPaymentMethod; onChange: (m: CounterPaymentMethod) => void }> = ({ value, onChange }) => (
-  <div className="grid grid-cols-3 gap-2">
+  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
     {PAY_METHODS.map((p) => (
       <button
         key={p.id}

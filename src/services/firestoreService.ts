@@ -879,8 +879,8 @@ export async function createDirectBooking(params: {
   }
 }
 
-/** Medios de cobro en el mostrador: efectivo, transferencia o tarjeta (POS del club). */
-export type CounterPaymentMethod = 'efectivo' | 'transferencia' | 'debito_club';
+/** Medios de cobro en el mostrador: efectivo, transferencia, tarjeta (POS del club) o Mercado Pago marcado a mano (QR o link del club, sin integración). */
+export type CounterPaymentMethod = 'efectivo' | 'transferencia' | 'debito_club' | 'mercadopago';
 
 export async function cancelBooking(params: {
   club: Club;

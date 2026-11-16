@@ -59,10 +59,11 @@ export const PAY_METHODS: { id: CounterPaymentMethod; label: string }[] = [
   { id: 'efectivo', label: 'Efectivo' },
   { id: 'transferencia', label: 'Transferencia' },
   { id: 'debito_club', label: 'Tarjeta' },
+  { id: 'mercadopago', label: 'Mercado Pago' },
 ];
 
 export const MethodPicker: React.FC<{ value: CounterPaymentMethod; onChange: (m: CounterPaymentMethod) => void }> = ({ value, onChange }) => (
-  <div className="grid grid-cols-3 gap-2">
+  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
     {PAY_METHODS.map((p) => (
       <button
         key={p.id}

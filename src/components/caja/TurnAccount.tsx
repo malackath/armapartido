@@ -14,7 +14,8 @@ import { payTurnWithBalance, redeemPack } from '../../services/clientesService';
 import type { ClientPack, ClubClient } from '../../types/clientes';
 import { ProductIcon } from '../mostrador/ProductIcon';
 
-const methodLabel = (m: CounterPaymentMethod) => (m === 'efectivo' ? 'efectivo' : m === 'transferencia' ? 'transferencia' : 'tarjeta');
+const methodLabel = (m: CounterPaymentMethod) =>
+  m === 'efectivo' ? 'efectivo' : m === 'transferencia' ? 'transferencia' : m === 'mercadopago' ? 'Mercado Pago' : 'tarjeta';
 
 export const TurnAccount: React.FC<{
   club: Club;
