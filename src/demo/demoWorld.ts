@@ -23,7 +23,9 @@ import type {
   TournamentPair,
   UserProfile,
 } from '../types/padel';
-import { addDaysISO, getDayOfWeekFromISO, getTodayISO } from '../lib/padelUtils';
+import { addDaysISO, generateDaySlots, getDayOfWeekFromISO, getTodayISO } from '../lib/padelUtils';
+import { addHistory, planToday, seeded, type TodaySlot } from './demoHoy';
+import type { CashDay } from '../types/caja';
 import { addCantinaDemo } from './demoCantina';
 import { addClientesDemo } from './demoClientes';
 
@@ -100,7 +102,10 @@ const SLOT = 90;
 // Turnos de 90 min desde las 8:00: 8:00, 9:30, 11:00, 12:30, 14:00, 15:30, 17:00, 18:30, 20:00, 21:30
 const T = (h: number, m = 0) => h * 60 + m;
 
-export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[] {
+/** Minuto actual en la hora de la compu que carga la demo (la misma que usa el Mostrador). */
+const localMinute = () => new Date().getHours() * 60 + new Date().getMinutes();
+
+export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute = localMinute()): DemoDoc[] {
   const docs: DemoDoc[] = [];
   const day = (n: number) => addDaysISO(today, n);
   const put = (path: string, data: object) => docs.push({ path, data: { ...data } as Record<string, unknown> });
@@ -129,7 +134,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
     ownerUid: uids.dueno,
     slotDurationMinutes: SLOT,
     openHour: 8,
-    closeHour: 23,
+    closeHour: 24,
     basePrice: 1800,
     nightFromHour: 19,
     nightPrice: 2400,
@@ -266,11 +271,90 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
     b.paymentStatus = 'paid';
   });
 
-  // Hoy y próximos días
-  addBooking({ date: day(0), startMinute: T(18, 30), courtId: 'cancha_1', createdByUid: 'demo-p04' });
-  addBooking({ date: day(0), startMinute: T(20), courtId: 'cancha_1', createdByUid: 'demo-p10' });
-  addBooking({ date: day(0), startMinute: T(20), courtId: 'cancha_2', createdByUid: uids.mostrador, type: 'counter', guestName: 'Alejandro Duarte', playerUids: [] });
-  addBooking({ date: day(0), startMinute: T(21, 30), courtId: 'cancha_3', createdByUid: 'demo-p13' });
+  // Hoy: armado alrededor de la hora actual (demoHoy.ts), para que el Mostrador se vea vivo.
+  const todayPlan = planToday({ n: nowMinute, open: club.openHour * 60, close: club.closeHour * 60, courtIds: courts.map((c) => c.id), today });
+  const matchUids = [uids.jugador, 'demo-p07', 'demo-p11', 'demo-p12'];
+  const pool = [...EXTRA_PLAYERS.map((p) => p.id), uids.jugadora].filter((u) => !matchUids.includes(u));
+  let pk = 0;
+  const pick = (k: number) => Array.from({ length: k }, () => pool[pk++ % pool.length]);
+  // Los que están en cancha ahora (o por entrar) no pueden repetirse entre canchas.
+  const onCourt = new Set(matchUids);
+  const pickFree = (k: number) => {
+    const out = pool.filter((u) => !onCourt.has(u)).slice(0, k);
+    out.forEach((u) => onCourt.add(u));
+    return out;
+  };
+  const concurrent = new Set<TodaySlot['role']>(['due4', 'paid4', 'live4']);
+  const rnd = seeded(`reservas-${today}`);
+  const slotOf = (role: TodaySlot['role']) => todayPlan.find((s) => s.role === role);
+  for (const s of todayPlan) {
+    const at = { date: today, startMinute: s.start, courtId: s.courtId };
+    const ps = concurrent.has(s.role) ? pickFree(4) : pick(s.role === 'past' || s.role === 'future' ? 2 + Math.floor(rnd() * 3) : 4);
+    const paid = (method: Booking['paymentMethod'] = 'club') => ({ paymentMethod: method, paidAmount: price(today, s.start), paymentStatus: 'paid' as const });
+    if (s.role === 'due4' || s.role === 'endedDue') addBooking({ ...at, createdByUid: ps[0], playerUids: ps });
+    else if (s.role === 'paid4') addBooking({ ...at, createdByUid: ps[0], playerUids: ps, ...paid('mercadopago') });
+    else if (s.role === 'live4' || s.role === 'past') addBooking({ ...at, createdByUid: ps[0], playerUids: ps, ...paid(rnd() < 0.2 ? 'mercadopago' : 'club') });
+    else if (s.role === 'future') addBooking({ ...at, createdByUid: ps[0], playerUids: ps, ...(rnd() < 0.3 ? paid('mercadopago') : {}) });
+  }
+  // Falta uno: partido armado que empieza enseguida y al que se le bajó un jugador.
+  const fuSlot = slotOf('fu');
+  if (fuSlot) {
+    const fuUids = pickFree(3);
+    const fuBooking = addBooking({ date: today, startMinute: fuSlot.start, courtId: fuSlot.courtId, createdByUid: fuUids[0], type: 'matched', playerUids: fuUids });
+    const fuPrice = fuBooking.totalPrice / 4;
+    put(`${base}/proposedMatches/demo_pm_fu`, {
+      id: 'demo_pm_fu',
+      clubId: C,
+      bookingId: fuBooking.id,
+      courtId: fuSlot.courtId,
+      courtName: court(fuSlot.courtId).name,
+      date: today,
+      startMinute: fuSlot.start,
+      endMinute: fuSlot.start + SLOT,
+      modality: 'mixto',
+      minCategory: 4,
+      maxCategory: 6,
+      pricePerPlayer: fuPrice,
+      playerUids: fuUids,
+      slots: fuUids.map((u) => ({ uid: u, displayName: nameOf(u), category: catOf(u), gender: genOf(u), status: 'accepted', paid: false, requestId: `demo_req_fu_${u}` })),
+      expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+      status: 'confirmed',
+      createdByUid: fuUids[0],
+    });
+    const inMs = (min: number) => new Date(Date.now() + (fuSlot.start - nowMinute + min) * 60 * 1000).toISOString();
+    put(`${base}/fillSearches/demo_fill_hoy`, {
+      id: 'demo_fill_hoy',
+      clubId: C,
+      kind: 'player_dropped',
+      matchId: 'demo_pm_fu',
+      bookingId: fuBooking.id,
+      courtId: fuSlot.courtId,
+      courtName: court(fuSlot.courtId).name,
+      date: today,
+      startMinute: fuSlot.start,
+      endMinute: fuSlot.start + SLOT,
+      modality: 'mixto',
+      genderNeeded: '',
+      seatsNeeded: 1,
+      seatsFilled: 0,
+      filledUids: [],
+      excludedUids: [],
+      invitedUids: pick(5),
+      lateDropUid: '',
+      wave: 1,
+      nextWaveAt: inMs(0),
+      closesAt: inMs(0),
+      status: 'searching',
+      choice: '',
+      extended: false,
+      pricePerPlayer: fuPrice,
+      openedAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+    });
+  }
+  const matchSlot = slotOf('match')!;
+  const anaSlot = slotOf('ana');
+
+  // Próximos días
   const martinBooking = addBooking({ date: day(1), startMinute: T(18, 30), courtId: 'cancha_2', createdByUid: uids.jugador });
   addBooking({ date: day(1), startMinute: T(20), courtId: 'cancha_1', createdByUid: 'demo-p06', paymentMethod: 'mercadopago', paidAmount: price(day(1), T(20)), paymentStatus: 'paid' });
   addBooking({ date: day(1), startMinute: T(21, 30), courtId: 'cancha_4', createdByUid: uids.mostrador, type: 'counter', guestName: 'Grupo de la oficina', playerUids: [] });
@@ -382,7 +466,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
     unfilledAlertSent: false,
   });
   [
-    req('demo_req_001', 'demo-p10', 'demo-p08', day(0), T(21, 30), 'priority'),
+    req('demo_req_001', 'demo-p10', 'demo-p08', nowMinute < T(21) ? day(0) : day(1), T(21, 30), 'priority'),
     req('demo_req_002', 'demo-p11', null, day(1), T(20), 'priority'),
     req('demo_req_003', 'demo-p09', 'demo-p12', day(2), T(18, 30), 'weekly'),
     req('demo_req_004', 'demo-p02', 'demo-p03', day(1), T(21, 30), 'priority'),
@@ -490,7 +574,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
     .forEach((b, i) =>
       put(`${base}/payments/demo_pay_x${i}`, {
         ...pay(b.createdByUid, b.id, b.totalPrice, b.paymentMethod === 'mercadopago' ? 'mercadopago' : methods[i % 4], 'booking_full'),
-        day: b.date < today ? b.date : day(-1),
+        day: b.date < today || (b.date === today && b.startMinute <= nowMinute && b.paymentMethod !== 'mercadopago') ? b.date : day(-1),
         staffName: b.paymentMethod === 'mercadopago' ? '' : 'Diego Fernández',
       })
     );
@@ -543,8 +627,14 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
   void martinBooking;
 
   // Caja, cantina, turnos fijos, seña retenida, turnos recuperados e informe del mes pasado
-  addCantinaDemo(docs, { base, clubId: C, today, uids, nameOf, catOf, genOf, price, ownerUid: uids.dueno });
+  addCantinaDemo(docs, { base, clubId: C, today, uids, nameOf, catOf, genOf, price, ownerUid: uids.dueno, todayMatch: { courtId: matchSlot.courtId, start: matchSlot.start }, nowMinute });
   // Clientes, cuponeras, saldo a favor, venta suelta y facturas
-  addClientesDemo(docs, { base, clubId: C, today, uids, nameOf, catOf, price });
+  addClientesDemo(docs, { base, clubId: C, today, uids, nameOf, catOf, price, anaToday: anaSlot ? { courtId: anaSlot.courtId, start: anaSlot.start } : undefined });
+  addHistory(docs, { base, clubId: C, today, courts, club, people: pool, staffUid: uids.mostrador, ownerUid: uids.dueno, price });
+  // La caja de hoy ya abierta desde la mañana (si el club ya abrió).
+  if (nowMinute >= club.openHour * 60) {
+    const cd: CashDay = { id: today, clubId: C, date: today, openingFloat: 2000, openedByUid: uids.mostrador, openedByName: 'Diego Fernández', status: 'open' };
+    put(`${base}/cashDays/${today}`, cd);
+  }
   return docs;
 }

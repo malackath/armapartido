@@ -105,8 +105,12 @@ async function section(p, label) {
   await p.reload();
   await p.waitForTimeout(5000);
   if (!(await body(p)).includes('Venta suelta')) await menu(p, 'Mostrador');
-  { const g = V(p.getByRole('tab', { name: 'Grilla' })); if (await g.count()) { await g.click(); await p.waitForTimeout(800); } } // vista Canchas: los turnos pasados están en la grilla
-  const anaTurno = p.locator('button').filter({ hasText: /Ana Laura/ }).first();
+  // Vista Canchas: el turno de Ana está en la línea de tiempo del día (su hora depende de cuándo se reinició la demo).
+  let anaTurno = V(p.locator('button[title*="Ana Laura"]'));
+  if (!(await anaTurno.count())) {
+    const g = V(p.getByRole('tab', { name: 'Grilla' })); if (await g.count()) { await g.click(); await p.waitForTimeout(800); }
+    anaTurno = p.locator('button').filter({ hasText: /Ana Laura/ }).first();
+  }
   if (await anaTurno.count()) {
     await anaTurno.click();
     await p.waitForTimeout(2000);
@@ -122,7 +126,7 @@ async function section(p, label) {
       await shot(p, '06-turno-pagado-con-cuponera');
     }
     await p.keyboard.press('Escape');
-  } else check('W3 Cuenta del turno: ofrece "Usar cuponera"', false, 'no encontré el turno de Ana de las 11:00');
+  } else check('W3 Cuenta del turno: ofrece "Usar cuponera"', false, 'no encontré el turno de Ana de hoy');
 
   // W4: venta suelta a cuenta
   await p.reload();

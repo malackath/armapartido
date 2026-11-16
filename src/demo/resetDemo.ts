@@ -22,25 +22,19 @@ export async function readDemoUids(db: Firestore): Promise<DemoUids | null> {
   return (snap.data().uids as DemoUids) ?? null;
 }
 
-async function deleteCollection(db: Firestore, path: string[]) {
+async function listPaths(db: Firestore, path: string[]) {
   const snap = await getDocs(collection(db, path[0], ...path.slice(1)));
-  for (let i = 0; i < snap.docs.length; i += 400) {
-    const batch = writeBatch(db);
-    snap.docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
-    await batch.commit();
-  }
-  return snap.size;
+  return snap.docs.map((d) => d.ref.path);
 }
 
+/**
+ * Vuelve a cargar el club de demo. Primero escribe el mundo nuevo encima (los ids son fijos) y
+ * después borra lo que sobra, así quien está mirando nunca ve el club vacío.
+ */
 export async function resetDemoWorld(db: Firestore, uids: DemoUids, onProgress?: (msg: string) => void) {
-  let deleted = 0;
-  for (const sub of DEMO_CLUB_SUBCOLLECTIONS) {
-    deleted += await deleteCollection(db, ['clubs', DEMO_CLUB_ID, sub]);
-  }
-  for (const uid of Object.values(uids)) {
-    deleted += await deleteCollection(db, ['users', uid, 'matchResults']);
-  }
-  onProgress?.(`Borrados ${deleted} documentos viejos`);
+  const existing: string[] = [];
+  for (const sub of DEMO_CLUB_SUBCOLLECTIONS) existing.push(...(await listPaths(db, ['clubs', DEMO_CLUB_ID, sub])));
+  for (const uid of Object.values(uids)) existing.push(...(await listPaths(db, ['users', uid, 'matchResults'])));
 
   const docs = buildDemoWorld(uids);
   for (let i = 0; i < docs.length; i += 400) {
@@ -51,9 +45,47 @@ export async function resetDemoWorld(db: Firestore, uids: DemoUids, onProgress?:
     });
     await batch.commit();
   }
-  await writeBatchMeta(db, uids);
   onProgress?.(`Cargados ${docs.length} documentos`);
-  return { deleted, written: docs.length };
+
+  const keep = new Set(docs.map((d) => d.path));
+  const stale = existing.filter((p) => !keep.has(p));
+  for (let i = 0; i < stale.length; i += 400) {
+    const batch = writeBatch(db);
+    stale.slice(i, i + 400).forEach((p) => {
+      const parts = p.split('/');
+      batch.delete(doc(db, parts[0], ...parts.slice(1)));
+    });
+    await batch.commit();
+  }
+  onProgress?.(`Borrados ${stale.length} documentos viejos`);
+  await writeBatchMeta(db, uids);
+  return { deleted: stale.length, written: docs.length };
+}
+
+/** Horas que la demo se considera "en hora": después, al entrar, se vuelve a armar el día. */
+const FRESH_HOURS = 2;
+
+/**
+ * Al entrar a la demo: si los datos se armaron hace más de 2 horas (o en otro día), se rearma el
+ * club alrededor de la hora actual, para que el Mostrador siempre muestre canchas en juego.
+ * Un candado de 3 minutos evita que dos visitas lo hagan a la vez.
+ */
+export async function refreshDemoIfStale(db: Firestore): Promise<boolean> {
+  const snap = await getDoc(doc(db, ...DEMO_META_PATH));
+  if (!snap.exists()) return false;
+  const meta = snap.data() as { uids?: DemoUids; resetAt?: { toDate?: () => Date }; refreshingAt?: { toDate?: () => Date } };
+  if (!meta.uids) return false;
+  const now = Date.now();
+  const last = meta.resetAt?.toDate?.();
+  const sameDay = last && last.toDateString() === new Date(now).toDateString();
+  if (last && sameDay && now - last.getTime() < FRESH_HOURS * 3600 * 1000) return false;
+  const lock = meta.refreshingAt?.toDate?.();
+  if (lock && now - lock.getTime() < 3 * 60 * 1000) return false;
+  const batch = writeBatch(db);
+  batch.set(doc(db, ...DEMO_META_PATH), { refreshingAt: serverTimestamp() }, { merge: true });
+  await batch.commit();
+  await resetDemoWorld(db, meta.uids);
+  return true;
 }
 
 async function writeBatchMeta(db: Firestore, uids: DemoUids) {

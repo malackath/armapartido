@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { DEMO_MODE, signInWithEmail, signInWithGoogle } from '../lib/firebase';
+import { DEMO_MODE, db, signInWithEmail, signInWithGoogle } from '../lib/firebase';
+import { refreshDemoIfStale } from '../demo/resetDemo';
 import { DEMO_ACCOUNTS } from '../demo/demoWorld';
 import { BrandIcon } from './BrandIcon';
 
@@ -45,6 +46,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
     setEmail(demoEmail);
     try {
       await signInWithEmail(demoEmail, import.meta.env.VITE_DEMO_PASSWORD ?? '');
+      // Si la demo quedó vieja, se rearma el día alrededor de la hora actual (en segundo plano).
+      if (DEMO_MODE) refreshDemoIfStale(db).catch((e) => console.warn('[demo] No se pudo poner la demo en hora:', e));
     } catch (err) {
       const msg = friendlyError(err);
       setError(msg);

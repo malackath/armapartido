@@ -23,9 +23,14 @@ export function addCantinaDemo(
     genOf: (uid: string) => Gender;
     price: (date: string, start: number) => number;
     ownerUid: string;
+    /** Cancha y hora del partido armado en juego hoy (demoHoy.ts). */
+    todayMatch?: { courtId: string; start: number };
+    nowMinute?: number;
   }
 ) {
   const { base, clubId: C, today, uids, nameOf, catOf, genOf, price, ownerUid } = ctx;
+  const tm = ctx.todayMatch ?? { courtId: 'cancha_2', start: T(18, 30) };
+  const tmCourt = `Cancha ${tm.courtId.split('_')[1]}`;
   const day = (n: number) => addDaysISO(today, n);
   const put = (path: string, data: object) => docs.push({ path, data: { ...data } as Record<string, unknown> });
   const bookingDocs = () => docs.filter((d) => d.path.startsWith(`${base}/bookings/`)).map((d) => d.data as unknown as Booking);
@@ -103,15 +108,15 @@ export function addCantinaDemo(
 
   // ---------- Partido armado de hoy con cuenta de cantina (Martín + 3) ----------
   const matchPlayers = [uids.jugador, 'demo-p07', 'demo-p11', 'demo-p12'];
-  const matchPrice = price(day(0), T(18, 30));
+  const matchPrice = price(day(0), tm.start);
   const todayBooking: Booking = {
     id: 'demo_bk_c01',
     clubId: C,
-    courtId: 'cancha_2',
-    courtName: 'Cancha 2',
+    courtId: tm.courtId,
+    courtName: tmCourt,
     date: day(0),
-    startMinute: T(18, 30),
-    endMinute: T(20),
+    startMinute: tm.start,
+    endMinute: tm.start + 90,
     type: 'matched',
     status: 'confirmed',
     createdByUid: uids.jugador,
@@ -128,11 +133,11 @@ export function addCantinaDemo(
     id: 'demo_pm_c01',
     clubId: C,
     bookingId: todayBooking.id,
-    courtId: 'cancha_2',
-    courtName: 'Cancha 2',
+    courtId: tm.courtId,
+    courtName: tmCourt,
     date: day(0),
-    startMinute: T(18, 30),
-    endMinute: T(20),
+    startMinute: tm.start,
+    endMinute: tm.start + 90,
     modality: 'mixto',
     minCategory: 4,
     maxCategory: 6,
@@ -149,7 +154,7 @@ export function addCantinaDemo(
   cons(prod('pelotas'), 1, day(0), todayBooking.id, matchPlayers.map(person), true, 'pending');
 
   // ---------- Fiado de días anteriores (aparece en "Deben") ----------
-  const past = bookingDocs().filter((b) => b.date < today && b.status === 'confirmed');
+  const past = bookingDocs().filter((b) => b.date < today && b.status === 'confirmed' && !b.id.startsWith('demo_bk_h'));
   const byPlayer = (uid: string) => past.find((b) => b.createdByUid === uid);
   const b14 = byPlayer('demo-p14');
   if (b14) cons(prod('cerveza'), 2, b14.date, b14.id, [person('demo-p14')], false, 'pending');
