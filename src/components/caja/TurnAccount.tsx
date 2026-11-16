@@ -12,6 +12,7 @@ import { useClientes } from '../clientes/data';
 import { dmy, packUsableFor, participantsWithClients, VALIDITY_LABEL } from '../../lib/clientes';
 import { payTurnWithBalance, redeemPack } from '../../services/clientesService';
 import type { ClientPack, ClubClient } from '../../types/clientes';
+import { ProductIcon } from '../mostrador/ProductIcon';
 
 const methodLabel = (m: CounterPaymentMethod) => (m === 'efectivo' ? 'efectivo' : m === 'transferencia' ? 'transferencia' : 'tarjeta');
 
@@ -171,10 +172,11 @@ export const TurnAccount: React.FC<{
                 type="button"
                 disabled={busy}
                 onClick={() => onProduct(p)}
-                className={`rounded-full border px-3 py-1.5 text-[13px] font-semibold cursor-pointer disabled:opacity-50 ${
+                className={`inline-flex items-center gap-1.5 rounded-full border py-1 pr-3 pl-1 text-[13px] font-semibold cursor-pointer disabled:opacity-50 ${
                   choosing?.id === p.id ? 'border-emerald-600 bg-emerald-50 text-brand' : 'border-line bg-white text-ink hover:bg-mist'
                 }`}
               >
+                <ProductIcon product={p} size={26} className="bg-mist" />
                 {p.name} <span className="font-normal text-muted">{formatUYU(p.price)}</span>
                 {p.stock !== null && p.stock <= 0 && <span className="ml-1 text-[11px] font-bold text-red-700">sin stock</span>}
               </button>

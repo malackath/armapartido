@@ -15,6 +15,7 @@ import type { CounterPaymentMethod } from '../../services/firestoreService';
 import { btnPrimary } from '../caja/ops';
 import { Chip, ClientLine, useClientes } from './data';
 import { ClientPicker } from './ClientPicker';
+import { ProductIcon } from '../mostrador/ProductIcon';
 
 type Tab = 'cantina' | 'cuponeras' | 'clases' | 'torneos' | 'alquiler' | 'otros';
 type Method = CounterPaymentMethod | 'saldo' | 'cuenta';
@@ -156,8 +157,9 @@ export const VentaSuelta: React.FC<{
                 const rubro: Rubro = tab === 'cantina' ? 'cantina' : 'alquiler';
                 const k = `p:${p.id}:${rubro}`;
                 return (
-                  <li key={p.id} className="flex items-center justify-between gap-2 border-b border-[#eef5f5] py-1.5 last:border-0">
-                    <span className="min-w-0 truncate text-sm text-ink">
+                  <li key={p.id} className="flex items-center gap-2.5 border-b border-[#eef5f5] py-1.5 last:border-0">
+                    <ProductIcon product={p} size={32} className="bg-mist" />
+                    <span className="min-w-0 flex-1 truncate text-sm text-ink">
                       {p.name} <span className="text-muted tabular-nums">{formatUYU(p.price)}</span>
                       {p.stock !== null && <span className={`ml-1 text-[11px] ${p.stock <= p.minStock ? 'font-bold text-due' : 'text-muted'}`}>quedan {p.stock}</span>}
                     </span>

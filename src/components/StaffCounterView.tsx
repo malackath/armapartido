@@ -42,6 +42,9 @@ import { ClientPicker } from './clientes/ClientPicker';
 import type { ClubClient } from '../types/clientes';
 import { formatPhone } from '../lib/clientes';
 import { BADGE_CLASSES, searchForMatch } from './FaltaUno';
+import { accountOf, participantsOf } from '../lib/caja';
+import { CourtCard, type CourtCardProps, type CourtSeat } from './mostrador/CourtCard';
+import { AgendaList, DayTabs, DayTimeline, type AgendaItem } from './mostrador/AgendaList';
 
 interface StaffCounterViewProps {
   club: Club;
@@ -344,7 +347,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
     [slots, activeCourts, dayBookings]
   );
 
-  const selected = dayBookings.find((b) => b.id === selectedId) || null;
+  const selected = bookings.find((b) => b.id === selectedId && b.status !== 'cancelled') || null;
   const activeTournaments = tournaments.filter((t) => t.status === 'draw_generated' || t.status === 'in_progress');
 
   const [y, m, d] = selectedDate.split('-').map(Number);
@@ -360,6 +363,143 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
 
   const isCurrentRow = (s: Slot) => selectedDate === today && minuteNow >= s.startMinute && minuteNow < s.endMinute;
 
+  // ----- Vista "Canchas" (variante B aprobada por Ber, 16/11/2026): canchas dibujadas + agenda en lista -----
+  const [view, setView] = useState<'canchas' | 'grilla'>('canchas');
+  const canchasView = view === 'canchas';
+  const panelOpen = !!selected || !!cashOpen;
+  const todayBookings = useMemo(() => bookings.filter((b) => b.date === today && b.status !== 'cancelled'), [bookings, today]);
+
+  const seatsOf = (b: Booking, started: boolean): CourtSeat[] => {
+    const info = describe(b);
+    const match = info.match;
+    if (b.type === 'tournament') {
+      return playersOf(b).map((m) => ({ name: m.displayName, photoUrl: m.photoUrl, category: m.category, pay: 'none' as const, payLabel: 'Torneo' }));
+    }
+    const turnCons = ops.consumptions.filter((c) => c.bookingId === b.id && c.status !== 'voided');
+    const accounts = accountOf(participantsOf(b, match, nameOfUid), turnCons);
+    const payOf = (due: number): Pick<CourtSeat, 'pay' | 'payLabel'> =>
+      b.status === 'held'
+        ? { pay: 'none', payLabel: '' }
+        : due <= 0
+        ? { pay: 'paid', payLabel: 'Pagó' }
+        : { pay: started ? 'due' : 'tbd', payLabel: `${started ? 'Debe' : 'A cobrar'} ${formatUYU(due)}` };
+    const seats: CourtSeat[] = accounts.map((a) => {
+      const m = memberByUid.get(a.key);
+      return { name: a.name, photoUrl: m?.photoUrl, category: m?.category, ...payOf(a.totalDue) };
+    });
+    if (!match) {
+      for (const m of playersOf(b).slice(1, 4)) seats.push({ name: m.displayName, photoUrl: m.photoUrl, category: m.category, pay: 'none', payLabel: '' });
+    }
+    const missing = info.fill && info.fill.search.status === 'searching' ? Math.max(0, info.fill.search.seatsNeeded - info.fill.search.seatsFilled) : 0;
+    for (let i = 0; i < missing && seats.length < 4; i++) seats.push({ pay: 'none', empty: true });
+    return seats;
+  };
+
+  const toneOf = (b: Booking, started: boolean): AgendaItem['tone'] => {
+    const info = describe(b);
+    if (b.type === 'tournament') return 'tour';
+    if (b.status === 'no_show') return 'busy';
+    if (b.status === 'held') return 'unconf';
+    if (info.fill?.tone === 'amber') return 'fu';
+    if (info.due <= 0 && info.payTone === 'paid') return 'paid';
+    return started ? 'due' : 'tbd';
+  };
+  const toneLabel: Record<AgendaItem['tone'], string> = { paid: 'Pagado', due: 'Debe', tbd: 'A cobrar', unconf: 'Armando partido', fu: 'Falta uno', tour: 'Torneo', busy: 'Ausencia' };
+
+  const courtCards = useMemo(() => {
+    return activeCourts.map((ct) => {
+      const list = todayBookings.filter((b) => b.courtId === ct.id).sort((a, b) => a.startMinute - b.startMinute);
+      const live = list.find((b) => b.startMinute <= minuteNow && b.endMinute > minuteNow && b.status !== 'no_show');
+      const upcoming = list.filter((b) => b.startMinute > minuteNow);
+      const nextB = upcoming[0];
+      const endedDue = [...list].reverse().find((b) => b.endMinute <= minuteNow && minuteNow - b.endMinute <= 30 && b.status === 'confirmed' && describe(b).due > 0);
+      let props: Omit<CourtCardProps, 'onClick'> & { bookingId: string | null };
+      const nextOf = (after: number) => {
+        const n = list.find((b) => b.startMinute >= after);
+        if (!n) return null;
+        const t = toneOf(n, false);
+        return {
+          startMinute: n.startMinute,
+          title: describe(n).title,
+          label: toneLabel[t],
+          tone: (({ paid: 'ok', due: 'due', tbd: 'mist', unconf: 'wait', fu: 'fu', tour: 'mist', busy: 'mist' }) as const)[t],
+        };
+      };
+      if (live) {
+        const due = describe(live).due > 0 && live.type !== 'tournament';
+        props = { court: ct, state: due ? 'due' : 'live', title: describe(live).title, startMinute: live.startMinute, endMinute: live.endMinute, seats: seatsOf(live, true), next: nextOf(live.endMinute), bookingId: live.id };
+      } else if (nextB && nextB.startMinute - minuteNow <= 30) {
+        const fu = toneOf(nextB, false) === 'fu';
+        props = { court: ct, state: fu ? 'fu' : 'soon', title: describe(nextB).title, startMinute: nextB.startMinute, endMinute: nextB.endMinute, seats: seatsOf(nextB, false), next: nextOf(nextB.endMinute), bookingId: nextB.id };
+      } else if (endedDue) {
+        props = { court: ct, state: 'ended', title: describe(endedDue).title, startMinute: endedDue.startMinute, endMinute: endedDue.endMinute, seats: seatsOf(endedDue, true), next: nextOf(minuteNow), bookingId: endedDue.id };
+      } else {
+        props = { court: ct, state: 'free', seats: [], freeUntil: nextB ? nextB.startMinute : null, next: nextOf(minuteNow), bookingId: null };
+      }
+      return props;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCourts, todayBookings, minuteNow, ops.consumptions, proposedMatches, fillSearches, memberships, tournaments]);
+
+  const agendaItems: (AgendaItem & { courtId: string; short: string })[] = useMemo(
+    () =>
+      dayBookings.map((b) => {
+        const started = selectedDate < today || (selectedDate === today && b.startMinute <= minuteNow);
+        const phase: AgendaItem['phase'] = selectedDate !== today ? (selectedDate < today ? 'past' : 'next') : b.endMinute <= minuteNow ? 'past' : b.startMinute <= minuteNow ? 'live' : 'next';
+        const tone = toneOf(b, started);
+        const info = describe(b);
+        const ct = activeCourts.find((c) => c.id === b.courtId);
+        const people = info.match ? info.match.slots.map((s) => ({ name: s.displayName, photoUrl: memberByUid.get(s.uid)?.photoUrl })) : playersOf(b).map((m) => ({ name: m.displayName, photoUrl: m.photoUrl }));
+        const short =
+          b.type === 'tournament'
+            ? 'Torneo'
+            : info.match && b.type === 'matched'
+            ? `Armado ${formatCategory(info.match.minCategory)}`
+            : b.status === 'held'
+            ? 'Armando'
+            : (() => {
+                const [n1, n2] = info.title.split(' ');
+                return n2 ? `${n1} ${n2[0]}.` : n1;
+              })();
+        return {
+          id: b.id,
+          courtId: b.courtId,
+          short,
+          startMinute: b.startMinute,
+          endMinute: b.endMinute,
+          courtName: ct?.name ?? b.courtName,
+          title: info.title,
+          statusLabel: tone === 'due' ? `Debe ${formatUYU(info.due)}` : toneLabel[tone],
+          tone,
+          phase,
+          people: people.length ? people : [{ name: info.title }],
+        };
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dayBookings, selectedDate, today, minuteNow, proposedMatches, fillSearches, memberships, tournaments, activeCourts]
+  );
+
+  const weekTabs = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, i) => addDaysISO(today, i)).map((iso) => {
+        const n = bookings.filter((b) => b.date === iso && b.status !== 'cancelled').length;
+        return { iso, label: iso === today ? 'Hoy' : `${DAY_SHORT[getDayOfWeekFromISO(iso)]} ${Number(iso.split('-')[2])}`, sub: `${n} de ${slots.length * activeCourts.length} turnos` };
+      }),
+    [bookings, today, slots, activeCourts]
+  );
+
+  const openCourt = (c: (typeof courtCards)[number]) => {
+    setCashOpen(null);
+    if (c.bookingId) {
+      setSelectedId(c.bookingId);
+      return;
+    }
+    setSelectedId(null);
+    const slot = slots.find((s) => s.endMinute > minuteNow && !todayBookings.some((b) => b.courtId === c.court.id && b.startMinute < s.endMinute && b.endMinute > s.startMinute));
+    if (selectedDate !== today) setSelectedDate(today);
+    setNewTarget({ courtId: c.court.id, startMinute: (slot ?? slots[0])?.startMinute ?? 0 });
+  };
+
   return (
     <ClubOpsContext.Provider value={ops}>
     <ClientesContext.Provider value={clientes}>
@@ -368,12 +508,34 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Mostrador</p>
-          <h1 className="mt-1 font-display text-2xl font-bold text-ink sm:text-3xl">Canchas de {selectedDate === today ? 'hoy' : 'la fecha'}</h1>
+          <h1 className="mt-1 flex items-baseline gap-3 font-display text-2xl font-bold text-ink sm:text-3xl">
+            Canchas de {canchasView || selectedDate === today ? 'hoy' : 'la fecha'}
+            {canchasView && <span className="hidden font-display text-3xl font-bold text-brand tabular-nums md:inline">{formatMinutes(minuteNow)}</span>}
+          </h1>
           <p className="mt-1 text-sm text-muted first-letter:uppercase">
-            {dateLabel} · turnos de {club.slotDurationMinutes || 90} minutos · abierto de {club.openHour}:00 a {formatMinutes(club.closeHour * 60)}
+            {canchasView ? dateLabel : `${dateLabel} · turnos de ${club.slotDurationMinutes || 90} minutos · abierto de ${club.openHour}:00 a ${formatMinutes(club.closeHour * 60)}`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <div className="hidden rounded-xl bg-mist p-1 md:flex" role="tablist" aria-label="Cómo ver las canchas">
+            {(
+              [
+                ['canchas', 'Canchas'],
+                ['grilla', 'Grilla'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={view === id}
+                onClick={() => setView(id)}
+                className={`rounded-lg px-3 text-sm font-semibold cursor-pointer ${view === id ? 'bg-white text-ink shadow-xs' : 'text-muted hover:text-ink'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             onClick={() => {
@@ -383,6 +545,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink hover:bg-mist cursor-pointer"
           >
             <BrandIcon name="pago-en-club" size={18} /> Caja
+            {canchasView && <span className="hidden tabular-nums md:inline">{formatUYU(cashToday.total)}</span>}
             {debtCount > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">deben {debtCount}</span>}
           </button>
           <button
@@ -410,7 +573,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
             onClick={() => setNewTarget({ courtId: activeCourts[0]?.id ?? '', startMinute: (stats.nextSlot ?? slots[0])?.startMinute ?? 0 })}
             className="hidden items-center justify-center gap-2 rounded-xl bg-action px-5 py-3 text-sm font-semibold text-on-action shadow-sm hover:brightness-95 cursor-pointer sm:inline-flex"
           >
-            <Plus className="h-4 w-4" /> Nueva reserva (teléfono o mostrador)
+            <Plus className="h-4 w-4" /> {canchasView ? 'Nueva reserva' : 'Nueva reserva (teléfono o mostrador)'}
           </button>
         </div>
       </div>
@@ -432,7 +595,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
       )}
 
       {/* Números del día */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+      <div className={`grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4 ${canchasView ? 'md:hidden' : ''}`}>
         <Kpi icon="cancha" title={selectedDate === today ? 'Ocupación de hoy' : 'Ocupación'}>
           <p className="font-display text-2xl font-bold tabular-nums sm:text-3xl">
             {stats.total ? Math.round((stats.used / stats.total) * 100) : 0}%
@@ -472,8 +635,56 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         </Kpi>
       </div>
 
+      {/* Canchas dibujadas: compu = canchas en fila + línea del día (A); tablet = 2x2 + agenda en lista (B). Ber, 16/11/2026 */}
+      {canchasView && activeCourts.length > 0 && (
+        <>
+          <div className="hidden flex-col gap-4 xl:flex" style={{ height: 'max(660px, calc(100vh - 250px))' }}>
+            <div className="grid shrink-0 gap-3.5" style={{ gridTemplateColumns: `repeat(${Math.min(activeCourts.length, 4)}, minmax(0,1fr))`, height: 'clamp(320px, 44vh, 460px)' }}>
+              {courtCards.slice(0, 4).map((c) => (
+                <CourtCard key={c.court.id} {...c} selected={!!c.bookingId && c.bookingId === selectedId} onClick={() => openCourt(c)} />
+              ))}
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-white">
+              <DayTabs days={weekTabs} value={weekTabs.some((d) => d.iso === selectedDate) ? selectedDate : today} onChange={(iso) => setSelectedDate(iso)} />
+              <DayTimeline
+                courts={activeCourts.map((c) => ({ id: c.id, name: c.name, roofed: c.roof === 'techada' }))}
+                items={agendaItems}
+                openMinute={slots[0]?.startMinute ?? club.openHour * 60}
+                closeMinute={slots[slots.length - 1]?.endMinute ?? club.closeHour * 60}
+                nowMinute={selectedDate === today ? minuteNow : null}
+                selectedId={selectedId}
+                onPick={(id) => {
+                  setCashOpen(null);
+                  setSelectedId(id);
+                }}
+              />
+            </div>
+          </div>
+          <div className="hidden gap-4 md:grid md:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] xl:hidden" style={{ height: 'max(640px, calc(100vh - 210px))' }}>
+            <div className="grid min-h-0 grid-cols-2 gap-3.5 overflow-y-auto" style={{ gridAutoRows: activeCourts.length <= 4 ? 'minmax(0,1fr)' : 'minmax(380px,1fr)' }}>
+              {courtCards.map((c) => (
+                <CourtCard key={c.court.id} {...c} selected={!!c.bookingId && c.bookingId === selectedId} onClick={() => openCourt(c)} />
+              ))}
+            </div>
+            <div className="flex min-h-0 flex-col overflow-hidden rounded-xl bg-white">
+              <DayTabs days={weekTabs} value={weekTabs.some((d) => d.iso === selectedDate) ? selectedDate : today} onChange={(iso) => setSelectedDate(iso)} />
+              <AgendaList
+                key={selectedDate}
+                items={agendaItems}
+                isToday={selectedDate === today}
+                selectedId={selectedId}
+                onPick={(id) => {
+                  setCashOpen(null);
+                  setSelectedId(id);
+                }}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0 space-y-3">
+        <div className={`min-w-0 space-y-3 ${canchasView ? 'md:hidden' : ''}`}>
           {/* Días y filtro */}
           <div className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-1.5 overflow-x-auto">
@@ -645,9 +856,18 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
           )}
         </div>
 
-        {/* Panel derecho */}
-        <div className="space-y-4">
-          <div className="hidden lg:block">
+        {/* Panel derecho (en la vista Canchas, panel lateral que se abre al tocar una cancha o la caja) */}
+        {canchasView && panelOpen && (
+          <div className="fixed inset-0 z-40 hidden bg-ink/20 md:block" onClick={() => { setSelectedId(null); setCashOpen(null); }} />
+        )}
+        <div
+          className={
+            canchasView
+              ? `space-y-4 md:fixed md:top-0 md:right-0 md:bottom-0 md:z-50 md:w-[460px] md:overflow-y-auto md:bg-page md:p-3 md:shadow-[-16px_0_40px_rgba(10,87,97,.18)] ${panelOpen ? '' : 'md:hidden'}`
+              : 'space-y-4'
+          }
+        >
+          <div className={canchasView ? 'hidden md:block' : 'hidden lg:block'}>
             {cashOpen === 'clientes' && !selected ? (
               <ClientesSide club={club} memberships={memberships} bookings={bookings} matches={proposedMatches} payments={ops.allPayments} consumptions={ops.consumptions} userProfile={userProfile} today={today} nowMinute={minuteNow} closedToday={todayCash?.status === 'closed'} onToast={onToast} onClose={() => setCashOpen(null)} />
             ) : cashOpen && !selected ? (
@@ -706,7 +926,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
 
       {/* Panel de cobro como hoja inferior (celular y tablet) */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 backdrop-blur-[2px] lg:hidden" onClick={() => setSelectedId(null)}>
+        <div className={`fixed inset-0 z-50 flex items-end justify-center bg-ink/40 backdrop-blur-[2px] ${canchasView ? 'md:hidden' : 'lg:hidden'}`} onClick={() => setSelectedId(null)}>
           <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-3xl" onClick={(e) => e.stopPropagation()}>
             <ChargePanel
               key={selected.id}
@@ -727,7 +947,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
       )}
 
       {cashOpen && !selected && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 backdrop-blur-[2px] lg:hidden" onClick={() => setCashOpen(null)}>
+        <div className={`fixed inset-0 z-50 flex items-end justify-center bg-ink/40 backdrop-blur-[2px] ${canchasView ? 'md:hidden' : 'lg:hidden'}`} onClick={() => setCashOpen(null)}>
           <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-3xl" onClick={(e) => e.stopPropagation()}>
             {cashOpen === 'clientes' ? (
               <ClientesSide club={club} memberships={memberships} bookings={bookings} matches={proposedMatches} payments={ops.allPayments} consumptions={ops.consumptions} userProfile={userProfile} today={today} nowMinute={minuteNow} closedToday={todayCash?.status === 'closed'} onToast={onToast} onClose={() => setCashOpen(null)} sheet />

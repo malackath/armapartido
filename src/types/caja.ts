@@ -13,6 +13,10 @@ export interface Product {
   minStock: number;
   active: boolean;
   order: number;
+  /** Ícono elegido por el club (si no, se deduce del nombre). */
+  icon?: string;
+  /** Foto del producto o de la marca (acuerdos con auspiciantes), más adelante. */
+  photoUrl?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
