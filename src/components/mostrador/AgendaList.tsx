@@ -139,60 +139,129 @@ export const DayTimeline: React.FC<{
   selectedId?: string | null;
   onPick: (id: string) => void;
 }> = ({ courts, items, openMinute, closeMinute, nowMinute, selectedId, onPick }) => {
-  const span = Math.max(60, closeMinute - openMinute);
-  const pct = (m: number) => ((m - openMinute) / span) * 100;
+  // El día entero no entra a lo ancho: cada hora tiene un ancho fijo y la agenda se recorre con el
+  // deslizador de arriba, las flechas o "Ahora" (pedido de Ber, 16/11/2026).
+  const lastEnd = items.reduce((m, it) => Math.max(m, it.endMinute), closeMinute);
+  const end = Math.ceil(lastEnd / 60) * 60;
+  const span = Math.max(60, end - openMinute);
+  const PX_HOUR = 132;
+  const width = (span / 60) * PX_HOUR;
+  const px = (m: number) => ((m - openMinute) / 60) * PX_HOUR;
   const hours: number[] = [];
-  for (let h = Math.ceil(openMinute / 120) * 120; h <= closeMinute; h += 120) hours.push(h);
-  const showNow = nowMinute != null && nowMinute >= openMinute && nowMinute <= closeMinute;
+  for (let h = Math.ceil(openMinute / 60) * 60; h <= end; h += 60) hours.push(h);
+  const showNow = nowMinute != null && nowMinute >= openMinute && nowMinute <= end;
+  const scroller = React.useRef<HTMLDivElement>(null);
+  const [view, setView] = useState({ left: 0, max: 0, client: 0 });
+  const sync = React.useCallback(() => {
+    const el = scroller.current;
+    if (el) setView({ left: el.scrollLeft, max: Math.max(0, el.scrollWidth - el.clientWidth), client: el.clientWidth });
+  }, []);
+  const goTo = React.useCallback((minute: number, smooth = true) => {
+    const el = scroller.current;
+    if (el) el.scrollTo({ left: Math.max(0, px(minute) - 60), behavior: smooth ? 'smooth' : 'auto' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openMinute]);
+  React.useEffect(() => {
+    // Al abrir, la agenda arranca una hora antes de ahora (o al principio si es otro día).
+    goTo(showNow ? nowMinute! - 60 : openMinute, false);
+    sync();
+    const el = scroller.current;
+    const ro = new ResizeObserver(sync);
+    if (el) ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openMinute, end, nowMinute == null]);
+  const minuteAt = (left: number) => openMinute + (left / PX_HOUR) * 60;
+  const fromM = minuteAt(view.left);
+  const toM = Math.min(end, minuteAt(view.left + view.client - 100));
+  const step = (dir: 1 | -1) => scroller.current?.scrollBy({ left: dir * PX_HOUR * 3, behavior: 'smooth' });
+  const arrow = 'grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-white text-brand cursor-pointer hover:bg-mist disabled:opacity-35 disabled:cursor-default';
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-3.5 pt-1 pb-2">
-      <div className="relative ml-[100px] h-5 text-xs text-muted">
-        {hours.map((h) => (
-          <span key={h} className="absolute -translate-x-1/2 tabular-nums" style={{ left: `${pct(h)}%` }}>
-            {formatMinutes(h % 1440)}
-          </span>
-        ))}
+    <div className="flex min-h-0 flex-1 flex-col px-3.5 pt-2 pb-2">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="w-[92px] shrink-0 text-xs font-semibold text-muted tabular-nums">
+          {formatMinutes(Math.floor(fromM / 30) * 30 % 1440)} a {formatMinutes(Math.ceil(toM / 30) * 30 % 1440)}
+        </span>
+        <button type="button" className={arrow} onClick={() => step(-1)} disabled={view.left <= 1} aria-label="Ver más temprano">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+        </button>
+        <input
+          type="range"
+          min={0}
+          max={Math.max(1, view.max)}
+          value={view.left}
+          onChange={(e) => {
+            const el = scroller.current;
+            if (el) el.scrollLeft = Number(e.target.value);
+          }}
+          aria-label="Moverse por las horas del día"
+          className="timeline-range h-8 min-w-0 flex-1 cursor-pointer"
+          disabled={view.max <= 0}
+        />
+        <button type="button" className={arrow} onClick={() => step(1)} disabled={view.left >= view.max - 1} aria-label="Ver más tarde">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+        </button>
         {showNow && (
-          <span className="absolute z-10 -translate-x-1/2 rounded-full bg-due px-1.5 font-bold text-white tabular-nums" style={{ left: `${pct(nowMinute!)}%` }}>
-            {formatMinutes(nowMinute!)}
-          </span>
+          <button type="button" onClick={() => goTo(nowMinute! - 60)} className="h-8 shrink-0 rounded-lg border border-line bg-white px-3 text-xs font-semibold text-brand cursor-pointer hover:bg-mist">
+            Ahora
+          </button>
         )}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-        {courts.map((c) => (
-          <div key={c.id} className="flex min-h-[44px] flex-1" style={{ maxHeight: 96 }}>
-            <div className="flex w-[100px] shrink-0 items-center gap-1.5 whitespace-nowrap pr-2 text-[15px] font-bold">{c.name}</div>
-            <div className="relative flex-1 rounded-lg">
-              {hours.map((h) => (
-                <div key={h} className="pointer-events-none absolute top-0 bottom-0 w-px bg-line" style={{ left: `${pct(h)}%` }} />
-              ))}
-              {items
-                .filter((it) => it.courtId === c.id)
-                .map((it) => (
-                  <button
-                    key={it.id}
-                    type="button"
-                    onClick={() => onPick(it.id)}
-                    title={`${formatMinutes(it.startMinute)} ${it.title} · ${it.statusLabel}`}
-                    className={`absolute top-[3px] bottom-[3px] flex flex-col justify-between overflow-hidden rounded-lg px-1.5 py-1 text-left text-xs leading-tight cursor-pointer hover:brightness-[.97] ${BG[it.tone]} ${
-                      it.phase === 'past' && it.tone !== 'due' ? 'opacity-55' : ''
-                    } ${it.phase === 'live' || selectedId === it.id ? 'outline-[2.5px] -outline-offset-1 outline-brand outline' : ''}`}
-                    style={{ left: `calc(${pct(it.startMinute)}% + 2px)`, width: `calc(${((it.endMinute - it.startMinute) / span) * 100}% - 4px)` }}
-                  >
-                    <span className="truncate font-semibold">{it.short}</span>
-                    <span className="flex">
-                      {it.people.slice(0, 4).map((p, i) => (
-                        <span key={i} style={{ marginLeft: i ? -5 : 0 }}>
-                          <PlayerAvatar name={p.name} photoUrl={p.photoUrl} size={20} />
-                        </span>
-                      ))}
-                    </span>
-                  </button>
-                ))}
-              {showNow && <div className="pointer-events-none absolute -top-1 -bottom-1 z-[3] w-0.5 bg-due" style={{ left: `${pct(nowMinute!)}%` }} />}
+      <div className="flex min-h-0 flex-1">
+        <div className="flex w-[100px] shrink-0 flex-col gap-1.5 pt-5">
+          {courts.map((c) => (
+            <div key={c.id} className="flex min-h-[44px] flex-1 items-center gap-1.5 whitespace-nowrap pr-2 text-[15px] font-bold" style={{ maxHeight: 96 }}>
+              {c.name}
             </div>
+          ))}
+        </div>
+        <div ref={scroller} onScroll={sync} className="timeline-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-x-auto overflow-y-hidden">
+          <div className="relative h-5 shrink-0 text-xs text-muted" style={{ width }}>
+            {hours.map((h) => (
+              <span key={h} className={`absolute tabular-nums ${h === hours[0] ? '' : '-translate-x-1/2'}`} style={{ left: px(h) }}>
+                {h === hours[hours.length - 1] && h - openMinute === span ? '' : formatMinutes(h % 1440)}
+              </span>
+            ))}
+            {showNow && (
+              <span className="absolute z-10 -translate-x-1/2 rounded-full bg-due px-1.5 font-bold text-white tabular-nums" style={{ left: px(nowMinute!) }}>
+                {formatMinutes(nowMinute!)}
+              </span>
+            )}
           </div>
-        ))}
+          <div className="flex min-h-0 flex-1 flex-col gap-1.5" style={{ width }}>
+            {courts.map((c) => (
+              <div key={c.id} className="relative min-h-[44px] flex-1 rounded-lg" style={{ maxHeight: 96 }}>
+                {hours.map((h) => (
+                  <div key={h} className={`pointer-events-none absolute top-0 bottom-0 w-px ${h % 120 === 0 ? 'bg-line' : 'bg-[#eef5f5]'}`} style={{ left: px(h) }} />
+                ))}
+                {items
+                  .filter((it) => it.courtId === c.id)
+                  .map((it) => (
+                    <button
+                      key={it.id}
+                      type="button"
+                      onClick={() => onPick(it.id)}
+                      title={`${formatMinutes(it.startMinute)} ${it.title} · ${it.statusLabel}`}
+                      className={`absolute top-[3px] bottom-[3px] flex flex-col justify-between overflow-hidden rounded-lg px-1.5 py-1 text-left text-xs leading-tight cursor-pointer hover:brightness-[.97] ${BG[it.tone]} ${
+                        it.phase === 'past' && it.tone !== 'due' ? 'opacity-55' : ''
+                      } ${it.phase === 'live' || selectedId === it.id ? 'outline-[2.5px] -outline-offset-1 outline-brand outline' : ''}`}
+                      style={{ left: px(it.startMinute) + 2, width: ((it.endMinute - it.startMinute) / 60) * PX_HOUR - 4 }}
+                    >
+                      <span className="truncate font-semibold">{it.short}</span>
+                      <span className="flex">
+                        {it.people.slice(0, 4).map((p, i) => (
+                          <span key={i} style={{ marginLeft: i ? -5 : 0 }}>
+                            <PlayerAvatar name={p.name} photoUrl={p.photoUrl} size={20} />
+                          </span>
+                        ))}
+                      </span>
+                    </button>
+                  ))}
+                {showNow && <div className="pointer-events-none absolute -top-1 -bottom-1 z-[3] w-0.5 bg-due" style={{ left: px(nowMinute!) }} />}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
       <div className="mt-2 flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-muted">
         {(
