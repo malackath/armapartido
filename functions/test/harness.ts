@@ -3,3 +3,4 @@ import '../src/tz';
 export { runClock } from '../src/clock';
 export { sweepClub } from '../src/engine';
 export { categoryFits, isQuietHour, rankCandidates, searchTiming, weeklyLimit, weekKey } from '../src/fillRules';
+export { linkOrCreateClient } from '../src/clientes';

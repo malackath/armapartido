@@ -67,7 +67,7 @@ const dups = possibleDuplicates(clients);
 ok('2d. Mismo celular con dos fichas = posible repetido', dups.length === 1 && dups[0].length === 2);
 
 // 3. Cuponera: horario, unidad y vencimiento (decisión 3: si no cubre, no se usa)
-const pack: ClientPack = { id: 'p1', clubId: 'c1', clientId: 'a', clientName: 'Juan Pérez', packTypeId: 't', name: '10 partes valle', unit: 'parte', validity: 'valle', usesTotal: 10, usesLeft: 7, price: 5500, soldOn: '2026-11-02', expiresOn: '2027-01-31', paymentId: 'pay1', saleId: 's1', status: 'active', uses: [] };
+const pack: ClientPack = { id: 'p1', clubId: 'c1', clientId: 'a', clientName: 'Juan Pérez', uid: '', packTypeId: 't', name: '10 partes valle', unit: 'parte', validity: 'valle', usesTotal: 10, usesLeft: 7, price: 5500, soldOn: '2026-11-02', expiresOn: '2027-01-31', paymentId: 'pay1', saleId: 's1', status: 'active', uses: [] };
 ok('3. Valle: lunes 17 h se puede', packUsableFor({ pack, club, date: today, startMinute: 17 * 60, unit: 'parte', today }).ok);
 const peak = packUsableFor({ pack, club, date: today, startMinute: 20 * 60, unit: 'parte', today });
 ok('3b. Valle: lunes 20 h NO se puede (no se cobra diferencia)', !peak.ok, peak.reason);

@@ -505,7 +505,7 @@ const DatosTab: React.FC<{
                 </option>
               ))}
             </select>
-            <button type="button" disabled={busy || !linkUid} onClick={() => run(async () => { await linkClientToUser(club, client, linkUid, 'mostrador', { consumptions, bookings }); setMode(null); }, 'Unida: ahora ve en su app lo que debe y sus cuponeras.')} className={btnSecondary}>
+            <button type="button" disabled={busy || !linkUid} onClick={() => run(async () => { await linkClientToUser(club, client, linkUid, 'mostrador', { consumptions, bookings, packs: allPacks }); setMode(null); }, 'Unida: ahora ve en su app lo que debe y sus cuponeras.')} className={btnSecondary}>
               La tengo enfrente: unir
             </button>
           </div>

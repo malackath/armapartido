@@ -113,6 +113,8 @@ export interface ClientPack {
   clubId: string;
   clientId: string;
   clientName: string;
+  /** Cuenta de la app de la persona ('' si no tiene): deja que la vea en su app. */
+  uid: string;
   packTypeId: string;
   name: string;
   unit: PackUnit;

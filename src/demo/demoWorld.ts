@@ -25,6 +25,7 @@ import type {
 } from '../types/padel';
 import { addDaysISO, getDayOfWeekFromISO, getTodayISO } from '../lib/padelUtils';
 import { addCantinaDemo } from './demoCantina';
+import { addClientesDemo } from './demoClientes';
 
 export const DEMO_CLUB_ID = 'los_jacarandas';
 export const DEMO_EMAIL_DOMAIN = 'demo.armapartido.com';
@@ -88,6 +89,11 @@ export const DEMO_CLUB_SUBCOLLECTIONS = [
   'migrations',
   'fillSearches',
   'fillInvites',
+  'clients',
+  'packTypes',
+  'clientPacks',
+  'sales',
+  'exportLogs',
 ];
 
 const SLOT = 90;
@@ -538,5 +544,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO()): DemoDoc[]
 
   // Caja, cantina, turnos fijos, seña retenida, turnos recuperados e informe del mes pasado
   addCantinaDemo(docs, { base, clubId: C, today, uids, nameOf, catOf, genOf, price, ownerUid: uids.dueno });
+  // Clientes, cuponeras, saldo a favor, venta suelta y facturas
+  addClientesDemo(docs, { base, clubId: C, today, uids, nameOf, catOf, price });
   return docs;
 }

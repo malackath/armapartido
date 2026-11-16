@@ -77,7 +77,8 @@ export interface NewClientInput {
 
 export function buildClient(club: Club, input: NewClientInput, staff: Staff, today: string): ClubClient {
   return {
-    id: makeId('cli'),
+    // La ficha de un jugador de la app tiene id fijo: así el servidor y el mostrador no crean dos
+    id: input.uid && input.origin === 'app' ? `u_${input.uid}` : makeId('cli'),
     clubId: club.id,
     name: input.name.trim().replace(/\s+/g, ' ').slice(0, 80),
     phone: input.noPhone ? '' : normalizePhone(input.phone),
@@ -138,7 +139,7 @@ export async function updateClient(club: Club, id: string, patch: ClientPatch) {
  * verificado en el servidor). Lo pendiente de antes pasa a su cuenta para que lo vea en "Mi cuenta":
  * los consumos con la clave de la ficha y las reservas a su nombre.
  */
-export async function linkClientToUser(club: Club, client: ClubClient, uid: string, by: 'mostrador' | 'qr' | 'mail', ctx: { consumptions?: Consumption[]; bookings?: Booking[] } = {}) {
+export async function linkClientToUser(club: Club, client: ClubClient, uid: string, by: 'mostrador' | 'qr' | 'mail', ctx: { consumptions?: Consumption[]; bookings?: Booking[]; packs?: ClientPack[] } = {}) {
   const batch = writeBatch(db);
   batch.update(ref(club.id, 'clients', client.id), { uid, linkedBy: by, linkedAtISO: new Date().toISOString(), updatedAt: serverTimestamp() });
   const old = `c:${client.id}`;
@@ -152,6 +153,7 @@ export async function linkClientToUser(club: Club, client: ClubClient, uid: stri
         updatedAt: serverTimestamp(),
       })
     );
+  (ctx.packs ?? []).filter((p) => p.clientId === client.id).forEach((p) => batch.update(ref(club.id, 'clientPacks', p.id), { uid, updatedAt: serverTimestamp() }));
   (ctx.bookings ?? [])
     .filter((b) => b.clientId === client.id && b.type === 'counter' && b.playerUids.length === 0 && (b.status === 'confirmed' || b.status === 'held'))
     .forEach((b) => batch.update(ref(club.id, 'bookings', b.id), { playerUids: [uid], updatedAt: serverTimestamp() }));
@@ -169,7 +171,7 @@ export function subscribeMyClientData(clubId: string, uid: string, fn: (v: { cli
       packUnsub = null;
       if (!clients.length) return fn({ clients, packs: [] });
       packUnsub = onSnapshot(
-        query(col(clubId, 'clientPacks'), where('clientId', 'in', clients.slice(0, 10).map((c) => c.id))),
+        query(col(clubId, 'clientPacks'), where('uid', '==', uid)),
         (ps) => fn({ clients, packs: ps.docs.map((d) => d.data() as ClientPack) }),
         () => fn({ clients, packs: [] })
       );
@@ -199,7 +201,7 @@ export async function mergeClients(club: Club, keep: ClubClient, drop: ClubClien
   if (drop.createdOn < keep.createdOn) Object.assign(fill, { createdOn: drop.createdOn, origin: drop.origin });
   batch.update(ref(club.id, 'clients', keep.id), { ...fill, balance: increment(drop.balance || 0), noticeGiven: keep.noticeGiven || drop.noticeGiven, reviewDuplicate: false, updatedAt: serverTimestamp() });
   batch.update(ref(club.id, 'clients', drop.id), { status: 'archived', mergedInto: keep.id, balance: 0, reviewDuplicate: false, uid: '', updatedAt: serverTimestamp() });
-  packs.filter((p) => p.clientId === drop.id).forEach((p) => batch.update(ref(club.id, 'clientPacks', p.id), { clientId: keep.id, clientName: keep.name, updatedAt: serverTimestamp() }));
+  packs.filter((p) => p.clientId === drop.id).forEach((p) => batch.update(ref(club.id, 'clientPacks', p.id), { clientId: keep.id, clientName: keep.name, uid: keep.uid || drop.uid, updatedAt: serverTimestamp() }));
   await batch.commit();
 }
 
@@ -307,6 +309,7 @@ export async function sellPack(params: { club: Club; client: ClubClient; packTyp
     clubId: club.id,
     clientId: client.id,
     clientName: client.name.slice(0, 80),
+    uid: client.uid,
     packTypeId: packType.id,
     name: packType.name,
     unit: packType.unit,
