@@ -74,6 +74,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [installGuideOpen, setInstallGuideOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const isManaging = perspectiveRole !== 'player';
+  // Encargado y Cantina, mientras trabajan, ven solo su pantalla: sin la barra del jugador.
+  // Con "Volver a la app" la recuperan (también juegan). Dueño y plataforma la ven siempre.
+  const hidePlayerNav = isManaging && !canAccessAdmin && !canAccessPlatform;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -117,7 +120,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             )}
           </button>
 
-          <nav className="hidden md:flex items-center gap-1" aria-label="Principal">
+          <nav className={`${hidePlayerNav ? 'hidden' : 'hidden md:flex'} items-center gap-1`} aria-label="Principal">
             {PLAYER_NAV.map((item) => (
               <button
                 key={item.id}
@@ -250,6 +253,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         )}
       </header>
 
+      {!hidePlayerNav && (
       <nav
         className="fixed bottom-0 left-0 right-0 z-40 border-t border-line bg-white/95 backdrop-blur-md md:hidden pb-safe"
         aria-label="Principal"
@@ -276,6 +280,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           })}
         </div>
       </nav>
+      )}
     </>
   );
 };
