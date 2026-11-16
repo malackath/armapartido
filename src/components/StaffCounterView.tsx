@@ -197,7 +197,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         return { payLabel: b.paymentMethod === 'mercadopago' ? 'Mercado Pago' : 'Pagado', payTone: 'paid' };
       }
       if (b.paymentStatus === 'deposit_paid') return { payLabel: 'Resta cobrar', payTone: 'due' };
-      return { payLabel: 'Por cobrar', payTone: 'due' };
+      return { payLabel: 'A cobrar', payTone: 'due' };
     };
 
     if (b.status === 'no_show') {
@@ -629,7 +629,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
             {cashToday.byMethod.mercadopago ? ` · MP ${formatUYU(cashToday.byMethod.mercadopago)}` : ''}
           </p>
         </Kpi>
-        <Kpi icon="pago-online" tone="due" title="Por cobrar">
+        <Kpi icon="pago-online" tone="due" title="A cobrar">
           <p className="font-display text-2xl font-bold tabular-nums text-due sm:text-3xl">
             {formatUYU(stats.dueTotal)}
             <span className="ml-2 text-xs font-normal text-muted sm:text-sm">{stats.dueCount} {stats.dueCount === 1 ? 'turno' : 'turnos'}</span>
@@ -721,7 +721,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
               {(
                 [
                   ['all', 'Todas'],
-                  ['due', `Por cobrar (${stats.dueCount})`],
+                  ['due', `A cobrar (${stats.dueCount})`],
                   ['free', `Libres (${freeCount})`],
                 ] as const
               ).map(([id, label]) => (
@@ -1209,7 +1209,7 @@ const ChargePanel: React.FC<ChargePanelProps> = ({ club, booking, info, membersh
         <div className="flex items-center gap-2">
           {canCharge && (
             <span className="whitespace-nowrap rounded-full bg-wait-bg px-2.5 py-0.5 text-[11px] font-semibold text-wait">
-              {isMatched ? `Faltan ${match.slots.filter((s) => !s.paid).length}` : 'Por cobrar'}
+              {isMatched ? `Faltan ${match.slots.filter((s) => !s.paid).length}` : 'A cobrar'}
             </span>
           )}
           <button type="button" onClick={onClose} aria-label="Cerrar" className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-mist cursor-pointer">

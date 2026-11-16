@@ -136,6 +136,20 @@ export const CantinaView: React.FC<{
             <div className="space-y-5">
               <section className="rounded-xl bg-white p-5">
                 {turn ? (
+                  <>
+                  <div className="flex items-start justify-between gap-3 rounded-xl bg-live-fill px-3.5 py-3">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold tracking-wider text-brand uppercase">Cargando a</p>
+                      <p className="font-display text-xl leading-tight font-bold text-ink">{courtName(turn.courtId)}</p>
+                      <p className="mt-0.5 truncate text-[13px] text-muted tabular-nums">
+                        {formatMinutes(turn.startMinute)} a {formatMinutes(turn.endMinute)} · {turn.guestName || nameOf(turn.createdByUid)}
+                        {(turn.playerUids ?? []).length > 1 ? ` y ${(turn.playerUids ?? []).length - 1} más` : ''}
+                      </p>
+                    </div>
+                    <button type="button" onClick={() => setOpenTurn(null)} className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-[13px] font-semibold text-ink hover:bg-mist cursor-pointer">
+                      Otra cancha
+                    </button>
+                  </div>
                   <TurnAccount
                     club={club}
                     booking={turn}
@@ -148,7 +162,9 @@ export const CantinaView: React.FC<{
                     onToast={onToast}
                     onClose={() => setOpenTurn(null)}
                     itemsOnly
+                    placeLabel={courtName(turn.courtId)}
                   />
+                  </>
                 ) : (
                   <>
                     <h2 className="font-display text-lg font-bold text-ink">Cargar a una cancha</h2>

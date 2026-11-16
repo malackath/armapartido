@@ -385,7 +385,7 @@ export async function addWithdrawal(club: Club, amount: number, note: string, st
 
 /**
  * Anula un cobro: no se borra, se agrega un movimiento negativo con el motivo y el original queda
- * marcado. Si era una cancha, el turno vuelve a quedar por cobrar.
+ * marcado. Si era una cancha, el turno vuelve a quedar a cobrar.
  */
 export async function voidPayment(params: { club: Club; payment: PaymentRecord; reason: string; staff: Staff; day: string; bookings: Booking[]; matches: ProposedMatch[] }) {
   const { club, payment, reason, staff, day, bookings, matches } = params;

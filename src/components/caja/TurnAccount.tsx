@@ -30,7 +30,9 @@ export const TurnAccount: React.FC<{
   onClose: () => void;
   /** Cantina: solo carga consumos al turno; la cancha y el cobro quedan para el mostrador. */
   itemsOnly?: boolean;
-}> = ({ club, booking, match, nameOf, staff, today, busy, setBusy, onToast, onClose, itemsOnly }) => {
+  /** Nombre de la cancha para el aviso al cargar (cantina): "… en Cancha 1". */
+  placeLabel?: string;
+}> = ({ club, booking, match, nameOf, staff, today, busy, setBusy, onToast, onClose, itemsOnly, placeLabel }) => {
   const { products, consumptions, cashDays } = useOps();
   const participants = useMemo(() => participantsOf(booking, match, nameOf), [booking, match, nameOf]);
   const turnCons = useMemo(() => consumptions.filter((c) => c.bookingId === booking.id && c.status !== 'voided'), [consumptions, booking.id]);
@@ -80,7 +82,7 @@ export const TurnAccount: React.FC<{
     const list = shared ? participants.map((p) => ({ key: p.key, name: p.name })) : [who ?? { key: participants[0].key, name: participants[0].name }];
     void run(
       () => addConsumption({ club, product, qty: 1, date: booking.date, bookingId: booking.id, shared, participants: list, staff }),
-      `${product.name} sumado${shared ? ' entre todos' : ` a ${list[0].name.split(' ')[0]}`}.`
+      `${product.name} sumado${shared ? ' entre todos' : ` a ${list[0].name.split(' ')[0]}`}${placeLabel ? ` en ${placeLabel}` : ''}.`
     );
     setPicked((prev) => Array.from(new Set([...prev, ...list.map((l) => l.key)])));
   };

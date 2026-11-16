@@ -44,7 +44,7 @@ export interface CourtCardProps {
 
 const STATE_LABEL: Record<CourtLiveState, string> = {
   live: 'En juego',
-  due: 'Por cobrar',
+  due: 'A cobrar',
   soon: 'Por empezar',
   fu: 'Falta uno',
   free: 'Libre',
