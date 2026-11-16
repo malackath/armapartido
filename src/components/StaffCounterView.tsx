@@ -45,6 +45,7 @@ import { BADGE_CLASSES, searchForMatch } from './FaltaUno';
 import { accountOf, participantsOf } from '../lib/caja';
 import { FullscreenButton } from './ui/FullscreenButton';
 import { CourtCard, type CourtCardProps, type CourtSeat } from './mostrador/CourtCard';
+import { LlenarHueco } from './mostrador/LlenarHueco';
 import { AgendaList, DayTabs, DayTimeline, type AgendaItem } from './mostrador/AgendaList';
 
 interface StaffCounterViewProps {
@@ -702,7 +703,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         </>
       )}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className={`min-w-0 space-y-3 ${canchasView ? 'md:hidden' : ''}`}>
           {/* Días y filtro */}
           <div className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-3 xl:flex-row xl:items-center xl:justify-between">
@@ -1008,6 +1009,8 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
           setBusy={setBusy}
           onToast={onToast}
           onClose={() => setNewTarget(null)}
+          fillSearches={fillSearches}
+          proposedMatches={proposedMatches}
         />
       )}
     </div>
@@ -1427,9 +1430,14 @@ const NewBookingModal: React.FC<{
   onToast: (msg: string) => void;
   onClose: () => void;
   memberships: ClubMembership[];
-}> = ({ club, courts, slots, date, dateLabel, initial, isTaken, userProfile, busy, setBusy, onToast, onClose, memberships }) => {
+  fillSearches: FillSearch[];
+  proposedMatches: ProposedMatch[];
+}> = ({ club, courts, slots, date, dateLabel, initial, isTaken, userProfile, busy, setBusy, onToast, onClose, memberships, fillSearches, proposedMatches }) => {
   const [courtId, setCourtId] = useState(initial.courtId);
   const [startMinute, setStartMinute] = useState(initial.startMinute);
+  // Turno con tiempo para avisar (más de 1 h): primero se ofrece llenarlo con la app.
+  const leadMin = (new Date(`${date}T00:00:00`).getTime() + initial.startMinute * 60000 - Date.now()) / 60000;
+  const [mode, setMode] = useState<'app' | 'mano'>(leadMin >= 60 ? 'app' : 'mano');
   const [client, setClient] = useState<ClubClient | null>(null);
   const [byPhone, setByPhone] = useState(true);
   const [paidNow, setPaidNow] = useState(false);
@@ -1470,14 +1478,45 @@ const NewBookingModal: React.FC<{
       <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-t-3xl border border-line bg-white p-6 shadow-2xl sm:rounded-2xl">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Nueva reserva</p>
-            <h3 className="mt-1 font-display text-lg font-bold text-ink">Por teléfono o en el mostrador</h3>
+            <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Turno libre</p>
+            <h3 className="mt-1 font-display text-lg font-bold text-ink">{mode === 'app' ? 'Llenalo con la app' : 'Por teléfono o en el mostrador'}</h3>
             <p className="mt-0.5 text-[13px] text-muted first-letter:uppercase">{dateLabel}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Cerrar" className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-mist cursor-pointer">
             <X className="h-4 w-4" />
           </button>
         </div>
+        <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-mist p-1" role="tablist">
+          {(['app', 'mano'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => setMode(m)}
+              className={`h-9 cursor-pointer rounded-lg text-sm font-semibold ${mode === m ? 'bg-white text-ink shadow-sm' : 'text-muted'}`}
+            >
+              {m === 'app' ? 'Llenar con la app' : 'Reservar a mano'}
+            </button>
+          ))}
+        </div>
+        {mode === 'app' && court && slot ? (
+          <div className="mt-4">
+            <LlenarHueco
+              club={club}
+              court={court}
+              date={date}
+              startMinute={slot.startMinute}
+              endMinute={slot.endMinute}
+              fillSearches={fillSearches}
+              proposedMatches={proposedMatches}
+              memberships={memberships}
+              onToast={onToast}
+              onClose={onClose}
+            />
+          </div>
+        ) : (
+        <>
 
         <div className="mt-4 grid grid-cols-2 gap-3">
           <label className="block text-xs font-semibold text-ink">
@@ -1553,6 +1592,8 @@ const NewBookingModal: React.FC<{
             {busy ? 'Guardando…' : 'Confirmar reserva'}
           </button>
         </div>
+        </>
+        )}
       </form>
     </div>
   );

@@ -194,7 +194,12 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
   const genOf = (uid: string) => people.find((p) => p.uid === uid)?.gender ?? 'masculino';
 
   people.forEach((p, i) => {
-    const weekly = i % 2 === 0 ? avail([2, 4], T(19), T(23)) : avail([1, 3, 6], T(18), T(22));
+    // Noches (como antes) más una franja de día, para que "Llenar con la app" tenga a quién avisar a cualquier hora de la demo.
+    const ALL = [0, 1, 2, 3, 4, 5, 6];
+    const weekly = [
+      ...(i % 2 === 0 ? avail([2, 4], T(19), T(23)) : avail([1, 3, 6], T(18), T(22))),
+      ...avail(ALL, T(8), T(18)),
+    ];
     const profile: UserProfile = {
       uid: p.uid,
       displayName: p.name,

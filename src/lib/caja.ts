@@ -257,7 +257,7 @@ export function computeMonthlyReport(params: {
   const sumOf = (kind: Recovery['kind']) => {
     const list = counted.filter((r) => r.kind === kind);
     // El servidor escribe un registro por lugar: un partido completado cuenta una vez por turno
-    const count = kind === 'match_completed' ? new Set(list.map((r) => r.bookingId)).size : list.length;
+    const count = kind === 'match_completed' || kind === 'slot_filled' ? new Set(list.map((r) => r.bookingId)).size : list.length;
     return { count, amount: list.reduce((a, r) => a + r.amountRecovered, 0), seats: list.reduce((a, r) => a + (r.seatsFilled || 0), 0) };
   };
   const slots = sumOf('slot_filled');

@@ -2258,6 +2258,27 @@ export async function claimFillSeatByLink(clubId: string, searchId: string): Pro
   }
 }
 
+/** Llenar un turno libre con un toque (Mostrador, 16/11). */
+export interface FreeSlotPreview {
+  free: boolean;
+  reason: '' | 'taken' | 'too_late' | 'quiet';
+  price: number;
+  options: { modality: Modality; count: number; minCategory: number; maxCategory: number }[];
+  suggested: Modality;
+}
+
+export async function freeSlotPreview(p: { clubId: string; courtId: string; date: string; startMinute: number }) {
+  return (await httpsCallable<Record<string, unknown>, FreeSlotPreview>(functions, 'huecoVistaPrevia')(p)).data;
+}
+
+export async function openFreeSlot(p: { clubId: string; courtId: string; date: string; startMinute: number; modality: Modality; discountPct: number }) {
+  return (await httpsCallable<Record<string, unknown>, { searchId: string; matchId: string; invited: number }>(functions, 'huecoLlenar')(p)).data;
+}
+
+export async function simulateFreeSlotAnswers(p: { clubId: string; searchId: string; n: number }) {
+  return (await httpsCallable<Record<string, unknown>, { won: number }>(functions, 'huecoSimular')(p)).data;
+}
+
 export async function declineFillInvite(club: Club, searchId: string) {
   await callArmado('faltaUnoNoPuedo', { clubId: club.id, searchId }, `clubs/${club.id}/fillSearches/${searchId}`);
 }

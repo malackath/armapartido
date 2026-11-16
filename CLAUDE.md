@@ -75,3 +75,4 @@ Cada club tiene su app marca blanca sobre una sola plataforma multi-club. Jugado
 - Informe del mes: renglones informativos `appBookings`, `matchesBuilt`, `viaLink` (no suman al total).
 - Verificar: `node scripts/verify-compartir.cjs <url> <carpeta>` (necesita un partido buscando reemplazo donde esté el jugador de la demo). Pruebas del servidor E7–E9 en `functions/test/faltauno.emulator.mjs`.
 - Para publicar hace falta también `deploy --only functions` (callables nuevas).
+- Llenar un turno libre con un toque (parte 2.1): `functions/src/hueco.ts` (callables `huecoVistaPrevia`, `huecoLlenar`, `huecoSimular` solo demo), FillSearch `kind: 'free_slot'` con ventana de categorías (`bestCategoryWindow`) y descuento opcional 0/10/20/30. Pantalla `src/components/mostrador/LlenarHueco.tsx`, pestaña "Llenar con la app" en la nueva reserva del Mostrador (por defecto si falta más de 1 h). Pruebas H1–H3. Los jugadores de la demo pueden de 8 a 18 todos los días (más sus noches).

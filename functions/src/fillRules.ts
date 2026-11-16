@@ -174,6 +174,7 @@ export function rankCandidates(p: {
     if (m.role !== 'player' && m.role !== 'admin' && m.role !== 'staff') continue;
     if (exclude.has(m.uid) || busy.has(m.uid) || m.blocked) continue;
     if (!genderFits(search.modality, search.genderNeeded, m.gender)) continue;
+    if (search.minCategory && (m.category < search.minCategory || m.category > (search.maxCategory ?? search.minCategory))) continue;
     const prefs = p.prefsByUid.get(m.uid) ?? prefsOf(undefined);
     if (!categoryFits(m.category, prefs.maxCategoryGap, clubGap, current)) continue;
     const hasRequest = withRequest.has(m.uid);
@@ -204,4 +205,16 @@ export function rankCandidates(p: {
       a.tiebreak - b.tiebreak
   );
   return out;
+}
+
+/** Mejor ventana de categorías para un turno libre: la de ancho `gap` con más jugadores. */
+export function bestCategoryWindow(cats: number[], gap: number, maxCategory = 7): { min: number; max: number; count: number } {
+  let best = { min: 5, max: Math.min(maxCategory, 5 + gap), count: 0 };
+  for (let lo = 1; lo <= maxCategory; lo++) {
+    const hi = Math.min(maxCategory, lo + gap);
+    const count = cats.filter((c) => c >= lo && c <= hi).length;
+    if (count > best.count) best = { min: lo, max: hi, count };
+    if (hi === maxCategory) break;
+  }
+  return best;
 }

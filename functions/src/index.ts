@@ -10,6 +10,7 @@ import { db, isFakePlayer, makeId, now } from './admin';
 import { respondToMatch, sweepClub } from './engine';
 import { runClock } from './clock';
 import { notify } from './notify';
+import { openFreeSlot, previewFreeSlot, simulateAnswers } from './hueco';
 import { chooseUnfilled, claimFromLink, claimSeat, declineInvite, dropFromMatch, publicFillLink, stopSearch } from './fill';
 import type { FillChoice } from '../../src/types/padel';
 
@@ -210,6 +211,51 @@ export const faltaUnoSumarmePorLink = onCall(async (req) => {
   const clubId = str(d.clubId);
   await requireMember(clubId, uid);
   return { result: await claimFromLink({ clubId, searchId: str(d.searchId), uid }) };
+});
+
+// -----------------------------------------------------------------------------
+// Llenar un turno libre con un toque (Mostrador, 16/11)
+// -----------------------------------------------------------------------------
+
+async function requireStaff(clubId: string, uid: string) {
+  const member = await requireMember(clubId, uid);
+  const role = member.get('role');
+  if (role !== 'admin' && role !== 'staff') throw new HttpsError('permission-denied', 'Solo el mostrador o el administrador.');
+}
+
+function slotArgs(d: Record<string, unknown>) {
+  const date = str(d.date, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpsError('invalid-argument', 'Fecha inválida.');
+  const courtId = str(d.courtId);
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(courtId)) throw new HttpsError('invalid-argument', 'Cancha inválida.');
+  return { clubId: str(d.clubId), courtId, date, startMinute: int(d.startMinute, 0, 24 * 60 - 1, 'hora') };
+}
+
+/** Cuántos pueden a esa hora, por modalidad, para mostrar antes de tocar "Llenar con la app". */
+export const huecoVistaPrevia = onCall(async (req) => {
+  const uid = requireUid(req);
+  const a = slotArgs((req.data ?? {}) as Record<string, unknown>);
+  await requireStaff(a.clubId, uid);
+  return previewFreeSlot(a);
+});
+
+export const huecoLlenar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const a = slotArgs(d);
+  await requireStaff(a.clubId, uid);
+  const modality = str(d.modality) as Modality;
+  if (!MODALITIES.includes(modality)) throw new HttpsError('invalid-argument', 'Modalidad inválida.');
+  return openFreeSlot({ ...a, modality, discountPct: int(d.discountPct ?? 0, 0, 30, 'descuento'), staffUid: uid });
+});
+
+/** Solo para la demo de venta: los jugadores ficticios invitados contestan. */
+export const huecoSimular = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireStaff(clubId, uid);
+  return { won: await simulateAnswers({ clubId, searchId: str(d.searchId), n: int(d.n ?? 1, 1, 4, 'cantidad') }) };
 });
 
 /** "No puedo" en una invitación. */

@@ -412,7 +412,8 @@ export interface AlertPrefs {
 
 export const DEFAULT_ALERT_PREFS: AlertPrefs = { weeklyInvites: 3, maxCategoryGap: 1 };
 
-export type FillSearchKind = 'player_dropped' | 'declined' | 'no_answer';
+/** free_slot: turno libre que el mostrador manda a llenar con un toque (16/11). */
+export type FillSearchKind = 'player_dropped' | 'declined' | 'no_answer' | 'free_slot';
 export type FillSearchStatus = 'searching' | 'filled' | 'unfilled' | 'cancelled';
 export type FillChoice = 'keep_searching' | 'play_as_three' | 'cancel';
 
@@ -445,6 +446,11 @@ export interface FillSearch {
   extended: boolean;
   pricePerPlayer: number;
   openedAt: string;
+  /** Turno libre: categorías que se invitan (sin jugadores todavía no hay de dónde sacarlas). */
+  minCategory?: number;
+  maxCategory?: number;
+  /** Turno libre: descuento que puso el mostrador (0, 10, 20 o 30). */
+  discountPct?: number;
   createdAt?: unknown;
   updatedAt?: unknown;
 }

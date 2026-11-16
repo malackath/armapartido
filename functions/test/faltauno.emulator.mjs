@@ -271,5 +271,46 @@ await step('E9. Por el link entra el primero que confirma, sin gastar su tope de
   assert.equal((await mostrador.call('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: linkSearch.id })).result, 'late');
 });
 
+// ---------- llenar un turno libre con un toque (16/11) ----------
+let hueco = null;
+await step('H1. Vista previa del hueco: está libre, cuenta por modalidad y sugiere una', async () => {
+  await reset();
+  const mem = await club.collection('memberships').get();
+  for (const d of mem.docs) await d.ref.update({ weeklyAvailability: av });
+  const pv = await mostrador.call('huecoVistaPrevia', { clubId: CLUB, courtId: 'cancha_1', date: D, startMinute: T });
+  assert.equal(pv.free, true); assert.equal(pv.options.length, 3);
+  assert.ok(pv.options.every((o) => o.maxCategory - o.minCategory <= 1), JSON.stringify(pv.options));
+  assert.ok(pv.options.find((o) => o.modality === 'mixto').count >= pv.options.find((o) => o.modality === 'masculino').count);
+  await assert.rejects(jugador.call('huecoVistaPrevia', { clubId: CLUB, courtId: 'cancha_1', date: D, startMinute: T }));
+});
+await step('H2. "Llenar con la app": retiene la cancha, abre el partido vacío y avisa solo a los de la ventana de categorías', async () => {
+  hueco = await mostrador.call('huecoLlenar', { clubId: CLUB, courtId: 'cancha_1', date: D, startMinute: T, modality: 'mixto', discountPct: 20 });
+  assert.ok(hueco.invited > 0, 'no avisó a nadie');
+  const s = (await club.collection('fillSearches').doc(hueco.searchId).get()).data();
+  assert.equal(s.kind, 'free_slot'); assert.equal(s.seatsNeeded, 4); assert.equal(s.discountPct, 20);
+  const bk = (await club.collection('bookings').doc(s.bookingId).get()).data();
+  assert.equal(bk.status, 'held'); assert.equal(bk.type, 'matched');
+  const mem = new Map((await club.collection('memberships').get()).docs.map((d) => [d.id, d.data()]));
+  for (const u of s.invitedUids) { const c = mem.get(u).category; assert.ok(c >= s.minCategory && c <= s.maxCategory, `${u} es ${c}`); }
+  await assert.rejects(mostrador.call('huecoLlenar', { clubId: CLUB, courtId: 'cancha_1', date: D, startMinute: T, modality: 'mixto', discountPct: 0 }));
+});
+await step('H3. Contestan 4: el partido y la reserva quedan confirmados y el informe lo cuenta como turno libre que se llenó', async () => {
+  const s0 = (await club.collection('fillSearches').doc(hueco.searchId).get()).data();
+  const fakes = s0.invitedUids.filter((u) => u.startsWith('demo-'));
+  if (fakes.length < 4) { results.push(`     (H3 con ${fakes.length} jugadores de la demo invitados: simulo los que hay)`); }
+  const r = await mostrador.call('huecoSimular', { clubId: CLUB, searchId: hueco.searchId, n: 4 });
+  assert.equal(r.won, Math.min(4, fakes.length));
+  if (fakes.length < 4) return;
+  const s = (await club.collection('fillSearches').doc(hueco.searchId).get()).data();
+  assert.equal(s.status, 'filled');
+  const m = (await club.collection('proposedMatches').doc(hueco.matchId).get()).data();
+  assert.equal(m.status, 'confirmed'); assert.equal(m.slots.length, 4);
+  const bk = (await club.collection('bookings').doc(s.bookingId).get()).data();
+  assert.equal(bk.status, 'confirmed'); assert.equal(bk.playerUids.length, 4);
+  const rec = (await club.collection('recoveries').where('searchId', '==', hueco.searchId).get()).docs.map((d) => d.data());
+  assert.equal(rec.length, 4); assert.ok(rec.every((x) => x.kind === 'slot_filled'));
+  assert.equal(rec.reduce((a, x) => a + x.amountRecovered, 0), s.pricePerPlayer * 4);
+});
+
 console.log('\n' + results.join('\n'));
 process.exit(results.some((r) => r.startsWith('FALLA')) ? 1 : 0);

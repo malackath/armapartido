@@ -315,7 +315,9 @@ export async function runWave(clubId: string, searchId: string, nowDate = new Da
     category: sl.category,
     gap: prefsByUid.get(sl.uid)?.maxCategoryGap ?? 1,
   }));
-  const target = Math.round(current.reduce((a, c) => a + c.category, 0) / Math.max(1, current.length));
+  const target = current.length
+    ? Math.round(current.reduce((a, c) => a + c.category, 0) / current.length)
+    : Math.round(((s.minCategory ?? 5) + (s.maxCategory ?? s.minCategory ?? 5)) / 2);
   const ranked = rankCandidates({
     search: s,
     clubGap: club.fillMaxGap ?? 1,
@@ -372,8 +374,12 @@ export async function runWave(clubId: string, searchId: string, nowDate = new Da
       clubId,
       recipientUid: c.uid,
       eventType: 'fill_invite',
-      title: `Falta ${seatsLeft === 1 ? 'uno' : seatsLeft} · ${when(s.date, s.startMinute)}`,
-      body: `Partido de ${catLabel} en ${name}, ${s.courtName}. ¿Te sumás? Tu parte: $${s.pricePerPlayer}.`,
+      title: s.kind === 'free_slot' && seatsLeft >= 3
+        ? `Cancha libre · ${when(s.date, s.startMinute)}`
+        : `Falta ${seatsLeft === 1 ? 'uno' : seatsLeft} · ${when(s.date, s.startMinute)}`,
+      body: s.kind === 'free_slot'
+        ? `Partido de ${catLabel} en ${name}, ${s.courtName}. Faltan ${seatsLeft}. ¿Te sumás? Tu parte: $${s.pricePerPlayer}${s.discountPct ? ` (${s.discountPct} % menos)` : ''}.`
+        : `Partido de ${catLabel} en ${name}, ${s.courtName}. ¿Te sumás? Tu parte: $${s.pricePerPlayer}.`,
     });
   }
   return wave.length;
@@ -464,7 +470,7 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
       startMinute: s.startMinute,
       endMinute: s.endMinute,
       sport: 'padel',
-      kind: s.kind === 'player_dropped' ? 'player_replaced' : 'match_completed',
+      kind: s.kind === 'player_dropped' ? 'player_replaced' : s.kind === 'free_slot' ? 'slot_filled' : 'match_completed',
       freeSince: s.openedAt,
       searchId: p.searchId,
       alertSentAt: inv.sentAt,
