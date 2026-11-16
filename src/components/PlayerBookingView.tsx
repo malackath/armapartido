@@ -494,7 +494,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
-                      Estado: <strong className={bk.status === 'held' ? 'text-amber-700' : 'text-emerald-700'}>
+                      Estado: <strong className={bk.status === 'held' ? 'text-wait' : 'text-emerald-700'}>
                         {bk.status === 'held' ? 'Cancha retenida (partido pendiente)' : bk.status === 'no_show' ? 'Ausencia registrada' : 'Confirmada'}
                       </strong>
                       <span className="mx-1.5" aria-hidden="true">·</span>
@@ -726,7 +726,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
                 </span>
               </div>
               {slotDeposit > 0 ? (
-                <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <p className="mt-2 rounded-lg bg-wait-bg px-3 py-2 text-xs text-wait">
                   Este horario pide una <b>seña de {formatUYU(slotDeposit)}</b> por Mercado Pago. Se descuenta de tu parte. Tenés {club.deposit?.holdMinutes ?? 15} minutos para pagarla. Si cancelás con {club.cancellationHours} h de anticipación se te devuelve; si no venís, queda para el club.
                 </p>
               ) : (

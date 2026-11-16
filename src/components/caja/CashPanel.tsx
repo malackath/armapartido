@@ -143,6 +143,7 @@ const CajaTab: React.FC<{
   bookings: Booking[];
   matches: ProposedMatch[];
 }> = ({ club, day, summary, debtsToday, staff, today, busy, run, bookings, matches }) => {
+  const appPaidToday = bookings.filter((b) => b.date === today && b.status === 'confirmed' && b.paymentMethod === 'mercadopago').reduce((a, b) => a + (b.paidAmount ?? 0), 0);
   const [float, setFloat] = useState('2000');
   const [counted, setCounted] = useState('');
   const [note, setNote] = useState('');
@@ -209,9 +210,14 @@ const CajaTab: React.FC<{
         <Row label="Total del día" value={formatUYU(summary.total)} strong />
         <Row label="De eso, cantina" value={formatUYU(summary.cantina)} />
       </div>
+      {appPaidToday > 0 && (
+        <p className="rounded-xl bg-mist px-3 py-2 text-[12.5px] text-muted">
+          Además, los turnos de hoy ya pagados en la app con Mercado Pago suman <b className="text-ink">{formatUYU(appPaidToday)}</b>. Esa plata entró el día que reservaron, por eso no está en la caja de hoy.
+        </p>
+      )}
 
       {owed > 0 && (
-        <p className="rounded-xl border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
+        <p className="rounded-xl border-l-4 border-[#f97316] bg-wait-bg px-3 py-2 text-[13px] text-wait">
           Quedó sin cobrar hoy: {formatUYU(owed)} ({debtsToday.length} {debtsToday.length === 1 ? 'persona' : 'personas'}). Está en "Deben".
         </p>
       )}
@@ -291,7 +297,7 @@ const CajaTab: React.FC<{
                 <span className={`min-w-0 truncate ${p.voided ? 'text-muted line-through' : 'text-ink'}`}>
                   <span className="tabular-nums text-muted">{timeOf(p)}</span> {p.payerName} · {KIND_LABEL[p.kind]}
                   {p.kind !== 'retiro' && <span className="text-muted"> · {methodName(p.method)}</span>}
-                  {p.afterClose && <span className="ml-1 text-[11px] font-semibold text-amber-700">después del cierre</span>}
+                  {p.afterClose && <span className="ml-1 text-[11px] font-semibold text-wait">después del cierre</span>}
                 </span>
                 <span className={`shrink-0 font-semibold tabular-nums ${p.kind === 'retiro' || p.amount < 0 ? 'text-red-700' : 'text-ink'}`}>
                   {p.kind === 'retiro' ? `− ${formatUYU(p.amount)}` : formatUYU(p.amount)}
@@ -371,7 +377,7 @@ const DebenTab: React.FC<{
                   {d.saleIds.length > 0 && ` · ${d.saleIds.length} a cuenta`}
                 </span>
               </span>
-              <span className="shrink-0 font-display text-[16px] font-bold tabular-nums text-amber-700">{formatUYU(d.amount)}</span>
+              <span className="shrink-0 font-display text-[16px] font-bold tabular-nums text-wait">{formatUYU(d.amount)}</span>
             </button>
             {open === d.key && (
               <div className="mt-2 space-y-2">

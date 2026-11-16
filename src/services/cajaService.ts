@@ -46,13 +46,15 @@ export interface OpsCallbacks {
 }
 
 /** Para el Mostrador y el Admin (encargados y dueño). */
-export function subscribeClubOps(clubId: string, cb: OpsCallbacks): Unsubscribe[] {
+export function subscribeClubOps(clubId: string, cb: OpsCallbacks, cantinaOnly = false): Unsubscribe[] {
   const subs: Unsubscribe[] = [];
   const watch = <T,>(name: string, fn?: (v: T[]) => void) => {
     if (!fn) return;
+    // La cantina solo puede leer los cobros de cantina y ventas sueltas (reglas: isClubCantina).
+    const extra = cantinaOnly && name === 'payments' ? [where('kind', 'in', ['cantina', 'venta'])] : [];
     subs.push(
       onSnapshot(
-        query(col(clubId, name), where('clubId', '==', clubId)),
+        query(col(clubId, name), where('clubId', '==', clubId), ...extra),
         (snap) => fn(snap.docs.map((d) => d.data() as T)),
         (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/${name}`)
       )

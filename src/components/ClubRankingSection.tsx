@@ -252,7 +252,7 @@ export const ClubRankingSection: React.FC<ClubRankingSectionProps> = ({
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
           <p className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-            <Medal className="h-3.5 w-3.5 text-amber-600" />
+            <Medal className="h-3.5 w-3.5 text-[#f59e0b]" />
             Líder del club
           </p>
           <p className="mt-1 truncate font-display text-base font-bold text-slate-900">
@@ -353,11 +353,11 @@ export const ClubRankingSection: React.FC<ClubRankingSectionProps> = ({
                 const isMe = row.uid === userProfile.uid;
                 const rankAccent =
                   row.rank === 1 && row.points > 0
-                    ? 'text-amber-700 font-bold'
+                    ? 'text-wait font-bold'
                     : row.rank === 2 && row.points > 0
                       ? 'text-slate-700 font-bold'
                       : row.rank === 3 && row.points > 0
-                        ? 'text-amber-800 font-bold'
+                        ? 'text-wait font-bold'
                         : 'text-slate-500 font-medium';
 
                 return (

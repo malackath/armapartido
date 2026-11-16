@@ -5,7 +5,8 @@ import { BrandIcon } from '../BrandIcon';
 import { CategoryBadge, PlayerAvatar } from '../ui/People';
 
 // Cancha dibujada vista desde arriba para el Mostrador (variante B aprobada por Ber, 16/11/2026):
-// jugadores en su lugar, punto verde si pagó y rojo si debe, cronómetro y cuánto falta.
+// jugadores en su lugar, marca verde si pagó y roja si debe, cronómetro y cuánto falta.
+// 16/11 (pedido de Ber): cancha con proporción fija 2:1 para que no se aplaste ni tape la hora, barra naranja (nunca marrón) al final.
 
 export type CourtLiveState = 'live' | 'due' | 'soon' | 'fu' | 'free' | 'ended';
 
@@ -101,35 +102,33 @@ function useSecondClock(active: boolean) {
 }
 
 const POS: [number, number][] = [
-  [24, 28],
-  [24, 72],
-  [76, 28],
-  [76, 72],
+  [27, 25],
+  [27, 75],
+  [73, 25],
+  [73, 75],
 ];
 
+// Color de la cancha según el material (Ber, 16/11/2026): azul = de vidrio, verde = de hormigón.
+// El techo se ve solo en el ícono del encabezado. Estos colores no se mezclan con los de estado.
+export const COURT_SURFACE = { cristal: '#2a6496', muro: '#3b7a5c' } as const;
+
 export const CourtDrawing: React.FC<{ court: Court; dim?: boolean; children?: React.ReactNode }> = ({ court, dim, children }) => {
-  const roofed = court.roof === 'techada';
   const glass = court.surface === 'cristal';
-  const surface = roofed ? '#16707a' : '#2c8460';
-  const wall = glass ? '#b9f6fb' : '#4c5d60';
+  const surface = glass ? COURT_SURFACE.cristal : COURT_SURFACE.muro;
+  const wall = glass ? '#cdeefc' : '#8a979a';
   return (
-    <div className="relative min-h-[120px] flex-1">
+    <div className="relative aspect-[2/1] w-full">
       <svg viewBox="0 0 200 100" preserveAspectRatio="none" aria-hidden="true" className="absolute inset-0 h-full w-full">
         <rect x="0" y="0" width="200" height="100" rx="4" fill={surface} />
-        <g stroke="#fff" strokeOpacity={0.8} strokeWidth={0.8} fill="none" vectorEffect="non-scaling-stroke">
+        <g stroke="#fff" strokeOpacity={0.55} strokeWidth={0.8} fill="none">
           <line x1="30.5" y1="3" x2="30.5" y2="97" vectorEffect="non-scaling-stroke" />
           <line x1="169.5" y1="3" x2="169.5" y2="97" vectorEffect="non-scaling-stroke" />
           <line x1="30.5" y1="50" x2="169.5" y2="50" vectorEffect="non-scaling-stroke" />
         </g>
-        <line x1="100" y1="1" x2="100" y2="99" stroke="#002020" strokeOpacity={0.35} strokeWidth={3.2} vectorEffect="non-scaling-stroke" />
-        <line x1="100" y1="1" x2="100" y2="99" stroke="#fff" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
+        <line x1="100" y1="1" x2="100" y2="99" stroke="#fff" strokeOpacity={0.9} strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
         <g stroke={wall} strokeWidth={glass ? 3 : 4} fill="none" strokeLinecap="square">
           <path d="M20 1.5 H1.5 V98.5 H20" vectorEffect="non-scaling-stroke" />
           <path d="M180 1.5 H198.5 V98.5 H180" vectorEffect="non-scaling-stroke" />
-        </g>
-        <g stroke="#fff" strokeOpacity={0.45} strokeWidth={1} strokeDasharray="2 3">
-          <line x1="22" y1="1.5" x2="178" y2="1.5" vectorEffect="non-scaling-stroke" />
-          <line x1="22" y1="98.5" x2="178" y2="98.5" vectorEffect="non-scaling-stroke" />
         </g>
         {dim && <rect x="0" y="0" width="200" height="100" rx="4" fill="#002020" fillOpacity={0.35} />}
       </svg>
@@ -168,7 +167,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({ court, state, title, start
         </span>
       </div>
 
-      <div className="mx-3 mt-2.5 flex min-h-0 flex-1">
+      <div className="mx-3 mt-3 shrink-0">
         <CourtDrawing court={court} dim={state === 'free'}>
           {state === 'free' ? (
             <span className="absolute inset-0 grid place-items-center font-display text-base font-bold text-white">+ Cargar reserva</span>
@@ -176,20 +175,23 @@ export const CourtCard: React.FC<CourtCardProps> = ({ court, state, title, start
             seats.slice(0, 4).map((s, i) => {
               const [x, y] = POS[i];
               return (
-                <span key={i} className={`absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5 ${ghost ? 'opacity-60' : ''}`} style={{ left: `${x}%`, top: `${y}%` }}>
+                <span key={i} className={`absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 ${ghost ? 'opacity-60' : ''} ${x > 50 ? 'flex-row-reverse' : ''}`} style={{ left: `${x}%`, top: `${y}%` }}>
                   {s.empty ? (
-                    <span className="grid h-11 w-11 place-items-center rounded-xl border-2 border-dashed border-fu-fill text-xl font-bold text-fu-fill">+</span>
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border-2 border-dashed border-fu-fill text-lg font-bold text-fu-fill">+</span>
                   ) : (
-                    <span className="relative">
-                      <PlayerAvatar name={s.name} photoUrl={s.photoUrl} size={44} />
+                    <span className="relative shrink-0">
+                      <PlayerAvatar name={s.name} photoUrl={s.photoUrl} size={36} />
                       {!ghost && (s.pay === 'paid' || s.pay === 'due' || s.pay === 'cup') && (
                         <span
-                          className={`absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-white ${s.pay === 'due' ? 'bg-due' : s.pay === 'cup' ? 'bg-[#2f62b8]' : 'bg-[#3aa35f]'}`}
-                        />
+                          title={s.pay === 'due' ? 'Debe' : s.pay === 'cup' ? 'Cuponera' : 'Pagó'}
+                          className={`absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full text-[10px] leading-none font-black text-white ring-2 ring-white ${s.pay === 'due' ? 'bg-due' : s.pay === 'cup' ? 'bg-[#2f62b8]' : 'bg-[#16a34a]'}`}
+                        >
+                          {s.pay === 'due' ? '$' : s.pay === 'cup' ? 'C' : '✓'}
+                        </span>
                       )}
                     </span>
                   )}
-                  <span className="hidden max-w-[110px] truncate rounded-full bg-[#002020]/55 px-1.5 text-[11px] font-semibold text-white xl:block">
+                  <span className="hidden max-w-[84px] truncate rounded-full bg-[#002020]/60 px-1.5 py-px text-[11px] font-semibold text-white 2xl:block">
                     {s.empty ? 'Falta uno' : (s.name ?? 'Acompañante').split(' ')[0]}
                   </span>
                 </span>
@@ -199,22 +201,20 @@ export const CourtCard: React.FC<CourtCardProps> = ({ court, state, title, start
         </CourtDrawing>
       </div>
 
-      <div className="flex items-end gap-2.5 px-3 pt-2.5">
+      <div className="flex items-center gap-3 px-3 pt-3">
         {isLive ? (
           <>
-            <span className="font-display text-[2.1rem] leading-[.95] font-bold tracking-tight tabular-nums">
+            <span className="font-display text-[1.9rem] leading-none font-bold tracking-tight tabular-nums">
               {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
             </span>
-            <span className="text-[13px] leading-tight text-muted">
-              jugando de {Math.round(total / 60)} min
-              <br />
-              <b className="text-ink">{left < 60 ? 'Terminando' : `faltan ${Math.ceil(left / 60)} min`}</b>
-              {startMinute != null && endMinute != null && ` · ${formatMinutes(startMinute)} a ${formatMinutes(endMinute)}`}
+            <span className="min-w-0 text-[13px] leading-snug text-muted">
+              <b className="block text-ink">{left < 60 ? 'Terminando' : `faltan ${Math.ceil(left / 60)} min`}</b>
+              {startMinute != null && endMinute != null ? `${formatMinutes(startMinute)} a ${formatMinutes(endMinute)}` : `de ${Math.round(total / 60)} min`}
             </span>
           </>
         ) : state === 'free' ? (
           <>
-            <span className="font-display text-[2.1rem] leading-[.95] font-bold text-muted">Libre</span>
+            <span className="font-display text-[1.9rem] leading-none font-bold text-muted">Libre</span>
             <span className="text-[13px] leading-tight text-muted">
               {freeUntil != null ? (
                 <>
@@ -229,7 +229,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({ court, state, title, start
           </>
         ) : (
           <>
-            <span className="font-display text-[2.1rem] leading-[.95] font-bold tabular-nums">
+            <span className="font-display text-[1.9rem] leading-none font-bold tabular-nums">
               {formatMinutes(state === 'ended' ? endMinute ?? 0 : startMinute ?? 0)}
             </span>
             <span className="text-[13px] leading-tight text-muted">
@@ -242,12 +242,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({ court, state, title, start
           </>
         )}
       </div>
-      <div className="mx-3 mt-1.5 h-1.5 overflow-hidden rounded-full bg-mist">
-        <i className={`block h-full rounded-full ${left <= 600 ? 'bg-wait' : 'bg-emerald-600'}`} style={{ width: `${isLive ? pct : 0}%` }} />
+      <div className="mx-3 mt-2 h-2 overflow-hidden rounded-full bg-mist">
+        <i className={`block h-full rounded-full ${left <= 600 ? 'bg-[#f97316]' : 'bg-emerald-600'}`} style={{ width: `${isLive ? pct : 0}%` }} />
       </div>
 
       {state !== 'free' && (
-        <ul className="mt-2 grid gap-0.5 px-3">
+        <ul className="mt-3 grid gap-1 px-3">
           {seats.map((s, i) => (
             <li key={i} className="flex min-w-0 items-center gap-1.5 text-[14px]">
               {s.category ? <CategoryBadge category={s.category} size={18} showSuffix={false} /> : null}

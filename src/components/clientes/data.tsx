@@ -15,7 +15,7 @@ export interface ClientesData {
 
 const EMPTY: ClientesData = { ready: false, clients: [], packTypes: [], packs: [], sales: [] };
 
-export function useClientesData(clubId: string | undefined): ClientesData {
+export function useClientesData(clubId: string | undefined, cantinaOnly = false): ClientesData {
   const [data, setData] = useState<ClientesData>(EMPTY);
   useEffect(() => {
     if (!clubId) return;
@@ -26,9 +26,9 @@ export function useClientesData(clubId: string | undefined): ClientesData {
       onPackTypes: (v) => set('packTypes')([...v].sort((a, b) => a.order - b.order)),
       onPacks: set('packs'),
       onSales: set('sales'),
-    });
+    }, cantinaOnly);
     return () => subs.forEach((u) => u());
-  }, [clubId]);
+  }, [clubId, cantinaOnly]);
   return data;
 }
 

@@ -113,7 +113,7 @@ test('deben: fiado de días anteriores y canchas pasadas sin cobrar, agrupado po
   assert.equal(d[0].amount, 90 + 2200); // el de hoy (turno no terminado) no entra
 });
 
-const uids: DemoUids = { plataforma: 'u0', dueno: 'u1', mostrador: 'u2', jugador: 'u3', jugadora: 'u4' };
+const uids: DemoUids = { plataforma: 'u0', dueno: 'u1', mostrador: 'u2', cantina: 'u5', jugador: 'u3', jugadora: 'u4' };
 const today = '2026-11-15';
 const world = buildDemoWorld(uids, today);
 const of = <T,>(name: string) => world.filter((d) => d.path.startsWith(`clubs/los_jacarandas/${name}/`)).map((d) => d.data as unknown as T);

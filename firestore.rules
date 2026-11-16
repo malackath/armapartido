@@ -81,6 +81,20 @@ service cloud.firestore {
       );
     }
 
+    // Persona de cantina (clubes grandes, 16/11/2026): vende y cobra cantina, sin reservas ni administración.
+    function isClubCantina(clubId) {
+      return isEmailVerified() && (
+        isClubStaffOrAdmin(clubId) ||
+        (membershipExists(clubId, request.auth.uid) && getMembership(clubId, request.auth.uid).role == 'cantina')
+      );
+    }
+
+    // Cobro que puede hacer la cantina: solo cantina, alquiler u otros (nada de canchas, cuponeras ni saldo).
+    function isCantinaPaymentData(data) {
+      return data.kind in ['cantina', 'venta']
+        && (!('rubro' in data) || data.rubro in ['cantina', 'alquiler', 'otros']);
+    }
+
     function isClubMember(clubId) {
       return isEmailVerified() && (
         isClubStaffOrAdmin(clubId) ||
@@ -217,7 +231,7 @@ service cloud.firestore {
         && data.uid == memberUid && isValidId(data.uid)
         && data.clubId == clubId && isValidId(data.clubId)
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
-        && data.role is string && data.role in ['admin', 'staff', 'player']
+        && data.role is string && data.role in ['admin', 'staff', 'cantina', 'player']
         && data.category is int && data.category >= 1 && data.category <= 8
         && data.gender is string && data.gender in ['masculino', 'femenino']
         && data.preferredModality is string && data.preferredModality in ['masculino', 'femenino', 'mixto']
@@ -791,6 +805,7 @@ service cloud.firestore {
           existing().uid == request.auth.uid ||
           existing().clubOwnerUid == request.auth.uid ||
           isClubStaffOrAdmin(clubId) ||
+          (isClubCantina(clubId) && existing().kind in ['cantina', 'venta']) ||
           isPlatformAdminEmail()
         );
         allow create: if isEmailVerified() && isValidId(clubId) && isValidId(paymentId)
@@ -799,6 +814,7 @@ service cloud.firestore {
           && incoming().createdAt == request.time
           && (
             isClubStaffOrAdmin(clubId) ||
+            (isClubCantina(clubId) && isCantinaPaymentData(incoming())) ||
             (isClubMember(clubId) && incoming().uid == request.auth.uid)
           );
         allow update: if isEmailVerified() && isValidId(clubId) && isValidId(paymentId)
@@ -879,20 +895,24 @@ service cloud.firestore {
           && incoming().price is number && incoming().price >= 0 && incoming().price <= 50000
           && (incoming().stock == null || incoming().stock is int)
           && incoming().active is bool;
+        // La cantina descuenta stock al vender (solo el stock, nada más del producto)
+        allow update: if isValidId(clubId) && isValidId(productId) && isClubCantina(clubId)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['stock', 'updatedAt'])
+          && (incoming().stock == null || incoming().stock is int);
       }
 
       match /consumptions/{consumptionId} {
         allow get: if isSignedIn() && (
           request.auth.uid in existing().participantUids ||
-          isClubStaffOrAdmin(clubId) || isPlatformAdmin()
+          isClubCantina(clubId) || isPlatformAdmin()
         );
         // El jugador lista lo suyo (consulta con array-contains); el mostrador, todo
         allow list: if isSignedIn() && existing().clubId == clubId && (
           request.auth.uid in existing().participantUids ||
-          isClubStaffOrAdmin(clubId) || isPlatformAdmin()
+          isClubCantina(clubId) || isPlatformAdmin()
         );
         allow create, update: if isValidId(clubId) && isValidId(consumptionId)
-          && (isClubStaffOrAdmin(clubId) || isPlatformAdmin())
+          && (isClubCantina(clubId) || isPlatformAdmin())
           && incoming().clubId == clubId && incoming().id == consumptionId
           && incoming().keys().hasOnly(['id', 'clubId', 'productId', 'productName', 'unitPrice', 'qty', 'total', 'bookingId', 'date',
             'shared', 'forUid', 'forName', 'participantUids', 'participantNames', 'paidUids', 'status', 'createdByUid', 'createdAt', 'updatedAt'])
@@ -902,7 +922,7 @@ service cloud.firestore {
       }
 
       match /cashDays/{day} {
-        allow read: if isClubStaffOrAdmin(clubId) || isPlatformAdmin();
+        allow read: if isClubCantina(clubId) || isPlatformAdmin();
         allow create: if (isClubStaffOrAdmin(clubId) || isPlatformAdmin())
           && day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
           && incoming().clubId == clubId && incoming().id == day && incoming().status == 'open';
@@ -961,13 +981,13 @@ service cloud.firestore {
       // El jugador ve solo su propia ficha (la unida a su cuenta) para su saldo a favor.
       match /clients/{clientId} {
         allow get: if isSignedIn() && (
-          isClubStaffOrAdmin(clubId) || isPlatformAdmin() || existing().uid == request.auth.uid
+          isClubCantina(clubId) || isPlatformAdmin() || existing().uid == request.auth.uid
         );
         allow list: if isSignedIn() && (
-          isClubStaffOrAdmin(clubId) || isPlatformAdmin() || existing().uid == request.auth.uid
+          isClubCantina(clubId) || isPlatformAdmin() || existing().uid == request.auth.uid
         );
         allow create, update: if isValidId(clubId) && isValidId(clientId)
-          && (isClubStaffOrAdmin(clubId) || isPlatformAdmin())
+          && (isClubCantina(clubId) || isPlatformAdmin())
           && incoming().clubId == clubId && incoming().id == clientId
           && incoming().keys().hasOnly(['id', 'clubId', 'name', 'phone', 'noPhone', 'email', 'category', 'uid', 'linkedBy', 'linkedAtISO',
             'origin', 'createdByUid', 'createdByName', 'createdOn', 'noticeGiven', 'acceptsNews', 'rut', 'businessName', 'note',
@@ -1005,9 +1025,9 @@ service cloud.firestore {
 
       // Cuponeras vendidas: el jugador ve las suyas (uid de su cuenta)
       match /clientPacks/{packId} {
-        allow get: if isSignedIn() && (isClubStaffOrAdmin(clubId) || isPlatformAdmin() || existing().uid == request.auth.uid);
+        allow get: if isSignedIn() && (isClubCantina(clubId) || isPlatformAdmin() || existing().uid == request.auth.uid);
         allow list: if isSignedIn() && (
-          isClubStaffOrAdmin(clubId) || isPlatformAdmin() || existing().uid == request.auth.uid
+          isClubCantina(clubId) || isPlatformAdmin() || existing().uid == request.auth.uid
         );
         allow create, update: if isValidId(clubId) && isValidId(packId)
           && (isClubStaffOrAdmin(clubId) || isPlatformAdmin())
@@ -1021,16 +1041,19 @@ service cloud.firestore {
 
       // Libro de ventas: lo que se vendió, a quién y de qué rubro. Solo el personal del club.
       match /sales/{saleId} {
-        allow read: if isClubStaffOrAdmin(clubId) || isPlatformAdmin();
+        allow read: if isClubStaffOrAdmin(clubId) || isPlatformAdmin()
+          || (isClubCantina(clubId) && existing().rubro in ['cantina', 'alquiler', 'otros']);
         allow create: if isValidId(clubId) && isValidId(saleId)
-          && (isClubStaffOrAdmin(clubId) || isPlatformAdmin())
+          && (isClubStaffOrAdmin(clubId) || isPlatformAdmin()
+            || (isClubCantina(clubId) && incoming().rubro in ['cantina', 'alquiler', 'otros']))
           && incoming().clubId == clubId && incoming().id == saleId
           && incoming().rubro in ['cancha', 'cantina', 'cuponeras', 'saldo', 'clases', 'torneos', 'alquiler', 'otros']
           && incoming().method in ['efectivo', 'transferencia', 'debito_club', 'mercadopago', 'cuponera', 'saldo', 'cuenta']
           && incoming().amount is number && incoming().amount >= 0 && incoming().amount <= 200000
           && incoming().status == 'vigente';
         // Cobrar lo que quedó a cuenta o anular (nunca se borra)
-        allow update: if (isClubStaffOrAdmin(clubId) || isPlatformAdmin())
+        allow update: if (isClubStaffOrAdmin(clubId) || isPlatformAdmin()
+            || (isClubCantina(clubId) && existing().rubro in ['cantina', 'alquiler', 'otros']))
           && incoming().id == existing().id && incoming().clubId == existing().clubId
           && incoming().amount == existing().amount && incoming().rubro == existing().rubro
           && incoming().diff(existing()).affectedKeys().hasOnly(['paid', 'paymentId', 'status', 'voidReason', 'updatedAt']);

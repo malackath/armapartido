@@ -196,7 +196,7 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
                   ? 'text-emerald-700'
                   : pushState === 'denied'
                     ? 'text-red-700'
-                    : 'text-amber-700'
+                    : 'text-wait'
               }
             >
               {pushState === 'granted'

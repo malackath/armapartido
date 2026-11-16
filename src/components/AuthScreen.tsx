@@ -12,6 +12,7 @@ const DEMO_ROLE_INFO: Record<(typeof DEMO_ACCOUNTS)[number]['key'], { tab: strin
   plataforma: { tab: 'platform', sees: 'todos los clubes y lo que pagan' },
   dueno: { tab: 'admin', sees: 'administración, caja, clientes y números' },
   mostrador: { tab: 'staff', sees: 'canchas en vivo, cobros y venta suelta' },
+  cantina: { tab: 'cantina', sees: 'solo la cantina: vender, cargar a una cancha y su caja' },
   jugador: { tab: 'home', sees: 'reservar, armar partido y torneos' },
   jugadora: { tab: 'home', sees: 'su partido armado y avisos' },
 };

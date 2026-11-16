@@ -44,9 +44,9 @@
   --color-due: #c0362c;
   --color-due-bg: #fdecea;
   --color-due-fill: #f9d3cf;
-  --color-wait: #8a5a00;
-  --color-wait-bg: #fff3d6;
-  --color-wait-fill: #fbe6b5;
+  --color-wait: #c2410c; /* naranja: Ber odia el marrón (16/11/2026) */
+  --color-wait-bg: #ffedd5;
+  --color-wait-fill: #fed7aa;
   --color-fu-fill: #9df3f9;
   --color-busy: #dfe5e5;
   --color-live-fill: #bfd9dc;

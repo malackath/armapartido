@@ -41,13 +41,15 @@ export interface ClientesCallbacks {
 }
 
 /** Para el Mostrador y el Admin (encargados y dueño). */
-export function subscribeClientes(clubId: string, cb: ClientesCallbacks): Unsubscribe[] {
+export function subscribeClientes(clubId: string, cb: ClientesCallbacks, cantinaOnly = false): Unsubscribe[] {
   const subs: Unsubscribe[] = [];
   const watch = <T,>(name: string, fn?: (v: T[]) => void) => {
     if (!fn) return;
+    // La cantina solo ve las ventas de cantina, alquiler y otros (reglas: isClubCantina).
+    const extra = cantinaOnly && name === 'sales' ? [where('rubro', 'in', ['cantina', 'alquiler', 'otros'])] : [];
     subs.push(
       onSnapshot(
-        query(col(clubId, name), where('clubId', '==', clubId)),
+        query(col(clubId, name), where('clubId', '==', clubId), ...extra),
         (snap) => fn(snap.docs.map((d) => d.data() as T)),
         (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/${name}`)
       )

@@ -37,6 +37,7 @@ export const DEMO_ACCOUNTS = [
   { key: 'plataforma', email: `plataforma@${DEMO_EMAIL_DOMAIN}`, name: 'Equipo Armá Partido', label: 'Dueño de la plataforma', category: 4, gender: 'masculino' as Gender },
   { key: 'dueno', email: `dueno@${DEMO_EMAIL_DOMAIN}`, name: 'Sofía Rodríguez', label: 'Dueña del club', category: 3, gender: 'femenino' as Gender },
   { key: 'mostrador', email: `mostrador@${DEMO_EMAIL_DOMAIN}`, name: 'Diego Fernández', label: 'Encargado de mostrador', category: 6, gender: 'masculino' as Gender },
+  { key: 'cantina', email: `cantina@${DEMO_EMAIL_DOMAIN}`, name: 'Romina Ferreira', label: 'Encargada de cantina', category: 7, gender: 'femenino' as Gender },
   { key: 'jugador', email: `jugador@${DEMO_EMAIL_DOMAIN}`, name: 'Martín Silva', label: 'Jugador (5ta)', category: 5, gender: 'masculino' as Gender },
   { key: 'jugadora', email: `jugadora@${DEMO_EMAIL_DOMAIN}`, name: 'Lucía Pérez', label: 'Jugadora (4ta)', category: 4, gender: 'femenino' as Gender },
 ] as const;
@@ -166,6 +167,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
     plataforma: 'player',
     dueno: 'admin',
     mostrador: 'staff',
+    cantina: 'cantina',
     jugador: 'player',
     jugadora: 'player',
   };
@@ -175,7 +177,8 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
   const PHOTO_KEYS = new Set(['jugador', 'jugadora', 'dueno', 'mostrador', ...EXTRA_PLAYERS.map((p) => p.id)]);
   const photoOf = (key: string) => (PHOTO_KEYS.has(key) ? `/img/demo/perfiles/${key}.webp` : '');
   const people: { uid: string; name: string; category: number; gender: Gender; role: ClubRole; modality: Modality; photo: string }[] = [
-    ...DEMO_ACCOUNTS.map((a) => ({
+    // Una cuenta nueva (como cantina) puede no tener uid hasta que se corra el seed: se saltea.
+    ...DEMO_ACCOUNTS.filter((a) => !!uids[a.key]).map((a) => ({
       photo: photoOf(a.key),
       uid: uids[a.key],
       name: a.name,
@@ -635,6 +638,29 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
   if (nowMinute >= club.openHour * 60) {
     const cd: CashDay = { id: today, clubId: C, date: today, openingFloat: 2000, openedByUid: uids.mostrador, openedByName: 'Diego Fernández', status: 'open' };
     put(`${base}/cashDays/${today}`, cd);
+    // Ventas de cantina de hoy (las hizo la encargada de cantina): una cada hora y media desde que abrió.
+    const seller = uids.cantina ? { uid: uids.cantina, name: 'Romina Ferreira' } : { uid: uids.mostrador, name: 'Diego Fernández' };
+    const SALES: [string, number, PaymentRecord['method']][] = [
+      ['Agua 500 ml', 90, 'efectivo'],
+      ['Gatorade', 120, 'debito_club'],
+      ['Cerveza lata ×2', 360, 'efectivo'],
+      ['Tubo de pelotas', 450, 'debito_club'],
+      ['Café ×2', 160, 'efectivo'],
+      ['Agua 500 ml ×4', 360, 'mercadopago'],
+      ['Grip', 250, 'efectivo'],
+      ['Cerveza lata', 180, 'transferencia'],
+      ['Gatorade ×2', 240, 'efectivo'],
+      ['Agua 500 ml', 90, 'efectivo'],
+    ];
+    const n = Math.min(SALES.length, Math.max(0, Math.floor((nowMinute - club.openHour * 60) / 90)));
+    SALES.slice(0, n).forEach(([what, amount, method], i) => {
+      const id = `demo_pay_cant_hoy_${i + 1}`;
+      const rental = false;
+      put(`${base}/payments/${id}`, {
+        id, clubId: C, uid: seller.uid, clubOwnerUid: uids.dueno, payerName: `Venta rápida · ${what}`, referenceId: '', amount, method,
+        kind: rental ? 'venta' : 'cantina', rubro: rental ? 'alquiler' : 'cantina', status: 'completed', day: today, staffName: seller.name,
+      });
+    });
   }
   return docs;
 }

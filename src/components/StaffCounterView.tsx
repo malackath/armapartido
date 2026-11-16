@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, CircleX, Plus, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CircleX, Maximize2, Minimize2, Plus, Trash2, X } from 'lucide-react';
 import type {
   Booking,
   Club,
@@ -306,11 +306,11 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
       }
       if (b.paymentMethod === 'mercadopago') mpPaid += b.paidAmount;
     }
-    const currentSlot = slots.find((s) => minuteNow >= s.startMinute && minuteNow < s.endMinute);
-    const playingNow =
-      selectedDate === today && currentSlot
-        ? activeCourts.filter((c) => findBooking(c.id, currentSlot)).length
-        : 0;
+    // En juego ahora: reservas de hoy que ya empezaron y no terminaron, aunque no caigan justo en la grilla.
+    const liveNow = selectedDate === today ? dayBookings.filter((b) => b.status === 'confirmed' && b.startMinute <= minuteNow && b.endMinute > minuteNow) : [];
+    const playingNow = new Set(liveNow.map((b) => b.courtId)).size;
+    const gridSlot = slots.find((s) => minuteNow >= s.startMinute && minuteNow < s.endMinute);
+    const currentSlot = gridSlot ?? (liveNow.length ? { startMinute: Math.min(...liveNow.map((b) => b.startMinute)), endMinute: Math.max(...liveNow.map((b) => b.endMinute)) } : undefined);
     const nextSlot = slots.find((s) => s.startMinute > minuteNow);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     return { total, used, dueTotal, dueCount, mpPaid, currentSlot, playingNow, nextSlot };
@@ -510,14 +510,15 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         <div>
           <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Mostrador</p>
           <h1 className="mt-1 flex items-baseline gap-3 font-display text-2xl font-bold text-ink sm:text-3xl">
-            Canchas de {canchasView || selectedDate === today ? 'hoy' : 'la fecha'}
+            {selectedDate === today ? 'Canchas de hoy' : `Agenda del ${DAY_LONG[getDayOfWeekFromISO(selectedDate)].toLowerCase()} ${Number(selectedDate.slice(8))}`}
             {canchasView && <span className="hidden font-display text-3xl font-bold text-brand tabular-nums md:inline">{formatMinutes(minuteNow)}</span>}
           </h1>
           <p className="mt-1 text-sm text-muted first-letter:uppercase">
-            {canchasView ? dateLabel : `${dateLabel} · turnos de ${club.slotDurationMinutes || 90} minutos · abierto de ${club.openHour}:00 a ${formatMinutes(club.closeHour * 60)}`}
+            {canchasView ? (selectedDate === today ? dateLabel : `${dateLabel} · arriba siguen las canchas de hoy en vivo`) : `${dateLabel} · turnos de ${club.slotDurationMinutes || 90} minutos · abierto de ${club.openHour}:00 a ${formatMinutes(club.closeHour * 60)}`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <FullscreenButton />
           <div className="hidden rounded-xl bg-mist p-1 md:flex" role="tablist" aria-label="Cómo ver las canchas">
             {(
               [
@@ -547,7 +548,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
           >
             <BrandIcon name="pago-en-club" size={18} /> Caja
             {canchasView && <span className="hidden tabular-nums md:inline">{formatUYU(cashToday.total)}</span>}
-            {debtCount > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">deben {debtCount}</span>}
+            {debtCount > 0 && <span className="rounded-full bg-wait-bg px-2 py-0.5 text-[11px] font-bold text-wait">deben {debtCount}</span>}
           </button>
           <button
             type="button"
@@ -582,7 +583,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
       {ops.ready && selectedDate === today && (!todayCash || lowStock.length > 0) && (
         <div className="flex flex-col gap-2 sm:flex-row">
           {!todayCash && (
-            <button type="button" onClick={() => { setSelectedId(null); setCashOpen('caja'); }} className="flex-1 rounded-xl border-l-4 border-amber-500 bg-amber-50 px-4 py-2.5 text-left text-[13px] text-amber-900 cursor-pointer">
+            <button type="button" onClick={() => { setSelectedId(null); setCashOpen('caja'); }} className="flex-1 rounded-xl border-l-4 border-[#f97316] bg-wait-bg px-4 py-2.5 text-left text-[13px] text-wait cursor-pointer">
               <b>La caja de hoy no está abierta.</b> Tocá acá para abrirla con el fondo.
             </button>
           )}
@@ -633,20 +634,20 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
             {formatUYU(stats.dueTotal)}
             <span className="ml-2 text-xs font-normal text-muted sm:text-sm">{stats.dueCount} {stats.dueCount === 1 ? 'turno' : 'turnos'}</span>
           </p>
-          {stats.mpPaid > 0 && <p className="mt-1.5 hidden text-xs text-muted sm:block">+ {formatUYU(stats.mpPaid)} ya pagado por Mercado Pago</p>}
+          {stats.mpPaid > 0 && <p className="mt-1.5 hidden text-xs text-muted sm:block">+ {formatUYU(stats.mpPaid)} de turnos {selectedDate === today ? "de hoy" : "de ese día"} ya pagados en la app (Mercado Pago)</p>}
         </Kpi>
       </div>
 
       {/* Canchas dibujadas: compu = canchas en fila + línea del día (A); tablet = 2x2 + agenda en lista (B). Ber, 16/11/2026 */}
       {canchasView && activeCourts.length > 0 && (
         <>
-          <div className="hidden flex-col gap-4 xl:flex" style={{ height: 'max(660px, calc(100vh - 250px))' }}>
-            <div className="grid shrink-0 gap-3.5" style={{ gridTemplateColumns: `repeat(${Math.min(activeCourts.length, 4)}, minmax(0,1fr))`, height: 'clamp(320px, 44vh, 460px)' }}>
+          <div className="hidden flex-col gap-4 xl:flex">
+            <div className="grid shrink-0 items-stretch gap-3.5" style={{ gridTemplateColumns: `repeat(${Math.min(activeCourts.length, 4)}, minmax(0,1fr))` }}>
               {courtCards.slice(0, 4).map((c) => (
                 <CourtCard key={c.court.id} {...c} selected={!!c.bookingId && c.bookingId === selectedId} onClick={() => openCourt(c)} />
               ))}
             </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-white">
+            <div className="flex flex-col overflow-hidden rounded-xl bg-white" style={{ height: 'max(420px, calc(100vh - 640px))' }}>
               <DayTabs days={weekTabs} value={weekTabs.some((d) => d.iso === selectedDate) ? selectedDate : today} onChange={(iso) => setSelectedDate(iso)} />
               <DayTimeline
                 courts={activeCourts.map((c) => ({ id: c.id, name: c.name, roofed: c.roof === 'techada' }))}
@@ -663,7 +664,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
             </div>
           </div>
           <div className="hidden gap-4 md:grid md:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] xl:hidden" style={{ height: 'max(640px, calc(100vh - 210px))' }}>
-            <div className="grid min-h-0 grid-cols-2 gap-3.5 overflow-y-auto" style={{ gridAutoRows: activeCourts.length <= 4 ? 'minmax(0,1fr)' : 'minmax(380px,1fr)' }}>
+            <div className="grid min-h-0 grid-cols-2 gap-3.5 overflow-y-auto" style={{ gridAutoRows: 'max-content' }}>
               {courtCards.map((c) => (
                 <CourtCard key={c.court.id} {...c} selected={!!c.bookingId && c.bookingId === selectedId} onClick={() => openCourt(c)} />
               ))}
@@ -1207,7 +1208,7 @@ const ChargePanel: React.FC<ChargePanelProps> = ({ club, booking, info, membersh
         </div>
         <div className="flex items-center gap-2">
           {canCharge && (
-            <span className="whitespace-nowrap rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
+            <span className="whitespace-nowrap rounded-full bg-wait-bg px-2.5 py-0.5 text-[11px] font-semibold text-wait">
               {isMatched ? `Faltan ${match.slots.filter((s) => !s.paid).length}` : 'Por cobrar'}
             </span>
           )}
@@ -1538,5 +1539,32 @@ const NewBookingModal: React.FC<{
         </div>
       </form>
     </div>
+  );
+};
+
+/** Pantalla completa (pedido de Ber, 16/11/2026): el club deja el Mostrador abierto en el monitor. Sale con el mismo botón o con Esc. */
+const FullscreenButton: React.FC = () => {
+  const [on, setOn] = useState(() => typeof document !== 'undefined' && !!document.fullscreenElement);
+  useEffect(() => {
+    const f = () => setOn(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', f);
+    return () => document.removeEventListener('fullscreenchange', f);
+  }, []);
+  if (typeof document === 'undefined' || !document.fullscreenEnabled) return null;
+  const toggle = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else document.documentElement.requestFullscreen().catch(() => {});
+  };
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      title={on ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa'}
+      aria-pressed={on}
+      className="hidden items-center justify-center gap-2 rounded-xl border border-line bg-white px-3.5 py-3 text-sm font-semibold text-ink hover:bg-mist cursor-pointer md:inline-flex"
+    >
+      {on ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+      <span className="hidden 2xl:inline">{on ? 'Salir' : 'Pantalla completa'}</span>
+    </button>
   );
 };

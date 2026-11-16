@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { LayoutGrid, LogOut, RotateCcw, Shield, Store, UserCircle2, Users } from 'lucide-react';
+import { Coffee, LayoutGrid, LogOut, RotateCcw, Shield, Store, UserCircle2, Users } from 'lucide-react';
 import type { Club, PerspectiveRole, UserProfile } from '../types/padel';
 import { formatCategory } from '../lib/padelUtils';
 import { InstallGuideModal, PWAInstallButton } from './PWAInstallButton';
@@ -13,6 +13,7 @@ export type ActiveTab =
   | 'friends'
   | 'tournaments'
   | 'staff'
+  | 'cantina'
   | 'admin'
   | 'platform'
   | 'notifications'
@@ -26,6 +27,7 @@ interface TopBarProps {
   onSelectTab: (tab: ActiveTab) => void;
   perspectiveRole: PerspectiveRole;
   canAccessStaff: boolean;
+  canAccessCantina?: boolean;
   canAccessAdmin: boolean;
   canAccessPlatform: boolean;
   unreadNotifications: number;
@@ -60,6 +62,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onSelectTab,
   perspectiveRole,
   canAccessStaff,
+  canAccessCantina,
   canAccessAdmin,
   canAccessPlatform,
   unreadNotifications,
@@ -95,6 +98,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   const managementItems: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [];
   if (canAccessStaff) managementItems.push({ id: 'staff', label: 'Mostrador', icon: <Store className="h-4 w-4" /> });
+  if (canAccessCantina) managementItems.push({ id: 'cantina', label: 'Cantina', icon: <Coffee className="h-4 w-4" /> });
   if (canAccessAdmin) managementItems.push({ id: 'admin', label: 'Admin del club', icon: <Shield className="h-4 w-4" /> });
   if (canAccessPlatform) managementItems.push({ id: 'platform', label: 'Plataforma', icon: <LayoutGrid className="h-4 w-4" /> });
 

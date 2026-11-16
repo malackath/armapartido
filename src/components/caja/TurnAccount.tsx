@@ -28,7 +28,9 @@ export const TurnAccount: React.FC<{
   setBusy: (b: boolean) => void;
   onToast: (msg: string) => void;
   onClose: () => void;
-}> = ({ club, booking, match, nameOf, staff, today, busy, setBusy, onToast, onClose }) => {
+  /** Cantina: solo carga consumos al turno; la cancha y el cobro quedan para el mostrador. */
+  itemsOnly?: boolean;
+}> = ({ club, booking, match, nameOf, staff, today, busy, setBusy, onToast, onClose, itemsOnly }) => {
   const { products, consumptions, cashDays } = useOps();
   const participants = useMemo(() => participantsOf(booking, match, nameOf), [booking, match, nameOf]);
   const turnCons = useMemo(() => consumptions.filter((c) => c.bookingId === booking.id && c.status !== 'voided'), [consumptions, booking.id]);
@@ -209,6 +211,10 @@ export const TurnAccount: React.FC<{
         )}
       </div>
 
+      {itemsOnly ? (
+        <p className="rounded-xl bg-mist px-3 py-2.5 text-[13px] text-ink">Lo que cargás acá queda en la cuenta del turno y se cobra en el mostrador junto con la cancha.</p>
+      ) : (
+      <>
       {/* Quién paga qué */}
       {multi && (
         <div>
@@ -286,7 +292,7 @@ export const TurnAccount: React.FC<{
               </button>
             )}
           </div>
-          {closedToday && <p className="rounded-xl bg-amber-50 px-3 py-2 text-[12.5px] text-amber-800">La caja de hoy ya está cerrada: este cobro queda marcado como cobrado después del cierre.</p>}
+          {closedToday && <p className="rounded-xl bg-wait-bg px-3 py-2 text-[12.5px] text-wait">La caja de hoy ya está cerrada: este cobro queda marcado como cobrado después del cierre.</p>}
           <button type="button" disabled={busy || pickedDue <= 0} onClick={charge} className={btnPrimary}>
             <Check className="h-4 w-4" /> {useBalance && canBalance ? 'Pagar con saldo' : 'Cobrar'} {formatUYU(pickedDue)}
             {multi ? ` (${picked.filter((k) => accounts.find((a) => a.key === k && a.totalDue > 0)).length})` : ''}
@@ -307,6 +313,8 @@ export const TurnAccount: React.FC<{
         <p className="rounded-xl bg-green-50 px-3 py-2.5 text-sm font-semibold text-green-800">
           Turno pago{booking.paymentMethod === 'mercadopago' ? ' por Mercado Pago' : ''}.
         </p>
+      )}
+      </>
       )}
     </div>
   );

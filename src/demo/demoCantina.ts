@@ -297,13 +297,17 @@ export function addCantinaDemo(
 
   // ---------- Turnos recuperados por "Falta uno" (los escribe el servidor) ----------
   const recPlan: [number, Recovery['kind'], number, Recovery['status']][] = [
-    [0, 'slot_filled', 4, 'counted'],
+    // Solo lo que hoy hace el servidor (lugares cubiertos y partidos completados). "Llenar turnos libres"
+    // todavía no existe, así que la demo no muestra turnos libres llenos (16/11/2026).
+    [0, 'match_completed', 2, 'counted'],
     [2, 'player_replaced', 1, 'counted'],
-    [3, 'slot_filled', 4, 'counted'],
+    [3, 'player_replaced', 1, 'counted'],
     [4, 'match_completed', 2, 'counted'],
     [6, 'player_replaced', 1, 'counted'],
-    [7, 'slot_filled', 4, 'counted'],
-    [5, 'slot_filled', 4, 'voided'],
+    [7, 'match_completed', 1, 'counted'],
+    [8, 'player_replaced', 1, 'counted'],
+    [9, 'match_completed', 2, 'counted'],
+    [5, 'player_replaced', 1, 'voided'],
   ];
   recPlan.forEach(([idx, kind, seats, status], i) => {
     const b = past[idx];

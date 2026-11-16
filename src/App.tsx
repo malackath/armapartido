@@ -55,6 +55,7 @@ import { PlatformOwnerView } from './components/PlatformOwnerView';
 import { PlayerBookingView } from './components/PlayerBookingView';
 import { ProfileView } from './components/ProfileView';
 import { StaffCounterView } from './components/StaffCounterView';
+import { CantinaView } from './components/cantina/CantinaView';
 import { TopBar, type ActiveTab } from './components/TopBar';
 import { TournamentsView } from './components/TournamentsView';
 import { PAGE_CONTAINER } from './lib/layout';
@@ -71,6 +72,7 @@ const VALID_TABS: ActiveTab[] = [
   'friends',
   'tournaments',
   'staff',
+  'cantina',
   'admin',
   'platform',
   'notifications',
@@ -115,7 +117,7 @@ export default function App() {
   // La vista de gestión se deriva de la sección abierta: no hay selector de rol a la vista.
   useEffect(() => {
     setPerspectiveRole(
-      activeTab === 'staff' ? 'staff' : activeTab === 'admin' ? 'admin' : activeTab === 'platform' ? 'platform_owner' : 'player'
+      activeTab === 'staff' || activeTab === 'cantina' ? 'staff' : activeTab === 'admin' ? 'admin' : activeTab === 'platform' ? 'platform_owner' : 'player'
     );
   }, [activeTab]);
 
@@ -361,6 +363,9 @@ export default function App() {
     [canAccessAdmin, currentMembership]
   );
 
+  // Cantina (clubes grandes): la persona de cantina y el dueño, que puede ver lo que ve ella.
+  const canAccessCantina = canAccessAdmin || currentMembership?.role === 'cantina';
+
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.read && n.recipientUid === authUser?.uid).length,
     [notifications, authUser]
@@ -449,6 +454,7 @@ export default function App() {
             : undefined
         }
         canAccessStaff={canAccessStaff}
+        canAccessCantina={canAccessCantina}
         canAccessAdmin={canAccessAdmin}
         canAccessPlatform={isPlatformOwner}
         unreadNotifications={unreadCount}
@@ -569,6 +575,18 @@ export default function App() {
                 fillSearches={fillSearches}
                 tournaments={tournaments}
                 payments={payments}
+                userProfile={userProfile}
+                onToast={showToast}
+              />
+            )}
+
+            {activeTab === 'cantina' && canAccessCantina && userProfile && (
+              <CantinaView
+                club={activeClub}
+                courts={courts}
+                bookings={bookings}
+                memberships={memberships}
+                proposedMatches={proposedMatches}
                 userProfile={userProfile}
                 onToast={showToast}
               />

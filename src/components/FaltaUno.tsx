@@ -81,7 +81,7 @@ export const FillInviteCard: React.FC<{
   }
   if (outcome === 'late' || outcome === 'closed') {
     return (
-      <div className="flex gap-2.5 rounded-2xl bg-[#fff6e0] p-3.5 text-[#8a5a00]">
+      <div className="flex gap-2.5 rounded-2xl bg-wait-bg p-3.5 text-wait">
         <span aria-hidden>◷</span>
         <div>
           <strong className="block text-[15px]">{outcome === 'late' ? 'Llegaste justo tarde' : 'Esta búsqueda ya cerró'}</strong>
@@ -92,7 +92,7 @@ export const FillInviteCard: React.FC<{
   }
   if (outcome === 'busy') {
     return (
-      <div className="rounded-2xl bg-[#fff6e0] p-3.5 text-[#8a5a00]">
+      <div className="rounded-2xl bg-wait-bg p-3.5 text-wait">
         <strong className="block text-[15px]">Tenés otro partido a esa hora</strong>
         No te pudimos sumar a este.
       </div>
@@ -102,7 +102,7 @@ export const FillInviteCard: React.FC<{
 
   return (
     <div>
-      <span className="inline-block rounded-full bg-[#fff6e0] px-2.5 py-0.5 text-xs font-semibold text-[#8a5a00]">
+      <span className="inline-block rounded-full bg-wait-bg px-2.5 py-0.5 text-xs font-semibold text-wait">
         Falta {seatsLeft === 1 ? 'uno' : seatsLeft}
       </span>
       <h3 className="mt-2 text-[22px] font-semibold text-ink">¿Te sumás al partido?</h3>
@@ -351,7 +351,7 @@ export function fillBadge(search?: FillSearch): { label: string; tone: 'amber' |
 }
 
 export const BADGE_CLASSES = {
-  amber: 'bg-[#fff6e0] text-[#8a5a00]',
+  amber: 'bg-wait-bg text-wait',
   green: 'bg-[#e3f5ea] text-[#1e6b3a]',
   red: 'bg-[#fdecea] text-[#b3261e]',
 } as const;

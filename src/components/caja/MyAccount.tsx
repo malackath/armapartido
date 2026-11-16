@@ -57,7 +57,7 @@ export const MyAccount: React.FC<{ club: Club; userProfile: UserProfile; booking
         </div>
         <div className="text-right">
           <p className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">{total > 0 ? 'Debés' : 'Estás al día'}</p>
-          <p className={`font-display text-2xl font-bold tabular-nums ${total > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{formatUYU(total)}</p>
+          <p className={`font-display text-2xl font-bold tabular-nums ${total > 0 ? 'text-wait' : 'text-emerald-700'}`}>{formatUYU(total)}</p>
         </div>
       </div>
 

@@ -108,7 +108,7 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <p className="text-xs font-medium text-slate-500">Clubes en prueba gratis</p>
-          <p className="mt-1 font-mono text-2xl font-bold text-amber-700 tabular-nums">{metrics.trialCount}</p>
+          <p className="mt-1 font-mono text-2xl font-bold text-wait tabular-nums">{metrics.trialCount}</p>
         </div>
       </div>
 

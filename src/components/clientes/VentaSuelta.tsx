@@ -17,6 +17,7 @@ import { Chip, ClientLine, useClientes } from './data';
 import { ClientPicker } from './ClientPicker';
 import { ProductIcon } from '../mostrador/ProductIcon';
 
+export type VentaTab = Tab;
 type Tab = 'cantina' | 'cuponeras' | 'clases' | 'torneos' | 'alquiler' | 'otros';
 type Method = CounterPaymentMethod | 'saldo' | 'cuenta';
 
@@ -47,7 +48,9 @@ export const VentaSuelta: React.FC<{
   busy: boolean;
   run: (fn: () => Promise<unknown>, msg: string) => Promise<void>;
   debtOf?: (c: ClubClient) => number;
-}> = ({ club, memberships, products, tournaments, staff, today, closed, busy, run, debtOf }) => {
+  /** Pestañas que se muestran (la cantina ve solo cantina, alquiler y otros). */
+  tabs?: Tab[];
+}> = ({ club, memberships, products, tournaments, staff, today, closed, busy, run, debtOf, tabs }) => {
   const { packTypes, clients } = useClientes();
   const [clientId, setClientId] = useState<string | null>(null);
   const [anon, setAnon] = useState(false);
@@ -144,7 +147,7 @@ export const VentaSuelta: React.FC<{
       {(client || anon) && (
         <>
           <div className="flex flex-wrap gap-1.5">
-            {TABS.map(([id, label]) => (
+            {TABS.filter(([id]) => !tabs || tabs.includes(id)).map(([id, label]) => (
               <Chip key={id} on={tab === id} onClick={() => setTab(id)} disabled={!client && id === 'cuponeras'}>
                 {label}
               </Chip>

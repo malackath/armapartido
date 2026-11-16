@@ -2,7 +2,7 @@ import type { DepositRule } from './caja';
 
 export type Gender = 'masculino' | 'femenino';
 export type Modality = 'masculino' | 'femenino' | 'mixto';
-export type ClubRole = 'admin' | 'staff' | 'player';
+export type ClubRole = 'admin' | 'staff' | 'cantina' | 'player';
 export type PerspectiveRole = 'player' | 'staff' | 'admin' | 'platform_owner';
 
 export type RoofType = 'techada' | 'aire_libre';

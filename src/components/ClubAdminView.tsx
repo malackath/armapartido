@@ -190,10 +190,12 @@ const FillSection: React.FC<{
             <span className="text-ink">{plural(summary.replaced.length, 'reemplazo', 'reemplazos')}</span>
             <span className="font-semibold tabular-nums text-ink">{formatUYU(summary.sumReplaced)}</span>
           </li>
-          <li className="flex justify-between py-2.5">
-            <span className="text-ink">{plural(summary.filled.length, 'turno libre lleno', 'turnos libres llenos')}</span>
-            <span className="font-semibold tabular-nums text-ink">{formatUYU(summary.sumFilled)}</span>
-          </li>
+          {summary.filled.length > 0 && (
+            <li className="flex justify-between py-2.5">
+              <span className="text-ink">{plural(summary.filled.length, 'turno libre lleno', 'turnos libres llenos')}</span>
+              <span className="font-semibold tabular-nums text-ink">{formatUYU(summary.sumFilled)}</span>
+            </li>
+          )}
           <li className="flex justify-between py-2.5">
             <span className="text-ink">{plural(summary.saved.length, 'partido que se habría caído', 'partidos que se habrían caído')}</span>
             <span className="text-muted">se jugaron</span>
@@ -784,13 +786,14 @@ const MembersCard: React.FC<{ club: Club; memberships: ClubMembership[]; userPro
                       disabled={isOwner || isMe}
                       onChange={(e) =>
                         updateMembershipByAdmin(club.id, m.uid, { role: e.target.value as ClubMembership['role'] }).then(() =>
-                          onToast(`${m.displayName}: ahora es ${e.target.value === 'staff' ? 'encargado' : e.target.value === 'admin' ? 'administrador' : 'jugador'}.`)
+                          onToast(`${m.displayName}: ahora es ${e.target.value === 'staff' ? 'encargado' : e.target.value === 'cantina' ? 'de cantina' : e.target.value === 'admin' ? 'administrador' : 'jugador'}.`)
                         )
                       }
                       className={`${selectCls} disabled:opacity-60`}
                     >
                       <option value="player">Jugador</option>
                       <option value="staff">Encargado</option>
+                      <option value="cantina">Cantina</option>
                       <option value="admin">Administrador</option>
                     </select>
                   </td>
@@ -809,7 +812,7 @@ const MembersCard: React.FC<{ club: Club; memberships: ClubMembership[]; userPro
                       ))}
                     </select>
                   </td>
-                  <td className={`py-2.5 pr-3 tabular-nums ${m.blocked ? 'font-bold text-red-700' : near ? 'font-bold text-amber-700' : 'text-ink'}`}>
+                  <td className={`py-2.5 pr-3 tabular-nums ${m.blocked ? 'font-bold text-red-700' : near ? 'font-bold text-wait' : 'text-ink'}`}>
                     {m.noShowCount} de {club.maxNoShowsBeforeBlock}
                   </td>
                   <td className="py-2.5 text-right whitespace-nowrap">

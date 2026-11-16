@@ -19,7 +19,8 @@ export interface ClubOps {
 const EMPTY: ClubOps = { ready: false, products: [], consumptions: [], cashDays: [], fixed: [], recoveries: [], reports: [], allPayments: [] };
 
 /** Se suscribe a productos, consumos, cajas, turnos fijos, recuperados, informes y todos los cobros. */
-export function useClubOps(clubId: string | undefined): ClubOps {
+/** `cantinaOnly`: para la persona de cantina, sin turnos fijos, recuperados ni informes (no tiene permiso). */
+export function useClubOps(clubId: string | undefined, cantinaOnly = false): ClubOps {
   const [ops, setOps] = useState<ClubOps>(EMPTY);
   useEffect(() => {
     if (!clubId) return;
@@ -29,13 +30,13 @@ export function useClubOps(clubId: string | undefined): ClubOps {
       onProducts: (v) => set('products')([...v].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))),
       onConsumptions: set('consumptions'),
       onCashDays: set('cashDays'),
-      onFixed: set('fixed'),
-      onRecoveries: set('recoveries'),
-      onReports: set('reports'),
+      onFixed: cantinaOnly ? undefined : set('fixed'),
+      onRecoveries: cantinaOnly ? undefined : set('recoveries'),
+      onReports: cantinaOnly ? undefined : set('reports'),
       onAllPayments: set('allPayments'),
-    });
+    }, cantinaOnly);
     return () => subs.forEach((u) => u());
-  }, [clubId]);
+  }, [clubId, cantinaOnly]);
   return ops;
 }
 

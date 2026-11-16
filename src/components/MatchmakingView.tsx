@@ -899,7 +899,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                   </div>
 
                   {match.status === 'pending' && (
-                    <p className="mt-3 text-xs text-amber-800">
+                    <p className="mt-3 text-xs text-wait">
                       Plazo límite de aceptación: <span className=" font-semibold tabular-nums">{expiresTime} hs</span>. Si alguien rechaza o no contesta, la cancha se libera y se busca reemplazo.
                     </p>
                   )}
@@ -979,7 +979,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                             type="button"
                             disabled={busy}
                             onClick={() => simulateDrop(match, slot.uid)}
-                            className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-amber-50 cursor-pointer"
+                            className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-wait-bg cursor-pointer"
                           >
                             Simular "no puedo ir"
                           </button>
@@ -1058,13 +1058,13 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                     {r.isSameDay && (
                       <>
                         <span className="mx-1.5" aria-hidden="true">·</span>
-                        <span className="font-semibold text-amber-700">Prioridad mismo día</span>
+                        <span className="font-semibold text-wait">Prioridad mismo día</span>
                       </>
                     )}
                     {r.partnerUid && !r.partnerAccepted && (
                       <>
                         <span className="mx-1.5" aria-hidden="true">·</span>
-                        <span className="font-semibold text-amber-700">
+                        <span className="font-semibold text-wait">
                           Esperando confirmación de pareja
                         </span>
                       </>
@@ -1129,7 +1129,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                       type="button"
                       disabled={busy}
                       onClick={() => handleTriggerUnfilledWarning(r)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 cursor-pointer whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-wait-fill bg-wait-bg px-3 py-1.5 text-xs font-medium text-wait hover:bg-wait-fill cursor-pointer whitespace-nowrap shrink-0"
                     >
                       <AlertTriangle className="h-3.5 w-3.5" />
                       Simular aviso 1h antes sin armar

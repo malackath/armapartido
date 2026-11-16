@@ -95,7 +95,7 @@ export const CantinaAdmin: React.FC<{ club: Club; onToast: (m: string) => void }
         }
       >
         {low.length > 0 && (
-          <p className="mb-3 rounded-xl border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
+          <p className="mb-3 rounded-xl border-l-4 border-[#f97316] bg-wait-bg px-3 py-2 text-[13px] text-wait">
             {low.length} {low.length === 1 ? 'producto por acabarse' : 'productos por acabarse'}: {low.map((p) => `${p.name} (${p.stock})`).join(', ')}
           </p>
         )}
@@ -459,7 +459,7 @@ export const CashDaysCard: React.FC = () => {
               {list.map((d) => (
                 <tr key={d.id} className="border-b border-[#eef5f5] last:border-0">
                   <td className="py-2.5 pr-3 tabular-nums">{d.date.split('-').reverse().slice(0, 2).join('/')}</td>
-                  <td className="py-2.5 pr-3">{d.status === 'closed' ? d.closedByName : <span className="font-semibold text-amber-700">Abierta</span>}</td>
+                  <td className="py-2.5 pr-3">{d.status === 'closed' ? d.closedByName : <span className="font-semibold text-wait">Abierta</span>}</td>
                   <td className="py-2.5 pr-3 text-right tabular-nums">{d.totals ? formatUYU(d.totals.total ?? 0) : '—'}</td>
                   <td className="py-2.5 pr-3 text-right tabular-nums">{d.totals ? formatUYU(d.totals.cantina ?? 0) : '—'}</td>
                   <td className={`py-2.5 pr-3 text-right font-semibold tabular-nums ${(d.difference ?? 0) < 0 ? 'text-red-700' : (d.difference ?? 0) > 0 ? 'text-green-700' : ''}`}>
@@ -547,7 +547,7 @@ export const MonthlyReportAdmin: React.FC<{
 
       <div className="grid items-start gap-5 xl:grid-cols-2">
         <Card title="Lo que suma al total">
-          <Row label={report.slotsFilled.count === 1 ? '1 turno libre que se llenó' : `${report.slotsFilled.count} turnos libres que se llenaron`} value={formatUYU(report.slotsFilled.amount)} />
+          {report.slotsFilled.count > 0 && <Row label={report.slotsFilled.count === 1 ? '1 turno libre que se llenó' : `${report.slotsFilled.count} turnos libres que se llenaron`} value={formatUYU(report.slotsFilled.amount)} />}
           <Row label={report.playersReplaced.count === 1 ? '1 lugar cubierto cuando alguien se bajó' : `${report.playersReplaced.count} lugares cubiertos cuando alguien se bajó`} value={formatUYU(report.playersReplaced.amount)} />
           <Row label={`${report.matchesCompleted.count === 1 ? '1 partido completado' : `${report.matchesCompleted.count} partidos completados`} (${report.matchesCompleted.seats === 1 ? '1 lugar' : `${report.matchesCompleted.seats} lugares`})`} value={formatUYU(report.matchesCompleted.amount)} />
           <Row label={report.depositsKept.count === 1 ? '1 seña que quedó para el club' : `${report.depositsKept.count} señas que quedaron para el club`} value={formatUYU(report.depositsKept.amount)} />
