@@ -34,8 +34,9 @@ import { CategoryBadge, PlayerAvatar, StatusChip } from '../ui/People';
 import { MethodPicker, btnPrimary, btnSecondary } from '../caja/ops';
 import { Chip, ClientLine, Tabs, useClientes } from './data';
 import { ClientPicker } from './ClientPicker';
+import { MemberGameTab } from '../registro/ClubReview';
 
-type Tab = 'mov' | 'cup' | 'turnos' | 'datos';
+type Tab = 'juego' | 'mov' | 'cup' | 'turnos' | 'datos';
 
 export const ClientCard: React.FC<{
   club: Club;
@@ -55,11 +56,12 @@ export const ClientCard: React.FC<{
   onOpen: (c: ClubClient) => void;
 }> = ({ club, client, memberships, bookings, matches, payments, consumptions, staff, isOwner, today, nowMinute, closedToday, onClose, onToast, onOpen }) => {
   const { clients, packs, sales, packTypes } = useClientes();
-  const [tab, setTab] = useState<Tab>('mov');
+  const member = client.uid ? memberships.find((m) => m.uid === client.uid) : undefined;
+  // Si tiene la app, la ficha abre en "Juego" (categoría, lado y horarios para armarle partido).
+  const [tab, setTab] = useState<Tab>(member ? 'juego' : 'mov');
   const [busy, setBusy] = useState(false);
   const [paying, setPaying] = useState(false);
   const [method, setMethod] = useState<CounterPaymentMethod>('efectivo');
-  const member = client.uid ? memberships.find((m) => m.uid === client.uid) : undefined;
   const key = clientKey(client);
   /** La ficha y las que se unieron a ella. */
   const ids = useMemo(() => new Set([client.id, ...clients.filter((c) => c.mergedInto === client.id).map((c) => c.id)]), [clients, client.id]);
@@ -158,12 +160,19 @@ export const ClientCard: React.FC<{
         value={tab}
         onChange={setTab}
         items={[
+          ...(member ? ([['juego', 'Juego']] as [Tab, string][]) : []),
           ['mov', 'Movimientos'],
           ['cup', `Cuponeras${livePacks.length ? ` (${livePacks.length})` : ''}`],
           ['turnos', 'Turnos'],
           ['datos', 'Datos'],
         ]}
       />
+
+      {tab === 'juego' && member && (
+        <div className="rounded-xl border border-line bg-white px-3.5 py-1">
+          <MemberGameTab club={club} member={member} byUid={staff.uid} onToast={onToast} />
+        </div>
+      )}
 
       {tab === 'mov' && (
         <div className="rounded-xl border border-line bg-white px-3.5 py-1">

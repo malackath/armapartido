@@ -1,6 +1,9 @@
 import type { DepositRule } from './caja';
 
 export type Gender = 'masculino' | 'femenino';
+/** Lado de la cancha en el que juega (registro 16/11/2026). */
+export type CourtSide = 'drive' | 'reves' | 'indistinto';
+export type Hand = 'derecha' | 'izquierda';
 export type Modality = 'masculino' | 'femenino' | 'mixto';
 export type ClubRole = 'admin' | 'staff' | 'cantina' | 'player';
 export type PerspectiveRole = 'player' | 'staff' | 'admin' | 'platform_owner';
@@ -29,7 +32,8 @@ export type NotificationEventType =
   | 'tournament_new'
   | 'pair_invite'
   | 'tournament_next_match'
-  | 'waitlist_slot_open';
+  | 'waitlist_slot_open'
+  | 'category_changed';
 
 export interface AvailabilityWindow {
   dayOfWeek: number; // 0 = Domingo ... 6 = Sábado
@@ -47,6 +51,10 @@ export interface UserProfile {
   weeklyAvailability: AvailabilityWindow[];
   activeClubIds: string[];
   alertPrefs?: AlertPrefs;
+  courtSide?: CourtSide;
+  hand?: Hand;
+  /** false mientras el jugador no terminó el registro. Los perfiles viejos no lo tienen: cuentan como terminados. */
+  signupDone?: boolean;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -139,6 +147,10 @@ export interface ClubMembership {
   noShowCount: number;
   blocked: boolean;
   isDiscoverable: boolean;
+  courtSide?: CourtSide;
+  hand?: Hand;
+  /** 'pendiente' cuando se sumó por la app y el club todavía no miró la categoría que eligió. */
+  categoryReview?: 'pendiente' | 'ok';
   createdAt?: unknown;
   updatedAt?: unknown;
 }

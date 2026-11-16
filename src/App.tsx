@@ -7,6 +7,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, db, DEMO_MODE, logoutUser, testFirestoreConnection } from './lib/firebase';
 import { readDemoUids, resetDemoWorld } from './demo/resetDemo';
+import { RegistroFlow } from './components/registro/RegistroFlow';
+import { getUserProfileOrNull, joinClub } from './services/registroService';
 import {
   obtainFcmDeviceToken,
   showServiceWorkerNotification,
@@ -14,7 +16,6 @@ import {
 } from './lib/fcm';
 import { computePlayerLevelsMap, type PlayerLevelSummary } from './lib/padelUtils';
 import {
-  ensureUserProfile,
   fetchDiscoverablePlayersAcrossClubs,
   saveUserFcmToken,
   seedPilotDataIfNeeded,
@@ -95,6 +96,9 @@ export default function App() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  // Cuenta nueva sin perfil: va al registro (16/11/2026).
+  const [needsSignup, setNeedsSignup] = useState(false);
+  const joinTriedRef = useRef(false);
   const [bootError, setBootError] = useState<string | null>(null);
 
   const [clubs, setClubs] = useState<Club[]>([]);
@@ -160,11 +164,18 @@ export default function App() {
       setAuthUser(fbUser);
       if (!fbUser) {
         setUserProfile(null);
+        setNeedsSignup(false);
         setAuthReady(true);
         return;
       }
       try {
-        const profile = await ensureUserProfile(fbUser);
+        const profile = await getUserProfileOrNull(fbUser.uid);
+        if (!profile) {
+          setNeedsSignup(true);
+          setUserProfile(null);
+          return;
+        }
+        setNeedsSignup(false);
         // En la demo publicada los datos los carga el script de demo; no se siembran los clubes del prototipo.
         if (!DEMO_MODE) await seedPilotDataIfNeeded(fbUser, profile);
         setUserProfile(profile);
@@ -350,6 +361,25 @@ export default function App() {
     [memberships, authUser]
   );
 
+  // Registro: si al terminar no pudo sumarse al club (mail sin confirmar), lo reintenta al volver a entrar.
+  useEffect(() => {
+    if (!authUser || !userProfile?.signupDone || !activeClub || joinTriedRef.current) return;
+    if (currentMembership || !userProfile.activeClubIds.includes(activeClub.id)) return;
+    const t = setTimeout(async () => {
+      if (joinTriedRef.current) return;
+      joinTriedRef.current = true;
+      try {
+        await authUser.reload();
+        if (!authUser.emailVerified) return;
+        await authUser.getIdToken(true);
+        if (await joinClub(userProfile, activeClub)) showToast(`Listo, ya sos parte de ${activeClub.name}.`);
+      } catch {
+        /* se reintenta la próxima vez que entre */
+      }
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [authUser, userProfile, activeClub, currentMembership]);
+
   const canAccessAdmin = useMemo(
     () =>
       isPlatformOwner ||
@@ -393,6 +423,21 @@ export default function App() {
           <p className="text-sm font-medium text-slate-600">Cargando Armá Partido...</p>
         </div>
       </div>
+    );
+  }
+
+  if (authUser && needsSignup) {
+    return (
+      <RegistroFlow
+        authUser={authUser}
+        onLogout={logoutUser}
+        onDone={async (profile, go) => {
+          if (!DEMO_MODE) await seedPilotDataIfNeeded(authUser, profile).catch(() => undefined);
+          setUserProfile(profile);
+          setNeedsSignup(false);
+          setActiveTab(go);
+        }}
+      />
     );
   }
 
@@ -650,6 +695,7 @@ export default function App() {
                 onProfileUpdated={setUserProfile}
                 onLogout={logoutUser}
                 onToast={showToast}
+                onOpenTab={(t) => setActiveTab(t)}
               />
             )}
           </>

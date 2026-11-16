@@ -1,6 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import {
   connectAuthEmulator,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
   getAuth,
   GoogleAuthProvider,
   signInWithCredential,
@@ -135,6 +137,13 @@ export async function signInWithGoogle() {
 
 export async function signInWithEmail(email: string, password: string) {
   return signInWithEmailAndPassword(auth, email.trim(), password);
+}
+
+/** Crea la cuenta con mail y contraseña y manda el mail para confirmarlo (no frena el registro). */
+export async function signUpWithEmail(email: string, password: string) {
+  const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  sendEmailVerification(cred.user).catch((e) => console.warn('[registro] No se pudo mandar el mail de confirmación:', e));
+  return cred;
 }
 
 export async function logoutUser() {
