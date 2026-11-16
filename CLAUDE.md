@@ -50,6 +50,12 @@ Cada club tiene su app marca blanca sobre una sola plataforma multi-club. Jugado
 - Servidor: `functions/src/clientes.ts` + disparador `clientesAlSumarse` (une por mail verificado, si no crea ficha; por celular solo marca repetido). Prueba en `functions/test/clientes.emulator.mjs` (corre con `npm test`). En la nube de Claude: `functions/.env.local` con `SIN_DISPARADORES=1` (el proxy impide registrar disparadores).
 - Pruebas: `npx tsx scripts/test-clientes.ts <carpeta>` (30) y de punta a punta `node scripts/verify-clientes.cjs <url> <carpeta>` (19, con la demo cargada).
 
+## Rol Cantina, tarjeta de cancha y pantalla completa (16/11, rama claude/project-thread-n7l22z)
+- Rol de club `cantina` (clubes grandes): `src/components/cantina/CantinaView.tsx` (venta suelta de cantina/alquiler/otros, cargar consumos a la cuenta del turno con `TurnAccount itemsOnly`, caja de la cantina). Reglas: `isClubCantina` en firestore.rules (cobros solo kind cantina/venta, sin canchas ni cuponeras; descuenta stock). Los hooks `useClubOps(clubId, true)` y `useClientesData(clubId, true)` filtran lo que puede leer. Cuenta demo: cantina@demo.armapartido.com (Romina Ferreira).
+- Verificar: `node scripts/verify-cantina.cjs <url> <carpeta>` (con hora simulada la demo puede rearmarse sola al entrar).
+- Tarjeta de cancha (`src/components/mostrador/CourtCard.tsx`): cancha 2:1 fija, azul = vidrio y verde = hormigón (`COURT_SURFACE`), insignia de pago sobre la foto. Ber odia el marrón: el color `wait` es naranja (#c2410c), nada de ocre.
+- Botón de pantalla completa en el Mostrador (`FullscreenButton`, API Fullscreen).
+
 ## Reglas
 - Nada de afiliaciones FIP/AAP/Federación ni nivel decimal en la UI: solo categoría.
 - Español de Uruguay: "cancha", nunca "pista".
