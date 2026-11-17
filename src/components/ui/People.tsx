@@ -4,12 +4,13 @@ import { BrandIcon, type BrandIconName } from '../BrandIcon';
 
 // Escala de categorías: siempre el mismo color en toda la app y el número adentro,
 // así se lee aunque alguien no distinga colores (aprobado por Ber, 15/11/2026).
+// Número oscuro en 3ra y 5ta para llegar al contraste 4,5 a 1 (Ber, 17/11/2026).
 export const CATEGORY_COLORS: Record<number, { bg: string; fg: string }> = {
   1: { bg: '#6d1a36', fg: '#ffffff' },
   2: { bg: '#c0362c', fg: '#ffffff' },
-  3: { bg: '#e06a1b', fg: '#ffffff' },
+  3: { bg: '#e06a1b', fg: '#172123' },
   4: { bg: '#f2c230', fg: '#172123' },
-  5: { bg: '#3f9142', fg: '#ffffff' },
+  5: { bg: '#3f9142', fg: '#172123' },
   6: { bg: '#05b8c4', fg: '#172123' },
   7: { bg: '#2f62b8', fg: '#ffffff' },
 };
