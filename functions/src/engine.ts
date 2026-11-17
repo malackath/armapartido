@@ -1,5 +1,6 @@
 import type { Booking, Club, ClubMembership, Court, MatchRequest, ProposedMatch, ProposedSlot } from '../../src/types/padel';
 import {
+  busyUidsAt,
   calculateSlotPrice,
   findMatchForClub,
   formatDateFriendly,
@@ -20,17 +21,20 @@ export interface ClubContext {
   bookings: Booking[];
   requests: MatchRequest[];
   memberships: ClubMembership[];
+  /** Partidos propuestos pendientes desde hoy (sus jugadores están ocupados a esa hora). */
+  pendingMatches: ProposedMatch[];
 }
 
 /** Lee solo lo que el armado necesita: reservas desde hoy, pedidos en espera y las fichas de esos jugadores. */
 export async function loadClubContext(clubId: string): Promise<ClubContext | null> {
   const clubRef = db.doc(`clubs/${clubId}`);
   const today = getTodayISO();
-  const [clubSnap, courtsSnap, bookingsSnap, reqSnap] = await Promise.all([
+  const [clubSnap, courtsSnap, bookingsSnap, reqSnap, pendingSnap] = await Promise.all([
     clubRef.get(),
     clubRef.collection('courts').get(),
     clubRef.collection('bookings').where('date', '>=', today).get(),
     clubRef.collection('matchRequests').where('status', '==', 'waiting').get(),
+    clubRef.collection('proposedMatches').where('status', '==', 'pending').get(),
   ]);
   if (!clubSnap.exists) return null;
   const requests = reqSnap.docs.map((d) => ({ ...(d.data() as MatchRequest), id: d.id }));
@@ -50,6 +54,9 @@ export async function loadClubContext(clubId: string): Promise<ClubContext | nul
     bookings: bookingsSnap.docs.map((d) => ({ ...(d.data() as Booking), id: d.id })),
     requests,
     memberships,
+    pendingMatches: pendingSnap.docs
+      .map((d) => ({ ...(d.data() as ProposedMatch), id: d.id }))
+      .filter((m) => m.date >= today),
   };
 }
 
@@ -118,6 +125,20 @@ async function commitCandidate(club: Club, c: MatchCandidateResult, triggeredByU
       return (b.status === 'confirmed' || b.status === 'held') && b.startMinute < c.endMinute && b.endMinute > c.startMinute;
     });
     if (busy) throw new Conflict('court taken');
+
+    // Ninguno de los 4 puede tener otra reserva o partido propuesto que se pise (en cualquier cancha).
+    const [sameDay, pendingSameDay] = await Promise.all([
+      tx.get(clubRef.collection('bookings').where('date', '==', c.date)),
+      tx.get(clubRef.collection('proposedMatches').where('date', '==', c.date)),
+    ]);
+    const taken = busyUidsAt(
+      sameDay.docs.map((d) => ({ ...(d.data() as Booking), id: d.id })),
+      pendingSameDay.docs.map((d) => ({ ...(d.data() as ProposedMatch), id: d.id })),
+      c.date,
+      c.startMinute,
+      c.endMinute
+    );
+    if (proposed.playerUids.some((u) => taken.has(u))) throw new Conflict('player busy');
 
     tx.set(clubRef.collection('bookings').doc(bookingId), {
       id: bookingId,

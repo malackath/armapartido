@@ -44,6 +44,7 @@ import {
 import {
   acceptMatchPartnerInvite,
   createMatchRequestAndTryMatch,
+  UserFacingError,
   followUser,
   payMatchShare,
   respondToProposedMatch,
@@ -281,6 +282,9 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
       } else {
         onToast('Pedido cargado. Te avisaremos en cuanto aparezcan jugadores compatibles.');
       }
+    } catch (err) {
+      if (err instanceof UserFacingError) onToast(err.message);
+      else throw err;
     } finally {
       setBusy(false);
     }

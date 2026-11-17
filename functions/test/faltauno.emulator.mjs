@@ -436,6 +436,19 @@ await step('A9. El reloj corre la revisión de las 9 una sola vez por día', asy
   assert.equal(run.trigger, 'scheduled'); assert.equal(run.opened.length, a.autoFillOpened);
   await club.update({ autoFill: { enabled: false, bands: [] } });
 });
+await step('A10. Nadie en dos lugares a la vez: quien ya está en otro partido pendiente a esa hora no puede sumarse a un turno libre automático', async () => {
+  const s = (await autoSearches()).filter((x) => x.status === 'searching').sort((a, b) => a.startMinute - b.startMinute)[0];
+  const u = s.invitedUids.find((x) => x.startsWith('demo-'));
+  assert.ok(u, 'no hay jugador de la demo invitado');
+  // Otro partido pendiente (sin reserva todavía, como los turnos libres automáticos) que se pisa 30 minutos.
+  const otherId = 'pm_test_ocupado';
+  await club.collection('proposedMatches').doc(otherId).set({ id: otherId, clubId: CLUB, bookingId: '', courtId: 'cancha_9', courtName: 'Otra', date: DA, startMinute: s.startMinute + 30, endMinute: s.endMinute + 30, modality: s.modality, minCategory: 1, maxCategory: 7, pricePerPlayer: 0, playerUids: [u], slots: [], expiresAt: s.closesAt, status: 'pending', createdByUid: 'system_autofill' });
+  assert.equal(await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: u }), 'busy');
+  // Si ese otro partido se cancela, ya puede sumarse.
+  await club.collection('proposedMatches').doc(otherId).update({ status: 'cancelled' });
+  assert.equal(await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: u }), 'won');
+  await club.collection('proposedMatches').doc(otherId).delete();
+});
 
 console.log('\n' + results.join('\n'));
 process.exit(results.some((r) => r.startsWith('FALLA')) ? 1 : 0);

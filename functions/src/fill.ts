@@ -513,6 +513,13 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
       return d.id !== s.bookingId && b.status !== 'cancelled' && b.status !== 'no_show' && b.startMinute < s.endMinute && b.endMinute > s.startMinute;
     });
     if (overlap) return { r: 'busy' as const };
+    // Los turnos libres automáticos todavía no tienen reserva: también se mira si ya está en otro partido pendiente a esa hora.
+    const myPending = await tx.get(cRef.collection('proposedMatches').where('date', '==', s.date).where('playerUids', 'array-contains', p.uid));
+    const pendingOverlap = myPending.docs.some((d) => {
+      const pm = d.data() as ProposedMatch;
+      return d.id !== s.matchId && pm.status === 'pending' && pm.startMinute < s.endMinute && pm.endMinute > s.startMinute;
+    });
+    if (pendingOverlap) return { r: 'busy' as const };
 
     const newSlot: ProposedSlot = {
       uid: p.uid,

@@ -1095,9 +1095,14 @@ const callArmado = async <T,>(name: string, data: Record<string, unknown>, path:
     const res = await httpsCallable<Record<string, unknown>, T>(functions, name)(data);
     return res.data;
   } catch (err) {
+    // Reglas de negocio que el servidor explica en criollo (ej. dos pedidos que se pisan): se muestran tal cual.
+    if ((err as { code?: string })?.code === 'functions/already-exists') throw new UserFacingError((err as Error).message.replace(/\s*\[\d+\]$/, ''));
     handleFirestoreError(err, OperationType.WRITE, path);
   }
 };
+
+/** Error con un mensaje pensado para mostrarle al jugador. */
+export class UserFacingError extends Error {}
 
 export async function createMatchRequestAndTryMatch(params: {
   club: Club;

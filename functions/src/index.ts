@@ -5,7 +5,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { linkOrCreateClient } from './clientes';
 import type { MatchRequest, Modality } from '../../src/types/padel';
-import { formatCategory, getTodayISO } from '../../src/lib/padelUtils';
+import { formatCategory, formatDateFriendly, formatMinutes, getDayName, getDayOfWeekFromISO, getTodayISO, requestsOverlap } from '../../src/lib/padelUtils';
 import { db, isFakePlayer, makeId, now } from './admin';
 import { respondToMatch, sweepClub } from './engine';
 import { runClock } from './clock';
@@ -67,6 +67,30 @@ export const armadoCrearPedido = onCall(async (req) => {
   const creatorName = (str(profile.get('displayName'), 80) || str(member.get('displayName'), 80) || 'Jugador');
   const category = Number(profile.get('category') ?? member.get('category'));
   const autoAccept = !partnerUid || isFakePlayer(partnerUid);
+  // Un jugador no puede tener dos pedidos que se pisen (ni él ni su pareja fija).
+  const asked = { requestType, date: requestType === 'priority' ? date : '', dayOfWeek: requestType === 'priority' ? getDayOfWeekFromISO(date) : dayOfWeek, startMinute, endMinute } as const;
+  const people = [uid, partnerUid].filter((u) => u && !isFakePlayer(u));
+  const reqsCol = db.collection(`clubs/${clubId}/matchRequests`);
+  const open = (
+    await Promise.all(
+      people.flatMap((u) => [
+        reqsCol.where('creatorUid', '==', u).get(),
+        reqsCol.where('partnerUid', '==', u).get(),
+      ])
+    )
+  )
+    .flatMap((q) => q.docs.map((x) => x.data() as MatchRequest))
+    .filter((r) => r.status === 'waiting' || r.status === 'proposed');
+  const clash = open.find((r) => (r.requestType === 'weekly' || r.date >= getTodayISO()) && requestsOverlap(asked, r));
+  if (clash) {
+    const who = clash.creatorUid === uid || clash.partnerUid === uid ? 'Ya tenés' : `${partnerName || 'Tu pareja'} ya tiene`;
+    const when = clash.requestType === 'priority' ? formatDateFriendly(clash.date, false) : `cada ${getDayName(clash.dayOfWeek).toLowerCase()}`;
+    throw new HttpsError(
+      'already-exists',
+      `${who} un pedido ${when} de ${formatMinutes(clash.startMinute)} a ${formatMinutes(clash.endMinute)} que se pisa con este. Cambiá el horario o cancelá el otro.`
+    );
+  }
+
   const reqId = makeId('mreq');
   const newReq: MatchRequest = {
     id: reqId,

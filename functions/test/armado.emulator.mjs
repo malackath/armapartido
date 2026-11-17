@@ -197,5 +197,96 @@ await step('9. Reloj: pedido puntual de un día que ya pasó queda vencido', asy
   assert.equal((await club.collection('matchRequests').doc(id).get()).get('status'), 'expired');
 });
 
+// ---------- Etapa 1 del algoritmo (17/11): nadie en dos partidos a la misma hora ----------
+async function req2(uid, name, category, date, startMinute, endMinute, tag) {
+  const id = await fakeRequest(uid, name, category, date, startMinute, endMinute);
+  if (!tag) return id;
+  const snap = await club.collection('matchRequests').doc(id).get();
+  const nid = `${id}_${tag}`;
+  await club.collection('matchRequests').doc(nid).set({ ...snap.data(), id: nid });
+  await snap.ref.delete();
+  return nid;
+}
+// Además de clean(): las canchas retenidas por partidos de pruebas anteriores también se liberan.
+async function cleanAll() {
+  await clean();
+  const held = await club.collection('bookings').where('status', '==', 'held').get();
+  await Promise.all(held.docs.map((d) => d.ref.update({ status: 'cancelled' })));
+}
+const overlaps = (a, b) => a.date === b.date && a.startMinute < b.endMinute && a.endMinute > b.startMinute;
+
+await step('10. Jugador con dos pedidos que se pisan: no lo ponen en un segundo partido a la misma hora', async () => {
+  await cleanAll();
+  const D4 = inDays(3); const T = 9 * 60 + 30;
+  for (const [u, n, c] of [['demo-p08', 'Florencia', 5], ['demo-p09', 'Rodrigo', 5], ['demo-p10', 'Mateo', 5], ['demo-p07', 'Santiago', 4]]) await req2(u, n, c, D4, T, T + 90);
+  await jugador.call('armadoBuscar', { clubId: CLUB });
+  const [first] = await pendingMatches();
+  assert.ok(first && first.playerUids.includes('demo-p08'), 'no armó el primer partido');
+  // Florencia tiene un segundo pedido a la misma hora; hay 3 compatibles más (otra cancha libre).
+  await req2('demo-p08', 'Florencia', 5, D4, T, T + 90, 'b');
+  for (const [u, n, c] of [['demo-p11', 'Carolina', 6], ['demo-p12', 'Gonzalo', 6], ['demo-p13', 'Paula', 6]]) await req2(u, n, c, D4, T, T + 90);
+  await jugador.call('armadoBuscar', { clubId: CLUB });
+  const pend = await pendingMatches();
+  const twice = pend.filter((m) => m.playerUids.includes('demo-p08') && overlaps(m, first));
+  assert.equal(twice.length, 1, `Florencia quedó en ${twice.length} partidos a la misma hora`);
+  // Con un cuarto jugador libre, el segundo partido se arma sin ella.
+  await req2('demo-p05', 'Nicolás', 5, D4, T, T + 90);
+  await jugador.call('armadoBuscar', { clubId: CLUB });
+  const second = (await pendingMatches()).find((m) => m.id !== first.id);
+  assert.ok(second, 'no armó el segundo partido');
+  assert.ok(!second.playerUids.includes('demo-p08'), 'metió a Florencia de nuevo');
+  assert.notEqual(second.courtId, first.courtId);
+});
+
+await step('11. Jugador que ya reservó cancha a esa hora: el armado no le propone otro partido encima', async () => {
+  await cleanAll();
+  const D5 = inDays(4); const T = 11 * 60;
+  const id = 'bk_test_reserva_propia';
+  await club.collection('bookings').doc(id).set({ id, clubId: CLUB, courtId: 'cancha_1', courtName: 'Cancha 1', date: D5, startMinute: T, endMinute: T + 90, type: 'direct', status: 'confirmed', createdByUid: 'demo-p09', playerUids: ['demo-p09'], guestName: '', totalPrice: 2400, paidAmount: 0, paymentMethod: 'club', paymentStatus: 'pending', holdExpiresAt: '' });
+  for (const [u, n, c] of [['demo-p08', 'Florencia', 5], ['demo-p09', 'Rodrigo', 5], ['demo-p10', 'Mateo', 5], ['demo-p07', 'Santiago', 4]]) await req2(u, n, c, D5, T, T + 90);
+  await jugador.call('armadoBuscar', { clubId: CLUB });
+  const pend = await pendingMatches();
+  assert.equal(pend.filter((m) => m.playerUids.includes('demo-p09')).length, 0, 'le armó un partido encima de su reserva');
+  // Si cancela su reserva, ahí sí entra.
+  await club.collection('bookings').doc(id).update({ status: 'cancelled' });
+  await jugador.call('armadoBuscar', { clubId: CLUB });
+  assert.equal((await pendingMatches()).filter((m) => m.playerUids.includes('demo-p09')).length, 1);
+  await club.collection('bookings').doc(id).delete();
+});
+
+await step('12. Una reserva del mostrador NO ocupa al encargado que la cargó (solo a los jugadores)', async () => {
+  await cleanAll();
+  const D6 = inDays(3); const T = 14 * 60;
+  const id = 'bk_test_mostrador_carga';
+  await club.collection('bookings').doc(id).set({ id, clubId: CLUB, courtId: 'cancha_1', courtName: 'Cancha 1', date: D6, startMinute: T, endMinute: T + 90, type: 'counter', status: 'confirmed', createdByUid: 'demo-p09', playerUids: [], guestName: 'Cliente', totalPrice: 2400, paidAmount: 0, paymentMethod: 'club', paymentStatus: 'pending', holdExpiresAt: '' });
+  for (const [u, n, c] of [['demo-p08', 'Florencia', 5], ['demo-p09', 'Rodrigo', 5], ['demo-p10', 'Mateo', 5], ['demo-p07', 'Santiago', 4]]) await req2(u, n, c, D6, T, T + 90);
+  await jugador.call('armadoBuscar', { clubId: CLUB });
+  assert.equal((await pendingMatches()).filter((m) => m.playerUids.includes('demo-p09')).length, 1);
+  await club.collection('bookings').doc(id).delete();
+});
+
+await step('13. No se puede cargar un pedido que se pisa con otro propio (puntual o semanal); uno que no se pisa, sí', async () => {
+  await cleanAll();
+  const D7 = inDays(9);
+  const base = { clubId: CLUB, modality: 'masculino', partnerUid: '', partnerName: '' };
+  await jugador.call('armadoCrearPedido', { ...base, requestType: 'priority', date: D7, dayOfWeek: dow(D7), startMinute: T, endMinute: T + 180 });
+  await assert.rejects(
+    jugador.call('armadoCrearPedido', { ...base, requestType: 'priority', date: D7, dayOfWeek: dow(D7), startMinute: T + 60, endMinute: T + 150 }),
+    (e) => e.code === 'functions/already-exists' && /se pisa/.test(e.message)
+  );
+  // Semanal el mismo día de la semana y horario: también se pisa.
+  await assert.rejects(
+    jugador.call('armadoCrearPedido', { ...base, requestType: 'weekly', date: '', dayOfWeek: dow(D7), startMinute: T, endMinute: T + 90 }),
+    (e) => e.code === 'functions/already-exists'
+  );
+  // Mismo día, más temprano y sin pisarse: se carga.
+  const ok = await jugador.call('armadoCrearPedido', { ...base, requestType: 'priority', date: D7, dayOfWeek: dow(D7), startMinute: T - 180, endMinute: T });
+  assert.equal(ok.request.status, 'waiting');
+  const mine = (await club.collection('matchRequests').where('creatorUid', '==', jugador.uid).get()).docs.filter((d) => d.get('status') === 'waiting');
+  assert.equal(mine.length, 2);
+  const msg = await jugador.call('armadoCrearPedido', { ...base, requestType: 'priority', date: D7, dayOfWeek: dow(D7), startMinute: T + 30, endMinute: T + 120 }).catch((e) => e.message);
+  results.push(`     (13: mensaje que ve el jugador: "${msg}")`);
+});
+
 console.log('\n' + results.join('\n'));
 process.exit(results.some((r) => r.startsWith('FALLA')) ? 1 : 0);
