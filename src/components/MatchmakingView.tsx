@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import PhotoHeader from './PhotoHeader';
-import { BADGE_CLASSES, DropMatchButton, FillInvitesSection, MatchFillStatus, fillBadge, searchForMatch } from './FaltaUno';
+import { BADGE_CLASSES, DropMatchButton, FillInvitesSection, MatchFillStatus, fillBadge, gotByApp, searchForMatch } from './FaltaUno';
 import { dropFromMatch } from '../services/firestoreService';
 import {
   AlertTriangle,
@@ -861,6 +861,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
               const levelSpread = Math.max(...slotLevels) - Math.min(...slotLevels);
               const search = searchForMatch(fillSearches, match.id);
               const badge = fillBadge(search);
+              const got = gotByApp(fillSearches, match.id, match.bookingId);
 
               return (
                 <div key={match.id} className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -914,7 +915,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                     {match.slots.map((slot) => (
                       <div key={slot.uid} className="flex items-center justify-between gap-3 py-2.5">
                         <div className="flex min-w-0 items-center gap-3">
-                          <PlayerAvatar name={slot.displayName} photoUrl={slot.uid === userProfile.uid ? userProfile.photoUrl : photoByUid.get(slot.uid)} size={44} />
+                          <PlayerAvatar name={slot.displayName} photoUrl={slot.uid === userProfile.uid ? userProfile.photoUrl : photoByUid.get(slot.uid)} size={44} got={got.has(slot.uid)} />
                           <div className="min-w-0">
                             <p className="truncate text-[15px] font-semibold text-slate-900">
                               {slot.displayName}
@@ -922,6 +923,9 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                             </p>
                             <div className="mt-1 flex flex-wrap items-center gap-1.5">
                               <CategoryBadge category={slot.category} />
+                              {got.has(slot.uid) && (
+                                <StatusChip kind="fu" icon="falta-uno">Lo consiguió la app</StatusChip>
+                              )}
                               {slot.status === 'accepted' ? (
                                 <StatusChip kind="ok" icon="perfil">Aceptó</StatusChip>
                               ) : slot.status === 'declined' ? (

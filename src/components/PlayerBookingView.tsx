@@ -116,6 +116,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
       bookings
         .filter(
           (b) =>
+            b.type !== 'tournament' && // el torneo tiene su propia tarjeta
             ((b.type !== 'counter' && b.createdByUid === userProfile.uid) || b.playerUids.includes(userProfile.uid)) &&
             b.status !== 'cancelled'
         )

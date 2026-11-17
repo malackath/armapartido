@@ -25,11 +25,13 @@ export function addCantinaDemo(
     price: (date: string, start: number) => number;
     ownerUid: string;
     /** Cancha y hora del partido armado en juego hoy (demoHoy.ts). */
-    todayMatch?: { courtId: string; start: number };
+    todayMatch?: { courtId: string; start: number; players?: string[] };
     nowMinute?: number;
+    /** Arma 4 jugadores de categoría pareja libres a esa hora (demoParejas.ts). */
+    four: (date: string, start: number, include?: string[], cats?: number[]) => string[];
   }
 ) {
-  const { base, clubId: C, today, uids, nameOf, catOf, genOf, price, ownerUid } = ctx;
+  const { base, clubId: C, today, uids, nameOf, catOf, genOf, price, ownerUid, four } = ctx;
   const tm = ctx.todayMatch ?? { courtId: 'cancha_2', start: T(18, 30) };
   const tmCourt = `Cancha ${tm.courtId.split('_')[1]}`;
   const day = (n: number) => addDaysISO(today, n);
@@ -120,7 +122,7 @@ export function addCantinaDemo(
   };
 
   // ---------- Partido armado de hoy con cuenta de cantina (Martín + 3) ----------
-  const matchPlayers = [uids.jugador, 'demo-p07', 'demo-p11', 'demo-p12'];
+  const matchPlayers = tm.players ?? [uids.jugador, 'demo-p07', 'demo-p09', 'demo-p10'];
   const matchPrice = price(day(0), tm.start);
   const todayBooking: Booking = {
     id: 'demo_bk_c01',
@@ -152,8 +154,8 @@ export function addCantinaDemo(
     startMinute: tm.start,
     endMinute: tm.start + 90,
     modality: 'mixto',
-    minCategory: 4,
-    maxCategory: 6,
+    minCategory: Math.min(...matchPlayers.map(catOf)),
+    maxCategory: Math.max(...matchPlayers.map(catOf)),
     pricePerPlayer: matchPrice / 4,
     playerUids: matchPlayers,
     slots: matchPlayers.map((u) => ({ uid: u, displayName: nameOf(u), category: catOf(u), gender: genOf(u), status: 'accepted' as const, paid: u === 'demo-p07', requestId: `demo_req_c_${u}` })),
@@ -200,7 +202,7 @@ export function addCantinaDemo(
     type: 'direct',
     status: 'no_show',
     createdByUid: 'demo-p16',
-    playerUids: ['demo-p16'],
+    playerUids: four(nsDate, T(20), ['demo-p16']),
     guestName: nameOf('demo-p16'),
     totalPrice: price(nsDate, T(20)),
     paidAmount: 500,
@@ -279,7 +281,8 @@ export function addCantinaDemo(
       type: 'counter',
       status: 'confirmed',
       createdByUid: uids.mostrador,
-      playerUids: [],
+      // El titular no tiene cuenta (''); juega con 3 socios de 6ta y 7ma.
+      playerUids: ['', ...four(d, T(17), [], [6])],
       guestName: 'Grupo de los martes · 099 456 789',
       totalPrice: price(d, T(17)),
       paidAmount: 0,
@@ -342,7 +345,7 @@ export function addCantinaDemo(
       alertId: `demo_alert_${i + 1}`,
       searchId: `demo_search_${i + 1}`,
       alertSentAt: alertAt.toISOString(),
-      filledByUid: b.createdByUid,
+      filledByUid: b.playerUids[3] || b.createdByUid,
       filledAt: filledAt.toISOString(),
       seatsFilled: kind === 'slot_filled' ? 4 : seats,
       amountRecovered: amount,

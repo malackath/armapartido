@@ -41,7 +41,7 @@ import { ClientsPanel } from './clientes/ClientsPanel';
 import { ClientPicker } from './clientes/ClientPicker';
 import type { ClubClient } from '../types/clientes';
 import { formatPhone } from '../lib/clientes';
-import { BADGE_CLASSES, searchForMatch } from './FaltaUno';
+import { BADGE_CLASSES, gotByApp, searchForMatch } from './FaltaUno';
 import { accountOf, participantsOf } from '../lib/caja';
 import { FullscreenButton } from './ui/FullscreenButton';
 import { CourtCard, type CourtCardProps, type CourtSeat } from './mostrador/CourtCard';
@@ -388,12 +388,15 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         : due <= 0
         ? { pay: 'paid', payLabel: 'Pagó' }
         : { pay: started ? 'due' : 'tbd', payLabel: `${started ? 'Debe' : 'A cobrar'} ${formatUYU(due)}` };
+    const got = gotByApp(fillSearches, match?.id, b.id);
     const seats: CourtSeat[] = accounts.map((a) => {
       const m = memberByUid.get(a.key);
-      return { name: a.name, photoUrl: m?.photoUrl, category: m?.category, ...payOf(a.totalDue) };
+      return { name: a.name, photoUrl: m?.photoUrl, category: m?.category, got: got.has(a.key), ...payOf(a.totalDue) };
     });
     if (!match) {
-      for (const m of playersOf(b).slice(1, 4)) seats.push({ name: m.displayName, photoUrl: m.photoUrl, category: m.category, pay: 'none', payLabel: '' });
+      // Los que juegan con el titular (en las reservas del mostrador el titular puede no tener cuenta).
+      for (const m of playersOf(b).filter((m) => !accounts.some((a) => a.key === m.uid)).slice(0, 4 - seats.length))
+        seats.push({ name: m.displayName, photoUrl: m.photoUrl, category: m.category, pay: 'none', payLabel: '', got: got.has(m.uid) });
     }
     const missing = info.fill && info.fill.search.status === 'searching' ? Math.max(0, info.fill.search.seatsNeeded - info.fill.search.seatsFilled) : 0;
     for (let i = 0; i < missing && seats.length < 4; i++) seats.push({ pay: 'none', empty: true });

@@ -146,7 +146,8 @@ interface HistoryCtx {
   today: string;
   courts: { id: string; name: string }[];
   club: Parameters<typeof generateDaySlots>[0];
-  people: string[];
+  /** Arma 4 jugadores de categoría pareja libres a esa hora (demoParejas.ts). */
+  four: (date: string, start: number) => string[];
   staffUid: string;
   ownerUid: string;
   price: (date: string, start: number) => number;
@@ -157,7 +158,7 @@ interface HistoryCtx {
  * de pago, y suma esos cobros a los cierres de caja que ya armó la cantina.
  */
 export function addHistory(docs: { path: string; data: Record<string, unknown> }[], ctx: HistoryCtx) {
-  const { base, clubId, today, courts, club, people, staffUid, ownerUid, price } = ctx;
+  const { base, clubId, today, courts, club, four, staffUid, ownerUid, price } = ctx;
   const bookingDocs = docs.filter((d) => d.path.startsWith(`${base}/bookings/`)).map((d) => d.data as { date: string; courtId: string; startMinute: number; endMinute: number });
   const taken = (date: string, courtId: string, start: number) =>
     bookingDocs.some((b) => b.date === date && b.courtId === courtId && b.startMinute < start + 90 && b.endMinute > start);
@@ -168,9 +169,9 @@ export function addHistory(docs: { path: string; data: Record<string, unknown> }
   plan.forEach((p, i) => {
     const r = rand();
     const status = r < 0.025 ? 'cancelled' : r < 0.035 ? 'no_show' : 'confirmed';
-    const creator = people[i % people.length];
-    const extra = Math.floor(rand() * 4);
-    const playerUids = [creator, ...Array.from({ length: extra }, (_, k) => people[(i + 3 + k * 5) % people.length])].filter((u, k, a) => a.indexOf(u) === k);
+    // Siempre 4 jugadores, de categoría pareja (±1), sin repetir a nadie en dos canchas a la misma hora.
+    const playerUids = four(p.date, p.start);
+    const creator = playerUids[0];
     const total = price(p.date, p.start);
     const method = methods[Math.floor(rand() * methods.length)];
     // Historial creíble para el informe: la mitad se reserva en el mostrador, un 8 % lo armó la app sola.

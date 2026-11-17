@@ -12,7 +12,7 @@ const T = (h: number, m = 0) => h * 60 + m;
 
 export function addClientesDemo(
   docs: DemoDoc[],
-  ctx: { base: string; clubId: string; today: string; uids: DemoUids; nameOf: (uid: string) => string; catOf: (uid: string) => number; price: (date: string, start: number) => number; anaToday?: { courtId: string; start: number } }
+  ctx: { base: string; clubId: string; today: string; uids: DemoUids; nameOf: (uid: string) => string; catOf: (uid: string) => number; price: (date: string, start: number) => number; anaToday?: { courtId: string; start: number }; withHolder: (date: string, start: number, holderCat: number) => string[] }
 ) {
   const { base, clubId: C, today, uids, nameOf, catOf, price } = ctx;
   const day = (n: number) => addDaysISO(today, n);
@@ -77,7 +77,8 @@ export function addClientesDemo(
       type: 'counter',
       status: 'confirmed',
       createdByUid: staff.uid,
-      playerUids: client.uid ? [client.uid] : [],
+      // 4 por cancha: el titular sin cuenta va como '' y juega con 3 socios de su categoría (±1).
+      playerUids: client.uid ? [client.uid] : ctx.withHolder(day(n), start, client.category ?? 6),
       guestName: client.origin === 'telefono' ? `${client.name} · ${client.phone.replace('+598', '0').replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}` : client.name,
       clientId: client.id,
       totalPrice: total,
@@ -92,7 +93,7 @@ export function addClientesDemo(
     counter('ana2', -7, T(11), 3, cli('ana'), true),
     counter('ana3', 0, ctx.anaToday?.start ?? T(11), Number((ctx.anaToday?.courtId ?? 'cancha_3').split('_')[1]), cli('ana'), false),
     counter('jorge1', -50, T(20), 1, cli('jorge'), true),
-    counter('jorge2', -5, T(20), 1, cli('jorge'), true),
+    counter('jorge2', -5, T(20), 2, cli('jorge'), true),
     counter('rosana1', -45, T(9, 30), 4, cli('rosana'), true),
     counter('rosana2', -38, T(9, 30), 4, cli('rosana'), true),
     counter('emilio1', 1, T(17), 2, cli('emilio'), false),

@@ -11,7 +11,7 @@ import {
   calculateSlotPrice, MAX_CATEGORY } from '../lib/padelUtils';
 import { BrandIcon } from './BrandIcon';
 import { CategoryBadge, PairAvatar, PlayerAvatar, StatusChip } from './ui/People';
-import { BADGE_CLASSES, DropMatchButton, FillInvitesSection, MatchFillStatus, fillBadge, searchForMatch } from './FaltaUno';
+import { BADGE_CLASSES, DropMatchButton, FillInvitesSection, MatchFillStatus, fillBadge, gotByApp, searchForMatch } from './FaltaUno';
 import type { ActiveTab } from './TopBar';
 
 export interface HomeJoinPreset {
@@ -147,7 +147,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           courtName: match.courtName,
           court: courts.find((c) => c.id === match.courtId),
           confirmed: match.status === 'confirmed',
-          players: match.slots.map((s) => ({ name: s.displayName, category: s.category })),
+          players: match.slots.map((s) => ({ name: s.displayName, category: s.category, got: gotByApp(fillSearches, match.id, match.bookingId).has(s.uid) })),
           payAtClub: linked?.paymentMethod !== 'mercadopago',
           paid: !!mySlot?.paid,
           price: match.pricePerPlayer,
@@ -159,6 +159,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           (b) =>
             (b.status === 'confirmed' || b.status === 'held') &&
             !matchBookingIds.has(b.id) &&
+            b.type !== 'tournament' && // el torneo tiene su propia tarjeta
             ((b.type !== 'counter' && b.createdByUid === userProfile.uid) || b.playerUids.includes(userProfile.uid)) &&
             isFuture(b.date, b.endMinute)
         )
@@ -172,7 +173,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
           courtName: booking.courtName,
           court: courts.find((c) => c.id === booking.courtId),
           confirmed: booking.status === 'confirmed',
-          players: [{ name: userProfile.displayName, category: userProfile.category }],
+          // Los 4 de la cancha (el titular sin cuenta de una reserva del mostrador no figura).
+          players: (booking.playerUids.length ? booking.playerUids : [userProfile.uid]).flatMap((u) => {
+            if (u === userProfile.uid) return [{ name: userProfile.displayName, category: userProfile.category, got: false }];
+            const m = memberships.find((x) => x.uid === u);
+            return m ? [{ name: m.displayName, category: m.category, got: gotByApp(fillSearches, undefined, booking.id).has(u) }] : [];
+          }),
           payAtClub: booking.paymentMethod === 'club',
           paid: booking.paymentStatus === 'paid',
           price: booking.totalPrice,
@@ -180,7 +186,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         })),
     ];
     return items.sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start).slice(0, 3);
-  }, [proposedMatches, bookings, courts, userProfile, today]);
+  }, [proposedMatches, bookings, courts, userProfile, today, memberships, fillSearches]);
   const next = upcoming[0] ?? null;
 
   // Jugadores buscando partido con categoría compatible (±1)
@@ -310,7 +316,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     </span>
                     <span className="mt-2.5 mb-1 flex flex-wrap items-center gap-1">
                       {it.players.map((p, k) => (
-                        <PlayerAvatar key={k} name={p.name} photoUrl={photoByName(p.name)} size={34} category={p.category} className="mr-1" />
+                        <PlayerAvatar key={k} name={p.name} photoUrl={photoByName(p.name)} size={34} category={p.category} got={p.got} className="mr-1" />
                       ))}
                       {it.kind === 'match' &&
                         Array.from({ length: Math.max(0, 4 - it.players.length) }).map((_, k) => (

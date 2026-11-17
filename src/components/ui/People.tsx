@@ -59,8 +59,24 @@ export const PlayerAvatar: React.FC<{
   className?: string;
   /** Corre las iniciales a la izquierda (se usa en la pareja, donde la otra foto tapa el borde derecho). */
   shiftLeft?: number;
-}> = ({ name, photoUrl, size = 32, category, className = '', shiftLeft = 0 }) => (
-  <span className={`relative inline-flex shrink-0 ${className}`} title={name}>
+  /** Lo consiguió la app para completar la cancha (Falta uno o turno libre): insignia chica arriba a la izquierda. */
+  got?: boolean;
+}> = ({ name, photoUrl, size = 32, category, className = '', shiftLeft = 0, got = false }) => (
+  <span className={`relative inline-flex shrink-0 ${className}`} title={got ? `${name ?? ''} · lo consiguió la app para completar` : name}>
+    <AvatarBox name={name} photoUrl={photoUrl} size={size} category={category} shiftLeft={shiftLeft} />
+    {got ? <GotBadge size={Math.max(16, Math.round(size * 0.44))} /> : null}
+  </span>
+);
+
+/** Insignia "lo consiguió la app" (ícono de Falta uno), para marcar al que se sumó para completar la cancha. */
+export const GotBadge: React.FC<{ size?: number; className?: string }> = ({ size = 16, className = 'absolute -left-1.5 -top-1.5 z-10' }) => (
+  <span aria-label="Lo consiguió la app" className={`grid place-items-center rounded-full border-2 border-white bg-action text-on-action ${className}`} style={{ width: size, height: size }}>
+    <BrandIcon name="falta-uno" size={Math.max(9, size - 6)} />
+  </span>
+);
+
+const AvatarBox: React.FC<{ name?: string; photoUrl?: string; size: number; category?: number; shiftLeft: number }> = ({ name, photoUrl, size, category, shiftLeft }) => (
+  <>
     <span
       className="grid place-items-center overflow-hidden border-2 border-white bg-avatar bg-cover bg-center font-bold text-brand"
       style={{
@@ -79,7 +95,7 @@ export const PlayerAvatar: React.FC<{
         <CategoryBadge category={category} size={Math.max(16, Math.round(size * 0.4))} showSuffix={false} />
       </span>
     ) : null}
-  </span>
+  </>
 );
 
 // Pareja: las dos fotos de perfil una al lado de la otra, algo solapadas, en un recuadro

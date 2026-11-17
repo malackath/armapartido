@@ -397,6 +397,15 @@ export const BADGE_CLASSES = {
   red: 'bg-[#fdecea] text-[#b3261e]',
 } as const;
 
+/** Jugadores que la app consiguió para completar un partido o un turno (Falta uno o turno libre). */
+export function gotByApp(searches: FillSearch[], matchId?: string, bookingId?: string): Set<string> {
+  return new Set(
+    searches
+      .filter((s) => s.seatsFilled > 0 && ((!!matchId && s.matchId === matchId) || (!!bookingId && s.bookingId === bookingId)))
+      .flatMap((s) => s.filledUids ?? [])
+  );
+}
+
 /** La búsqueda viva (o la última) de un partido. */
 export function searchForMatch(searches: FillSearch[], matchId: string): FillSearch | undefined {
   const mine = searches.filter((s) => s.matchId === matchId);

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { Court } from '../../types/padel';
 import { formatMinutes } from '../../lib/padelUtils';
 import { BrandIcon } from '../BrandIcon';
-import { CategoryBadge, PlayerAvatar } from '../ui/People';
+import { CategoryBadge, GotBadge, PlayerAvatar } from '../ui/People';
 
 // Cancha dibujada vista desde arriba para el Mostrador (variante B aprobada por Ber, 16/11/2026):
 // jugadores en su lugar, marca verde si pagó y roja si debe, cronómetro y cuánto falta.
@@ -19,6 +19,8 @@ export interface CourtSeat {
   payLabel?: string;
   /** Lugar libre en un partido que busca uno. */
   empty?: boolean;
+  /** Lo consiguió la app para completar la cancha. */
+  got?: boolean;
 }
 
 export interface CourtNext {
@@ -184,7 +186,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({ court, state, title, start
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border-2 border-dashed border-fu-fill text-lg font-bold text-fu-fill">+</span>
                   ) : (
                     <span className="relative shrink-0">
-                      <PlayerAvatar name={s.name} photoUrl={s.photoUrl} size={36} />
+                      <PlayerAvatar name={s.name} photoUrl={s.photoUrl} size={36} got={s.got} />
                       {!ghost && (s.pay === 'paid' || s.pay === 'due' || s.pay === 'cup') && (
                         <span
                           title={s.pay === 'due' ? 'Debe' : s.pay === 'cup' ? 'Cuponera' : 'Pagó'}
@@ -258,6 +260,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({ court, state, title, start
             <li key={i} className="flex min-w-0 items-center gap-1.5 text-[14px]">
               {s.category ? <CategoryBadge category={s.category} size={18} showSuffix={false} /> : null}
               <span className="min-w-0 truncate">{s.empty ? 'Falta uno' : s.name ?? 'Acompañante'}</span>
+              {s.got && (
+                <span title="Lo consiguió la app para completar la cancha" className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-action px-1.5 py-px text-[10.5px] font-bold text-on-action">
+                  <GotBadge size={14} className="border-0! bg-transparent!" />
+                  Conseguido
+                </span>
+              )}
               <span className={`ml-auto whitespace-nowrap text-xs font-semibold ${s.empty ? 'text-[#006a72]' : PAY_TEXT[s.pay]}`}>
                 {s.empty ? 'Buscando' : s.payLabel}
               </span>
