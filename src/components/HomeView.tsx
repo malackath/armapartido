@@ -38,6 +38,8 @@ interface HomeViewProps {
   memberships?: ClubMembership[];
   onToast: (msg: string) => void;
   onNavigate: (tab: ActiveTab) => void;
+  /** Abre Reservar en ese día; con franja, solo esos horarios. */
+  onOpenSlots?: (date: string, franja?: { label: string; from: number; to: number }) => void;
   onJoinRequest: (preset: HomeJoinPreset) => void;
 }
 
@@ -100,6 +102,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   memberships = [],
   onToast,
   onNavigate,
+  onOpenSlots,
   onJoinRequest,
 }) => {
   const today = getTodayISO();
@@ -269,21 +272,36 @@ export const HomeView: React.FC<HomeViewProps> = ({
           ))}
         </div>
         <div className="grid grid-cols-2 gap-2.5">
-          {franjas.map((f) => (
-            <div key={f.label} className="rounded-2xl border border-line bg-surface p-3">
-              <p className="text-[13px] font-medium text-muted">{f.label}</p>
-              <p className="my-0.5 text-[17px] font-semibold text-ink">
-                {formatMinutes(f.from)} a {formatMinutes(f.to)}
-              </p>
-              <p className={`text-xs font-medium ${f.free > 0 ? 'text-emerald-600' : 'text-muted'}`}>
-                {f.free > 0 ? `${f.free} turno${f.free === 1 ? '' : 's'} libre${f.free === 1 ? '' : 's'}` : 'Sin turnos libres'}
-              </p>
-            </div>
-          ))}
+          {franjas.map((f) => {
+            const libre = f.free > 0;
+            return (
+              <button
+                key={f.label}
+                type="button"
+                disabled={!libre}
+                onClick={() => (onOpenSlots ? onOpenSlots(selectedDay, f) : onNavigate('bookings'))}
+                aria-label={libre ? `Ver los ${f.free} turnos libres de la ${f.label.toLowerCase()}` : undefined}
+                className={`rounded-2xl border border-line bg-surface p-3 text-left transition-colors ${
+                  libre ? 'cursor-pointer hover:border-brand hover:bg-mist' : 'cursor-default opacity-60'
+                }`}
+              >
+                <p className="flex items-center justify-between text-[13px] font-medium text-muted">
+                  {f.label}
+                  {libre && <span aria-hidden className="text-base leading-none text-brand">›</span>}
+                </p>
+                <p className="my-0.5 text-[17px] font-semibold text-ink">
+                  {formatMinutes(f.from)} a {formatMinutes(f.to)}
+                </p>
+                <p className={`text-xs font-medium ${libre ? 'text-emerald-600' : 'text-muted'}`}>
+                  {libre ? `${f.free} turno${f.free === 1 ? '' : 's'} libre${f.free === 1 ? '' : 's'}` : 'Sin turnos libres'}
+                </p>
+              </button>
+            );
+          })}
         </div>
         <button
           type="button"
-          onClick={() => onNavigate('bookings')}
+          onClick={() => (onOpenSlots ? onOpenSlots(selectedDay) : onNavigate('bookings'))}
           className="mt-3.5 flex h-[50px] w-full cursor-pointer items-center justify-center rounded-2xl bg-action text-base font-semibold text-on-action hover:brightness-95"
         >
           Ver horarios libres

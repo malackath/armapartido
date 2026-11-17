@@ -63,6 +63,16 @@ interface PlayerBookingViewProps {
   userProfile: UserProfile;
   membership?: ClubMembership;
   onToast: (msg: string) => void;
+  /** Viene de Inicio: abre ese día y, si trae franja, muestra solo esos horarios. */
+  preset?: BookingPreset | null;
+}
+
+export interface BookingPreset {
+  date: string;
+  label?: string;
+  fromMinute?: number;
+  toMinute?: number;
+  nonce: number;
 }
 
 export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
@@ -79,9 +89,15 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
   userProfile,
   membership,
   onToast,
+  preset,
 }) => {
   const days = useMemo(() => getUpcomingDays(7), []);
-  const [selectedDate, setSelectedDate] = useState(getTodayISO());
+  const [selectedDate, setSelectedDate] = useState(preset?.date ?? getTodayISO());
+  const [franja, setFranja] = useState<{ label: string; from: number; to: number } | null>(
+    preset && preset.fromMinute != null && preset.toMinute != null
+      ? { label: preset.label ?? '', from: preset.fromMinute, to: preset.toMinute }
+      : null
+  );
   const [selectedSlot, setSelectedSlot] = useState<{
     court: Court;
     startMinute: number;
@@ -99,7 +115,10 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
   const [openCalendarId, setOpenCalendarId] = useState<string | null>(null);
 
   const activeCourts = useMemo(() => courts.filter((c) => c.active), [courts]);
-  const slots = useMemo(() => generateDaySlots(club), [club]);
+  const slots = useMemo(
+    () => generateDaySlots(club).filter((s) => !franja || (s.startMinute >= franja.from && s.startMinute < franja.to)),
+    [club, franja]
+  );
   const isBlocked = membership?.blocked === true;
 
   const bookingsOnDate = useMemo(
@@ -307,6 +326,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
             <button
               key={d.iso}
               type="button"
+              ref={active && preset ? (el) => el?.scrollIntoView({ inline: 'center', block: 'nearest' }) : undefined}
               onClick={() => setSelectedDate(d.iso)}
               className={`flex min-h-[56px] min-w-[72px] flex-col items-center justify-center rounded-xl border px-3 py-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 active
@@ -320,6 +340,21 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
           );
         })}
       </div>
+
+      {franja && (
+        <div className="-mt-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="rounded-full bg-mist px-3 py-1.5 font-medium text-ink">
+            {franja.label ? `${franja.label} · ` : ''}{formatMinutes(franja.from)} a {formatMinutes(franja.to)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setFranja(null)}
+            className="cursor-pointer rounded-full px-2 py-1.5 font-medium text-brand underline-offset-2 hover:underline"
+          >
+            Ver todo el día
+          </button>
+        </div>
+      )}
 
       {/* Courts & Time Slots Grid */}
       {activeCourts.length === 0 ? (

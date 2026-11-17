@@ -57,7 +57,7 @@ import { MatchmakingView, type MatchInvitePreset } from './components/Matchmakin
 import { NotificationsPanel } from './components/NotificationsPanel';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { PlatformOwnerView } from './components/PlatformOwnerView';
-import { PlayerBookingView } from './components/PlayerBookingView';
+import { PlayerBookingView, type BookingPreset } from './components/PlayerBookingView';
 import { ProfileView } from './components/ProfileView';
 import { StaffCounterView } from './components/StaffCounterView';
 import { CantinaView } from './components/cantina/CantinaView';
@@ -153,6 +153,11 @@ export default function App() {
   const [currentFcmTokenId, setCurrentFcmTokenId] = useState<string | null>(null);
   const [discoverablePlayers, setDiscoverablePlayers] = useState<DiscoverablePlayer[]>([]);
   const [invitePreset, setInvitePreset] = useState<MatchInvitePreset | null>(null);
+  const [bookingPreset, setBookingPreset] = useState<BookingPreset | null>(null);
+  // La franja elegida en Inicio vale solo para esa visita a Reservar.
+  useEffect(() => {
+    if (activeTab !== 'bookings') setBookingPreset(null);
+  }, [activeTab]);
 
   const seenNotifClubRef = useRef<string>('');
   const seenNotifIdsRef = useRef<Set<string>>(new Set());
@@ -614,6 +619,11 @@ export default function App() {
                 memberships={memberships}
                 onToast={showToast}
                 onNavigate={setActiveTab}
+                onOpenSlots={(date, f) => {
+                  setBookingPreset({ date, label: f?.label, fromMinute: f?.from, toMinute: f?.to, nonce: Date.now() });
+                  setActiveTab('bookings');
+                  window.scrollTo({ top: 0 });
+                }}
                 onJoinRequest={(preset) => {
                   setInvitePreset({ partnerUid: '', ...preset, nonce: Date.now() });
                   setActiveTab('matchmaking');
@@ -623,6 +633,8 @@ export default function App() {
 
             {activeTab === 'bookings' && (
               <PlayerBookingView
+                key={bookingPreset?.nonce ?? 'reservar'}
+                preset={bookingPreset}
                 club={activeClub}
                 courts={courts}
                 bookings={bookings}
