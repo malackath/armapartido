@@ -977,6 +977,12 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Modo invitados (etapa 6b): amigos que un socio autorizó. Los ve el club, el invitado y quien lo invitó.
+      match /guestPasses/{guestId} {
+        allow get, list: if isSignedIn() && existing().clubId == clubId
+          && (existing().uid == request.auth.uid || existing().invitedBy == request.auth.uid || isClubStaffOrAdmin(clubId) || isPlatformAdmin());
+        allow write: if false;
+      }
       match /fillInvites/{inviteId} {
         allow get: if isSignedIn() && isValidId(clubId) && isValidId(inviteId)
           && (existing().uid == request.auth.uid || isClubStaffOrAdmin(clubId) || isPlatformAdmin());

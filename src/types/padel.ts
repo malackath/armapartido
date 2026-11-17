@@ -109,6 +109,8 @@ export interface Club {
   /** "Falta uno" automático (por defecto encendido) y diferencia de categoría permitida (1 o 2). */
   fillEnabled?: boolean;
   fillMaxGap?: 1 | 2;
+  /** Modo invitados (etapa 6b). Sin esto, el club está en modo interno. */
+  guests?: ClubGuestsConfig;
   /** "Llenar turnos libres" automático (D12): apagado si falta. Cada club elige las franjas. */
   autoFill?: AutoFillConfig;
   /** Auspiciante que el club muestra en Inicio. Si no hay, el espacio no se muestra. */
@@ -260,6 +262,9 @@ export interface ProposedSlot {
   status: 'pending' | 'accepted' | 'declined';
   paid: boolean;
   requestId: string;
+  /** Invitado (etapa 6b): no es socio de este club. Paga su parte más el recargo. */
+  guest?: boolean;
+  surcharge?: number;
 }
 
 export interface ProposedMatch {
@@ -505,6 +510,8 @@ export interface AlertPrefs {
   weeklyInvites: WeeklyInvites;
   /** Diferencia de categoría que acepta: 0 = solo la suya, 1 o 2. */
   maxCategoryGap: 0 | 1 | 2;
+  /** Modo invitados (etapa 6b): acepta avisos de "falta uno" de otros clubes. Apagado por defecto. */
+  otherClubs?: boolean;
 }
 
 export const DEFAULT_ALERT_PREFS: AlertPrefs = { weeklyInvites: 3, maxCategoryGap: 1 };
@@ -516,6 +523,8 @@ export type FillChoice = 'keep_searching' | 'play_as_three' | 'cancel';
 
 export interface FillSearch {
   id: string;
+  /** Modo invitados (etapa 6b): ya se avisó a los invitados (una sola vez por búsqueda). */
+  guestsInvited?: boolean;
   clubId: string;
   kind: FillSearchKind;
   matchId: string;
@@ -576,8 +585,42 @@ export interface FillInvite {
   sentAt: string;
   /** Cómo llegó: aviso de la app (por defecto) o el link compartido por un jugador. */
   via?: 'aviso' | 'link' | 'guardia';
+  /** Invitado (etapa 6b): no es socio; sus datos para el partido van acá. */
+  guest?: GuestInfo;
   createdAt?: unknown;
   updatedAt?: unknown;
+}
+
+/** Modo invitados (etapa 6b; decisiones 4.6 de Ber, 17/11/2026). */
+export interface ClubGuestsConfig {
+  /** Recibir invitados cuando falta uno y nadie del club se sumó en la primera tanda. */
+  enabled: boolean;
+  /** Recargo en pesos que paga el invitado, sobre su parte. */
+  surcharge: number;
+  /** false: la app nunca ofrece a los jugadores de este club en otros clubes (4.6c). */
+  shareMyPlayers?: boolean;
+}
+
+export interface GuestInfo {
+  displayName: string;
+  category: number;
+  gender: Gender;
+  /** Club de origen (vacío si es amigo de un socio sin club). */
+  homeClubId: string;
+  kind: 'otro_club' | 'amigo';
+  surcharge: number;
+}
+
+/** Amigo que un socio autorizó a jugar como invitado en el club (clubs/{club}/guestPasses/{uid}). */
+export interface GuestPass {
+  uid: string;
+  clubId: string;
+  displayName: string;
+  category: number;
+  gender: Gender;
+  invitedBy: string;
+  invitedByName: string;
+  createdAt?: unknown;
 }
 
 export interface RecoveryRecord {

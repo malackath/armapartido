@@ -10,6 +10,7 @@ import type {
   FillSearch,
   FillSearchKind,
   Gender,
+  GuestInfo,
   MatchRequest,
   ProposedMatch,
   ProposedSlot,
@@ -18,6 +19,7 @@ import type {
 import { addDaysISO, formatCategory, formatDateFriendly, formatMinutes } from '../../src/lib/padelUtils';
 import { teamsForSlots } from '../../src/lib/planificador';
 import { tryStandbys } from './guardia';
+import { guestCandidates, guestClientRecord, guestsDue, type GuestCandidate } from './invitados';
 import { db, isFakePlayer, makeId, now } from './admin';
 import { notify } from './notify';
 import {
@@ -441,14 +443,29 @@ export async function runWave(clubId: string, searchId: string, nowDate = new Da
     ),
   });
   const seatsLeft = s.seatsNeeded - s.seatsFilled;
-  const wave = ranked.slice(0, Math.min(12, WAVE_SIZE_PER_SEAT * seatsLeft));
+  const local = ranked.slice(0, Math.min(12, WAVE_SIZE_PER_SEAT * seatsLeft));
+  // Modo invitados (etapa 6b): después de la primera tanda del club, si el club recibe invitados.
+  let guests: GuestCandidate[] = [];
+  if (guestsDue(club, s, ranked.length)) {
+    guests = await guestCandidates({
+      clubId, club, search: s, current, targetCategory: target, members: new Set(members.map((m) => m.uid)),
+      avoid: new Map(userSnaps.map((u) => [u.id, new Set((u.get('avoidUids') as string[] | undefined) ?? [])])),
+      nowDate, limit: Math.min(12, WAVE_SIZE_PER_SEAT * seatsLeft),
+    });
+  }
+  const wave = [
+    ...local.map((c) => ({ uid: c.uid, hasRequest: c.hasRequest, guest: undefined as GuestCandidate['info'] | undefined })),
+    ...guests.map((g) => ({ uid: g.uid, hasRequest: false, guest: g.info as GuestCandidate['info'] | undefined })),
+  ];
   const { waveGapMin } = searchTiming(s.date, s.startMinute, nowDate);
-  const nextWaveAt = wave.length && ranked.length > wave.length ? new Date(nowDate.getTime() + waveGapMin * 60000).toISOString() : s.closesAt;
+  const moreLater = ranked.length > local.length || (!!club.guests?.enabled && !s.guestsInvited && !guests.length);
+  const nextWaveAt = wave.length && moreLater ? new Date(nowDate.getTime() + waveGapMin * 60000).toISOString() : s.closesAt;
 
   await sDoc.ref.update({
     wave: s.wave + (wave.length ? 1 : 0),
     invitedUids: [...s.invitedUids, ...wave.map((c) => c.uid)],
     nextWaveAt,
+    ...(guests.length ? { guestsInvited: true } : {}),
     updatedAt: now(),
   });
   if (!wave.length) return 0;
@@ -467,19 +484,31 @@ export async function runWave(clubId: string, searchId: string, nowDate = new Da
       startMinute: s.startMinute,
       endMinute: s.endMinute,
       courtName: s.courtName,
-      pricePerPlayer: s.pricePerPlayer,
+      pricePerPlayer: s.pricePerPlayer + (c.guest?.surcharge ?? 0),
       status: 'sent',
       countsForCap: !c.hasRequest,
       sentAt,
+      ...(c.guest ? { guest: c.guest } : {}),
     };
     const batch = db.batch();
     batch.set(inviteRef(clubId, searchId, c.uid), { ...inv, createdAt: now(), updatedAt: now() });
     if (!c.hasRequest) {
       const uRef = db.doc(`users/${c.uid}`);
-      const cur = counterFor(counters.get(c.uid), nowDate);
+      const cur = counterFor(c.guest ? ((await uRef.get()).get('fillCounter') as InviteCounter | undefined) : counters.get(c.uid), nowDate);
       batch.set(uRef, { fillCounter: { ...cur, weekCount: cur.weekCount + 1, dayCount: cur.dayCount + 1 } }, { merge: true });
     }
     await batch.commit();
+    if (c.guest) {
+      const extra = c.guest.surcharge ? ` (incluye $${c.guest.surcharge} de invitado)` : '';
+      await notify({
+        clubId,
+        recipientUid: c.uid,
+        eventType: 'fill_invite',
+        title: `Te invitan a jugar en ${name} · ${when(s.date, s.startMinute)}`,
+        body: `Partido de ${catLabel}, ${s.courtName}. Falta ${seatsLeft === 1 ? 'uno' : seatsLeft}. Tu parte: $${inv.pricePerPlayer}${extra}. Pagás en el club.`,
+      });
+      continue;
+    }
     await notify({
       clubId,
       recipientUid: c.uid,
@@ -507,7 +536,10 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
   const sRef = searchRef(p.clubId, p.searchId);
   const iRef = inviteRef(p.clubId, p.searchId, p.uid);
   const memberSnap = await cRef.collection('memberships').doc(p.uid).get();
-  const member = memberSnap.data() as ClubMembership | undefined;
+  let member = memberSnap.data() as ClubMembership | undefined;
+  // Invitado (etapa 6b): no es socio, pero tiene una invitación de invitado para esta búsqueda.
+  const guest = member ? undefined : ((await iRef.get()).get('guest') as GuestInfo | undefined);
+  if (!member && guest) member = { uid: p.uid, displayName: guest.displayName, category: guest.category, gender: guest.gender } as ClubMembership;
   if (!member) throw new HttpsError('permission-denied', 'No sos jugador de este club.');
 
   const out = await db.runTransaction(async (tx) => {
@@ -566,6 +598,7 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
       status: 'accepted',
       paid: false,
       requestId: '',
+      ...(guest ? { guest: true, surcharge: guest.surcharge } : {}),
     };
     const slots = [...m.slots, newSlot];
     const playerUids = slots.map((x) => x.uid);
@@ -674,11 +707,12 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
     recipientUid: p.uid,
     eventType: 'match_confirmed',
     title: `¡Adentro! · ${when(s.date, s.startMinute)}`,
-    body: `Jugás ${when(s.date, s.startMinute)} hs en ${s.courtName}, ${name}. Tu parte: $${s.pricePerPlayer}.`,
+    body: `Jugás ${when(s.date, s.startMinute)} hs en ${s.courtName}, ${name}. Tu parte: $${s.pricePerPlayer + (guest?.surcharge ?? 0)}.`,
   });
+  if (guest) await guestClientRecord(p.clubId, p.uid, guest);
   const others = m.slots.map((x) => x.uid).filter((u) => u !== p.uid);
   await notifyPlayers(p.clubId, others, full
-    ? { title: `Ya son ${m.slots.length} · ${when(s.date, s.startMinute)}`, body: `Entra ${first} (${formatCategory(member.category)}). ${s.courtName}, ${name}.`, eventType: 'match_confirmed' }
+    ? { title: `Ya son ${m.slots.length} · ${when(s.date, s.startMinute)}`, body: `Entra ${first} (${formatCategory(member.category)}${guest ? ', invitado' : ''}). ${s.courtName}, ${name}.`, eventType: 'match_confirmed' }
     : { title: `Entró ${first} · ${when(s.date, s.startMinute)}`, body: `Falta ${s.seatsNeeded - s.seatsFilled - 1} más. Seguimos buscando.` });
   if (full) await expireOpenInvites(p.clubId, p.searchId);
   return 'won';

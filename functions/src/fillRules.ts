@@ -95,7 +95,7 @@ export function prefsOf(raw: unknown): AlertPrefs {
   const p = (raw ?? {}) as Partial<AlertPrefs>;
   const w = [0, 3, 6, -1].includes(p.weeklyInvites as number) ? (p.weeklyInvites as AlertPrefs['weeklyInvites']) : DEFAULT_ALERT_PREFS.weeklyInvites;
   const g = [0, 1, 2].includes(p.maxCategoryGap as number) ? (p.maxCategoryGap as AlertPrefs['maxCategoryGap']) : DEFAULT_ALERT_PREFS.maxCategoryGap;
-  return { weeklyInvites: w, maxCategoryGap: g };
+  return { weeklyInvites: w, maxCategoryGap: g, ...(p.otherClubs === true ? { otherClubs: true } : {}) };
 }
 
 function covers(windows: AvailabilityWindow[] | undefined, dow: number, start: number, end: number): boolean {

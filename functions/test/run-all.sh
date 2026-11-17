@@ -6,4 +6,5 @@ node functions/test/armado.emulator.mjs; A=$?
 node functions/test/faltauno.emulator.mjs; B=$?
 node functions/test/clientes.emulator.mjs; C=$?
 node functions/test/resultados.emulator.mjs; D=$?
-exit $((A || B || C || D))
+node functions/test/invitados.emulator.mjs; E=$?
+exit $((A || B || C || D || E))

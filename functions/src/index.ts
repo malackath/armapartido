@@ -11,6 +11,7 @@ import { respondToMatch, sweepClub } from './engine';
 import { runClock } from './clock';
 import { cancelStandby, offerStandby } from './guardia';
 import { confirmResult, decideSuggestion, reportResult } from './resultados';
+import { authorizeGuest, removeGuestPass } from './invitados';
 import { runAutoFillNow } from './autofill';
 import { notify } from './notify';
 import { openFreeSlot, previewFreeSlot, simulateAnswers } from './hueco';
@@ -217,9 +218,19 @@ export const faltaUnoMeSumo = onCall(async (req) => {
   const uid = requireUid(req);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const clubId = str(d.clubId);
-  await requireMember(clubId, uid);
-  return { result: await claimSeat({ clubId, searchId: str(d.searchId), uid }) };
+  const searchId = str(d.searchId);
+  await requireMemberOrGuest(clubId, uid, searchId);
+  return { result: await claimSeat({ clubId, searchId, uid }) };
 });
+
+/** Socio del club, o invitado (etapa 6b) con una invitación de invitado para esa búsqueda. */
+async function requireMemberOrGuest(clubId: string, uid: string, searchId: string) {
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(clubId) || !/^[a-zA-Z0-9_-]{1,128}$/.test(searchId)) throw new HttpsError('invalid-argument', 'Datos inválidos.');
+  const m = await db.doc(`clubs/${clubId}/memberships/${uid}`).get();
+  if (m.exists) return;
+  const inv = await db.doc(`clubs/${clubId}/fillInvites/${searchId}_${uid}`).get();
+  if (!inv.get('guest')) throw new HttpsError('permission-denied', 'No sos jugador de este club.');
+}
 
 /** Página pública del link de "Falta uno": no pide cuenta y no devuelve datos de los jugadores. */
 export const faltaUnoLink = onCall(async (req) => {
@@ -348,7 +359,7 @@ export const faltaUnoNoPuedo = onCall(async (req) => {
   const uid = requireUid(req);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const clubId = str(d.clubId);
-  await requireMember(clubId, uid);
+  await requireMemberOrGuest(clubId, uid, str(d.searchId));
   await declineInvite({ clubId, searchId: str(d.searchId), uid });
   return { result: 'ok' };
 });
@@ -415,5 +426,26 @@ export const categoriaDecidir = onCall(async (req) => {
   const clubId = str(d.clubId);
   await requireStaff(clubId, uid);
   await decideSuggestion({ clubId, byUid: uid, uid: str(d.uid), accept: d.accept === true });
+  return { ok: true };
+});
+
+/** Modo invitados (etapa 6b): un socio autoriza a un amigo suyo a jugar como invitado en el club. */
+export const invitadoAutorizar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  const friendUid = str(d.friendUid);
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(friendUid)) throw new HttpsError('invalid-argument', 'Jugador inválido.');
+  return { pass: await authorizeGuest({ clubId, byUid: uid, friendUid }) };
+});
+
+export const invitadoQuitar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  const member = await requireMember(clubId, uid);
+  const role = member.get('role');
+  await removeGuestPass({ clubId, byUid: uid, friendUid: str(d.friendUid), isStaff: role === 'admin' || role === 'staff' });
   return { ok: true };
 });
