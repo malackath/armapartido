@@ -4,9 +4,13 @@
   "nombreCorto": "Padel Club",
   "logo": "/clubes/padelclub/logo.png",
   "colores": {
-    "principal": "#0D162A",
-    "acento": "#C8F400",
-    "secundario": "#1EA5E6"
+    "principal": "#0B132B",
+    "acento": "#D4FF00",
+    "secundario": "#0284C7"
+  },
+  "fuentes": {
+    "titulos": "Outfit",
+    "texto": "Space Grotesk"
   },
   "reemplazos": {
     "Los Jacarandás Pádel": "Padel Club",

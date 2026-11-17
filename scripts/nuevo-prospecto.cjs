@@ -3,7 +3,7 @@
 // Uso (desde la carpeta del repo):
 //   node scripts/nuevo-prospecto.cjs --slug padelclub --nombre "Padel Club" --logo ruta/al/logo.png \
 //        --principal "#0B1530" --acento "#C8F400" [--secundario "#1EA5E6"] [--fondo "#..."] [--corto "Padel Club"] \
-//        [--direccion "..."] [--fondo-logo quitar|dejar]
+//        [--direccion "..."] [--fondo-logo quitar|dejar] [--fuente-titulos "Outfit"] [--fuente-texto "Space Grotesk"]
 //   Sin --principal/--acento los toma del logo (el oscuro más usado = principal, el más vivo = acento).
 //
 // Deja en public/clubes/<slug>/:
@@ -141,6 +141,7 @@ const logoMime = /\.jpe?g$/i.test(logoIn) ? 'image/jpeg' : /\.webp$/i.test(logoI
     nombreCorto: arg('corto', nombre).slice(0, 14),
     logo: `/clubes/${slug}/logo.png`,
     colores: { principal, acento, ...(secundario ? { secundario } : {}), ...(arg('fondo') ? { fondo: arg('fondo') } : {}) },
+    ...(arg('fuente-titulos') || arg('fuente-texto') ? { fuentes: { ...(arg('fuente-titulos') ? { titulos: arg('fuente-titulos') } : {}), ...(arg('fuente-texto') ? { texto: arg('fuente-texto') } : {}) } } : {}),
     ...(arg('direccion') ? { direccion: arg('direccion') } : {}),
     // Los datos de ejemplo son los del club de la demo: estos textos se cambian por el nombre del club.
     reemplazos: { 'Los Jacarandás Pádel': nombre, 'Jacarandás': nombre },

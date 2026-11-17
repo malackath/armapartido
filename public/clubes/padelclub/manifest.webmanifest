@@ -3,7 +3,7 @@
   "name": "Padel Club",
   "short_name": "Padel Club",
   "description": "Reservá cancha, armá partido y anotate en los torneos de Padel Club.",
-  "theme_color": "#0D162A",
+  "theme_color": "#0B132B",
   "background_color": "#ffffff",
   "display": "standalone",
   "start_url": "/?club=padelclub",

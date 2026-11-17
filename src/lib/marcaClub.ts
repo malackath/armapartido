@@ -27,6 +27,8 @@ export type MarcaClub = {
     /** Fondo de página (si no viene, se arma con el secundario o el principal casi blanco). */
     fondo?: string;
   };
+  /** Tipografías del club (Google Fonts). Si no vienen, queda Outfit. */
+  fuentes?: { titulos?: string; texto?: string };
   direccion?: string;
   /** Textos de los datos de ejemplo a reemplazar (p. ej. "Jacarandás" → "Padel Club"). */
   reemplazos?: Record<string, string>;
@@ -105,10 +107,27 @@ export function variablesDeMarca(m: MarcaClub): Record<string, string> {
   return v;
 }
 
+function cargarFuentes(m: MarcaClub) {
+  const familias = [m.fuentes?.titulos, m.fuentes?.texto].filter((f): f is string => !!f && /^[A-Za-z0-9 ]{2,40}$/.test(f) && f !== 'Outfit');
+  if (familias.length) {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = `https://fonts.googleapis.com/css2?${familias.map((f) => `family=${f.replace(/ /g, '+')}:wght@400;500;600;700`).join('&')}&display=swap`;
+    document.head.appendChild(l);
+  }
+  const root = document.documentElement;
+  if (m.fuentes?.titulos) root.style.setProperty('--font-display', `"${m.fuentes.titulos}", system-ui, sans-serif`);
+  if (m.fuentes?.texto) {
+    root.style.setProperty('--font-sans', `"${m.fuentes.texto}", system-ui, sans-serif`);
+    document.body.style.fontFamily = `"${m.fuentes.texto}", system-ui, sans-serif`;
+  }
+}
+
 function aplicarEnLaPagina(m: MarcaClub) {
   const root = document.documentElement;
   const vars = variablesDeMarca(m);
   Object.entries(vars).forEach(([k, val]) => root.style.setProperty(k, val));
+  cargarFuentes(m);
   document.body.style.backgroundColor = vars['--color-page'];
   document.title = m.nombre;
   const setMeta = (name: string, content: string) => {
