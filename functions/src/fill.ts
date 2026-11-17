@@ -15,7 +15,7 @@ import type {
   ProposedSlot,
   RecoveryRecord,
 } from '../../src/types/padel';
-import { formatCategory, formatDateFriendly, formatMinutes } from '../../src/lib/padelUtils';
+import { addDaysISO, formatCategory, formatDateFriendly, formatMinutes } from '../../src/lib/padelUtils';
 import { teamsForSlots } from '../../src/lib/planificador';
 import { db, isFakePlayer, makeId, now } from './admin';
 import { notify } from './notify';
@@ -27,8 +27,11 @@ import {
   isQuietHour,
   minutesUntil,
   prefsOf,
+  AUTO_HOLD_FROM_SEATS,
+  AUTO_HOLD_UNTIL_BEFORE_MIN,
   categoryFits,
   genderFits,
+  lastPlayedFrom,
   rankCandidates,
   searchTiming,
   slotStart,
@@ -86,9 +89,13 @@ export async function endAutoSearch(clubId: string, searchId: string, why: AutoE
     const s = ss.data() as FillSearch | undefined;
     if (!s || !s.auto || s.status !== 'searching') return null;
     const mRef = cRef.collection('proposedMatches').doc(s.matchId);
-    const m = (await tx.get(mRef)).data() as ProposedMatch | undefined;
+    const bRef = cRef.collection('bookings').doc(s.bookingId);
+    const [mSnap, bSnap] = await tx.getAll(mRef, bRef);
+    const m = mSnap.data() as ProposedMatch | undefined;
     tx.update(sRef, { status: why === 'unfilled' ? 'unfilled' : 'cancelled', choice: 'cancel', endReason: why, updatedAt: now() });
     if (m && m.status === 'pending') tx.update(mRef, { status: 'cancelled', updatedAt: now() });
+    // Si la cancha estaba retenida (2 o más confirmados), se libera.
+    if (bSnap.exists && bSnap.get('status') === 'held') tx.update(bRef, { status: 'cancelled', updatedAt: now() });
     return { s, uids: m?.playerUids ?? [] };
   });
   if (!res) return false;
@@ -232,6 +239,10 @@ export async function dropFromMatch(p: { clubId: string; matchId: string; uid: s
     const booking = bs.exists ? (bs.data() as Booking) : null;
     const next = removeFromMatch(tx, p.clubId, m, [p.uid], booking);
     if (freeSlot) {
+      // Turno libre automático con la cancha retenida: si quedan menos de 2, se suelta.
+      if (freeSlot.auto && booking?.status === 'held' && next.slots.length < AUTO_HOLD_FROM_SEATS) {
+        tx.update(bs.ref, { status: 'cancelled', updatedAt: now() });
+      }
       const sRef = searchRef(p.clubId, freeSlot.id);
       tx.update(sRef, {
         seatsFilled: FieldValue.increment(-1),
@@ -377,6 +388,9 @@ export async function runWave(clubId: string, searchId: string, nowDate = new Da
     cRef.collection('bookings').where('date', '==', s.date).get(),
     cRef.collection('matchRequests').where('status', '==', 'waiting').get(),
   ]);
+  // Lo jugado en las últimas 4 semanas: a igual categoría se avisa primero al que lleva más días sin jugar.
+  const pastSnap = await cRef.collection('bookings').where('date', '>=', addDaysISO(s.date, -28)).where('date', '<', s.date).get();
+  const lastPlayed = lastPlayedFrom(pastSnap.docs.map((d) => d.data() as Booking), s.date);
   const club = { ...(clubSnap.data() as Club), id: clubId };
   const match = matchSnap.data() as ProposedMatch | undefined;
   const booking = bookingsSnap.docs.find((d) => d.id === s.bookingId)?.data() as Booking | undefined;
@@ -417,6 +431,7 @@ export async function runWave(clubId: string, searchId: string, nowDate = new Da
     bookings: bookingsSnap.docs.map((d) => d.data() as Booking),
     requests: reqSnap.docs.map((d) => d.data() as MatchRequest),
     now: nowDate,
+    lastPlayed,
   });
   const seatsLeft = s.seatsNeeded - s.seatsFilled;
   const wave = ranked.slice(0, Math.min(12, WAVE_SIZE_PER_SEAT * seatsLeft));
@@ -507,9 +522,12 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
     const m = ms.data() as ProposedMatch;
     if (!m || m.status === 'cancelled') return { r: 'closed' as const };
     if (m.playerUids.includes(p.uid)) return { r: 'won' as const };
+    let autoHeld = false; // turno libre automático con la cancha ya retenida (2 o más confirmados)
     if (s.auto) {
       const court = await tx.get(cRef.collection('bookings').where('date', '==', s.date).where('courtId', '==', s.courtId));
-      if (courtBusy(court.docs.map((d) => ({ ...(d.data() as Booking), id: d.id })), s)) return { r: 'taken' as const };
+      const courtDocs = court.docs.map((d) => ({ ...(d.data() as Booking), id: d.id }));
+      if (courtBusy(courtDocs, s)) return { r: 'taken' as const };
+      autoHeld = courtDocs.some((b) => b.id === s.bookingId && b.status === 'held');
     }
     const mine = await tx.get(cRef.collection('bookings').where('date', '==', s.date).where('playerUids', 'array-contains', p.uid));
     const overlap = mine.docs.some((d) => {
@@ -551,8 +569,21 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
     });
     if (!s.auto) {
       tx.update(bRef, { playerUids, ...teams, ...(confirmNow ? { status: 'confirmed', holdExpiresAt: '' } : {}), updatedAt: now() });
-    } else if (confirmNow) {
-      // Recién ahora se reserva la cancha (la transacción ya comprobó que sigue libre).
+    } else if (!confirmNow) {
+      // Turno libre automático (decisión 4.4): con 2 confirmados se retiene la cancha, como mucho hasta 3 h antes.
+      const holdUntil = new Date(slotStart(s.date, s.startMinute).getTime() - AUTO_HOLD_UNTIL_BEFORE_MIN * 60000);
+      if (autoHeld) {
+        tx.update(bRef, { playerUids, ...teams, updatedAt: now() });
+      } else if (s.seatsFilled + 1 >= AUTO_HOLD_FROM_SEATS && nowDate < holdUntil) {
+        tx.set(bRef, {
+          id: s.bookingId, clubId: p.clubId, courtId: s.courtId, courtName: s.courtName, date: s.date,
+          startMinute: s.startMinute, endMinute: s.endMinute, type: 'matched', status: 'held', createdByUid: AUTO_FILL_UID,
+          playerUids, guestName: 'Armado por la app', totalPrice: s.pricePerPlayer * 4, paidAmount: 0, paymentMethod: 'split',
+          paymentStatus: 'pending', holdExpiresAt: holdUntil.toISOString(), discountPct: s.discountPct ?? 0, createdAt: now(), updatedAt: now(),
+        });
+      }
+    } else {
+      // Recién ahora se confirma la cancha (la transacción ya comprobó que sigue libre).
       const booking: Booking & Record<string, unknown> = {
         id: s.bookingId,
         clubId: p.clubId,

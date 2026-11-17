@@ -424,7 +424,8 @@ await step('A8. A la hora límite (2 h antes) no son 4: se cancela, no queda res
   const after = (await club.collection('fillSearches').doc(s.id).get()).data();
   assert.equal(after.status, 'unfilled'); assert.equal(after.choice, 'cancel'); assert.equal(after.endReason, 'unfilled');
   assert.equal((await club.collection('proposedMatches').doc(s.matchId).get()).get('status'), 'cancelled');
-  assert.equal((await club.collection('bookings').doc(s.bookingId).get()).exists, false);
+  const left = await club.collection('bookings').doc(s.bookingId).get();
+  assert.ok(!left.exists || left.get('status') === 'cancelled', 'quedó una reserva viva');
 });
 await step('A9. El reloj corre la revisión de las 9 una sola vez por día', async () => {
   await resetAuto();
@@ -448,6 +449,59 @@ await step('A10. Nadie en dos lugares a la vez: quien ya está en otro partido p
   await club.collection('proposedMatches').doc(otherId).update({ status: 'cancelled' });
   assert.equal(await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: u }), 'won');
   await club.collection('proposedMatches').doc(otherId).delete();
+});
+
+// ---------- Etapa 4 (17/11): retener la cancha con 2 de 4 y avisar primero al que lleva más sin jugar ----------
+const freshAuto = async () => (await autoSearches()).filter((x) => x.status === 'searching' && x.seatsFilled === 0).sort((a, b) => a.startMinute - b.startMinute);
+await step('A11. Turno libre automático: con 1 no se reserva; con 2 confirmados se retiene la cancha hasta 3 h antes; con 4 queda confirmada', async () => {
+  const s = (await freshAuto())[0];
+  assert.ok(s, 'no hay turno libre automático abierto');
+  const fakes = s.invitedUids.filter((u) => u.startsWith('demo-'));
+  assert.ok(fakes.length >= 4, `invitados de la demo: ${fakes.length}`);
+  assert.equal(await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: fakes[0] }), 'won');
+  assert.equal((await club.collection('bookings').doc(s.bookingId).get()).exists, false, 'reservó con 1');
+  assert.equal(await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: fakes[1] }), 'won');
+  const held = (await club.collection('bookings').doc(s.bookingId).get()).data();
+  assert.equal(held?.status, 'held', 'no retuvo con 2');
+  assert.deepEqual([...held.playerUids].sort(), [fakes[0], fakes[1]].sort());
+  const start = new Date(`${DA}T${p2(Math.floor(s.startMinute / 60))}:${p2(s.startMinute % 60)}:00`).getTime();
+  assert.equal(new Date(held.holdExpiresAt).getTime(), start - 180 * 60000, 'retiene hasta 3 h antes');
+  assert.equal(await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: fakes[2] }), 'won');
+  assert.equal((await club.collection('bookings').doc(s.bookingId).get()).get('playerUids').length, 3);
+  assert.equal(await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: fakes[3] }), 'won');
+  const bk = (await club.collection('bookings').doc(s.bookingId).get()).data();
+  assert.equal(bk.status, 'confirmed'); assert.equal(bk.playerUids.length, 4); assert.equal(bk.teamA?.length, 2);
+});
+await step('A12. Si de 2 se baja uno, la cancha se suelta (y la búsqueda sigue)', async () => {
+  const s = (await freshAuto())[0];
+  const fakes = s.invitedUids.filter((u) => u.startsWith('demo-'));
+  await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: fakes[0] });
+  await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: fakes[1] });
+  assert.equal((await club.collection('bookings').doc(s.bookingId).get()).get('status'), 'held');
+  await H.dropFromMatch({ clubId: CLUB, matchId: s.matchId, uid: fakes[1] });
+  assert.equal((await club.collection('bookings').doc(s.bookingId).get()).get('status'), 'cancelled');
+  assert.equal((await club.collection('fillSearches').doc(s.id).get()).get('status'), 'searching');
+});
+await step('A13. A las 3 h antes sin llegar a 4, el reloj suelta la cancha pero la búsqueda sigue hasta 2 h antes', async () => {
+  const s = (await autoSearches()).filter((x) => x.status === 'searching').sort((a, b) => a.startMinute - b.startMinute)[0];
+  const fakes = s.invitedUids.filter((u) => u.startsWith('demo-') && !s.filledUids.includes(u) && !s.excludedUids.includes(u));
+  // Que haya 2 confirmados (puede tener 1 de la prueba anterior).
+  for (const u of fakes) { if ((await club.collection('fillSearches').doc(s.id).get()).get('seatsFilled') >= 2) break; await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: u }); }
+  const held = (await club.collection('bookings').doc(s.bookingId).get()).data();
+  assert.equal(held?.status, 'held');
+  await H.runClock(new Date(new Date(held.holdExpiresAt).getTime() + 60000));
+  assert.equal((await club.collection('bookings').doc(s.bookingId).get()).get('status'), 'cancelled', 'no soltó la cancha');
+  assert.equal((await club.collection('fillSearches').doc(s.id).get()).get('status'), 'searching', 'cortó la búsqueda');
+});
+await step('A14. A igual categoría, el aviso va primero al que lleva más días sin jugar', async () => {
+  const mk = (uid) => ({ uid, displayName: uid, role: 'player', category: 5, gender: 'masculino', blocked: false, noShowCount: 0, weeklyAvailability: [{ dayOfWeek: 3, startMinute: 0, endMinute: 1440 }] });
+  const search = { date: '2026-11-25', startMinute: 1200, endMinute: 1290, excludedUids: [], invitedUids: [], filledUids: [], modality: 'masculino', genderNeeded: [] };
+  const ranked = H.rankCandidates({
+    search, clubGap: 1, current: [], targetCategory: 5, members: [mk('ayer'), mk('nunca'), mk('hace10')], prefsByUid: new Map(), counters: new Map(),
+    bookings: [], requests: [], now: new Date('2026-11-20T12:00:00'), random: () => 0.5,
+    lastPlayed: new Map([['ayer', '2026-11-24'], ['hace10', '2026-11-15']]),
+  });
+  assert.deepEqual(ranked.map((c) => c.uid), ['nunca', 'hace10', 'ayer']);
 });
 
 console.log('\n' + results.join('\n'));

@@ -19,6 +19,9 @@ export const WAVE_SIZE_PER_SEAT = 6;
 export const CHOICE_DEADLINE_MINUTES = 30;
 /** Turno libre automático (4.4): la búsqueda cierra 2 horas antes del turno. */
 export const AUTO_CLOSE_BEFORE_MIN = 120;
+/** Turno libre automático: la cancha se retiene cuando confirman 2 de 4, como mucho hasta 3 h antes (decisión 4.4, 17/11). */
+export const AUTO_HOLD_FROM_SEATS = 2;
+export const AUTO_HOLD_UNTIL_BEFORE_MIN = 180;
 
 /** Fecha y hora real del turno (en la zona horaria del proceso: Montevideo). */
 export function slotStart(date: string, startMinute: number): Date {
@@ -130,10 +133,28 @@ export interface Candidate {
   catDistance: number;
   weekCount: number;
   noShows: number;
+  /** Días desde su último partido (tope 28; sin partidos = 28). El que lleva más sin jugar va antes. */
+  daysSincePlayed: number;
   tiebreak: number;
 }
 
-/** Arma la lista ordenada de candidatos (secciones 5.3 a 5.5). */
+function daysSince(last: string | undefined, dateISO: string): number {
+  if (!last) return 28;
+  const d = Math.round((Date.parse(`${dateISO}T12:00:00Z`) - Date.parse(`${last}T12:00:00Z`)) / 86400000);
+  return Math.max(0, Math.min(28, d));
+}
+
+/** Último partido de cada jugador según las reservas confirmadas con 2 o más jugadores (antes de `beforeISO`). */
+export function lastPlayedFrom(bookings: Booking[], beforeISO: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const b of bookings) {
+    if (b.status !== 'confirmed' || b.date >= beforeISO || (b.playerUids ?? []).filter(Boolean).length < 2) continue;
+    for (const u of b.playerUids) if (u && (!out.has(u) || out.get(u)! < b.date)) out.set(u, b.date);
+  }
+  return out;
+}
+
+/** Arma la lista ordenada de candidatos (secciones 5.3 a 5.5; desde la etapa 4, a igual categoría va primero el que lleva más días sin jugar). */
 export function rankCandidates(p: {
   search: FillSearch;
   clubGap: number;
@@ -146,6 +167,8 @@ export function rankCandidates(p: {
   requests: MatchRequest[];
   now: Date;
   random?: () => number;
+  /** Último partido jugado de cada uno (fecha ISO), de las reservas de las últimas semanas. */
+  lastPlayed?: Map<string, string>;
 }): Candidate[] {
   const { search, clubGap, current, members, bookings, requests, now } = p;
   const rnd = p.random ?? Math.random;
@@ -195,6 +218,7 @@ export function rankCandidates(p: {
       catDistance: Math.abs(m.category - p.targetCategory),
       weekCount: c.weekCount,
       noShows: m.noShowCount ?? 0,
+      daysSincePlayed: daysSince(p.lastPlayed?.get(m.uid), search.date),
       tiebreak: rnd(),
     });
   }
@@ -202,6 +226,7 @@ export function rankCandidates(p: {
     (a, b) =>
       Number(b.hasRequest) - Number(a.hasRequest) ||
       a.catDistance - b.catDistance ||
+      b.daysSincePlayed - a.daysSincePlayed ||
       a.weekCount - b.weekCount ||
       Math.min(a.noShows, 1) - Math.min(b.noShows, 1) ||
       a.tiebreak - b.tiebreak

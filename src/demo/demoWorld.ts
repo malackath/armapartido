@@ -1,3 +1,5 @@
+import { teamsForSlots } from '../lib/planificador';
+import type { ProposedSlot } from '../types/padel';
 /**
  * Mundo de demo de Armá Partido: un club ficticio de Montevideo con canchas, jugadores de 1ra a 7ma,
  * reservas pasadas y futuras, partidos armados y abiertos, y torneos.
@@ -768,6 +770,18 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
         kind: rental ? 'venta' : 'cantina', rubro: rental ? 'alquiler' : 'cantina', status: 'completed', day: today, staffName: seller.name,
       });
     });
+  }
+  // Equipos sugeridos (etapa 3, OK de Ber 17/11) en los partidos de 4 y en sus reservas.
+  const teamsByBooking = new Map<string, { teamA: string[]; teamB: string[] }>();
+  for (const d of docs) {
+    if (!d.path.includes('/proposedMatches/')) continue;
+    const slots = d.data.slots as ProposedSlot[] | undefined;
+    const t = slots && !d.data.teamA ? teamsForSlots(slots) : null;
+    if (t) { Object.assign(d.data, t); if (d.data.bookingId) teamsByBooking.set(String(d.data.bookingId), t); }
+  }
+  for (const d of docs) {
+    const id = d.path.split('/bookings/')[1];
+    if (id && teamsByBooking.has(id)) Object.assign(d.data, teamsByBooking.get(id));
   }
   return docs;
 }
