@@ -17,6 +17,7 @@ import { BADGE_CLASSES, DropMatchButton, FillInvitesSection, MatchFillStatus, fi
 import type { ActiveTab } from './TopBar';
 import { ResultadosInicio } from './Resultados';
 import { InvitacionesOtrosClubes } from './Invitados';
+import { PlayerFicha } from './registro/parts';
 
 export interface HomeJoinPreset {
   dayOfWeek: number;
@@ -225,37 +226,48 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const courtDetail = (c?: Court) =>
     c ? ` · ${c.roof === 'techada' ? 'techada' : 'descubierta'}, ${c.surface === 'cristal' ? 'vidrio' : 'muro'}` : '';
 
+  // Ficha del jugador (la misma de Perfil). Si el club le corrigió la categoría, se ve la del club.
+  const myMembership = memberships.find((m) => m.uid === userProfile.uid && m.clubId === club.id);
+  const clubCategory = myMembership && myMembership.category !== userProfile.category ? myMembership.category : null;
+  const ficha = (layout: 'row' | 'column') => (
+    <PlayerFicha
+      profile={clubCategory ? { ...userProfile, category: clubCategory } : userProfile}
+      clubName={club.name}
+      layout={layout}
+      action={
+        layout === 'row' ? (
+          <button type="button" onClick={() => onNavigate('profile')} className="cursor-pointer rounded-[10px] bg-mist px-2.5 py-1.5 text-[13px] font-semibold text-brand">
+            Editar
+          </button>
+        ) : (
+          <button type="button" onClick={() => onNavigate('profile')} className="h-10 w-full cursor-pointer rounded-xl border border-line bg-white text-sm font-semibold text-ink hover:bg-mist">
+            Editar perfil
+          </button>
+        )
+      }
+    />
+  );
 
   return (
     <div className="space-y-6">
-      <FillInvitesSection club={club} invites={fillInvites} searches={fillSearches} matches={proposedMatches} onToast={onToast} />
       {marca && (marca.fotos?.portada || marca.slogan) && <PortadaClub marca={marca} />}
-      <ResultadosInicio club={club} bookings={bookings} memberships={memberships ?? []} userProfile={userProfile} onToast={onToast} />
-      <InvitacionesOtrosClubes uid={userProfile.uid} onToast={onToast} />
-      <section>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3.5">
-            <PlayerAvatar name={userProfile.displayName} photoUrl={userProfile.photoUrl} size={56} category={userProfile.category} />
-            <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight text-ink">¡Hola, {firstName}!</h1>
-          </div>
-          <span className="mt-1 flex shrink-0 items-center gap-1.5 rounded-full bg-white px-2 py-1 text-[13px] font-semibold text-ink">
-            <CategoryBadge category={userProfile.category} />
-            categoría
-          </span>
-        </div>
-        <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
-          <span className="h-2 w-2 rounded-full bg-[#1fae6c]" />
-          Abierto hasta las {formatMinutes(club.closeHour * 60)} · {activeCourts.length} canchas
-        </p>
-      </section>
 
-      {/* En escritorio, Inicio usa todo el ancho de la página en dos columnas. */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-      <div className="grid min-w-0 grid-cols-1 gap-6">
+      {/* Inicio en 3 columnas en compu (pedido de Ber 17/11, con captura): ficha del jugador a la izquierda,
+          reservar y partidos al centro, torneo y auspiciante a la derecha. En celular la ficha va arriba, compacta. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start xl:grid-cols-[260px_minmax(0,1fr)_320px]">
+      <div className="min-w-0 lg:col-span-2 xl:sticky xl:top-24 xl:col-span-1">
+        <div className="xl:hidden">{ficha('row')}</div>
+        <div className="hidden xl:block">{ficha('column')}</div>
+      </div>
+      <div className="@container grid min-w-0 grid-cols-1 gap-6">
       <section className="rounded-xl border border-line bg-white p-4">
         <h2 className="flex items-center gap-2 text-[17px] font-semibold text-ink">
           <BrandIcon name="reservar" className="text-brand" />
           Reservá una cancha
+          <span className="ml-auto hidden items-center gap-1.5 text-[13px] font-normal text-muted @lg:flex">
+            <span className="h-2 w-2 rounded-full bg-[#1fae6c]" />
+            Abierto hasta las {formatMinutes(club.closeHour * 60)} · {activeCourts.length} canchas
+          </span>
         </h2>
         <div className="-mx-4 mt-3.5 mb-3 flex gap-2 overflow-x-auto px-4 pb-1">
           {days.map((d) => (
@@ -308,6 +320,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </button>
       </section>
 
+      {/* Invitaciones y resultados van debajo de Reservá (decisión 6 del QA del 17/11): antes empujaban el saludo hacia abajo. */}
+      <FillInvitesSection club={club} invites={fillInvites} searches={fillSearches} matches={proposedMatches} onToast={onToast} />
+      <InvitacionesOtrosClubes uid={userProfile.uid} onToast={onToast} />
+
       <section>
         <div className="mb-2.5 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-[17px] font-semibold text-ink">
@@ -318,7 +334,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
         {next ? (
           <>
-            <div className={`grid gap-3 ${upcoming.length === 3 ? 'sm:grid-cols-3' : upcoming.length === 2 ? 'sm:grid-cols-2' : ''}`}>
+            <div className={`grid gap-3 ${upcoming.length === 3 ? '@md:grid-cols-2 @2xl:grid-cols-3' : upcoming.length === 2 ? '@md:grid-cols-2' : ''}`}>
               {upcoming.map((it, i) => {
                 const search = it.match ? searchForMatch(fillSearches, it.match.id) : undefined;
                 const badge = fillBadge(search);
@@ -388,6 +404,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         )}
       </section>
+
+      <ResultadosInicio club={club} bookings={bookings} memberships={memberships ?? []} userProfile={userProfile} onToast={onToast} />
 
       <section>
         <div className="mb-2.5 flex items-center justify-between">
