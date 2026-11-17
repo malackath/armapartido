@@ -232,11 +232,15 @@ export async function respondToMatch(params: {
       if (m.status !== 'pending') return { result: m.status === 'confirmed' ? ('confirmed' as const) : ('already_closed' as const) };
       const slots: ProposedSlot[] = m.slots.map((s) => (s.uid === slotUid ? { ...s, status: 'accepted' } : s));
       const all = slots.every((s) => s.status === 'accepted');
+      // Lecturas antes de escribir (regla de las transacciones). Un lugar sin pedido (invitado, link, guardia)
+      // o un pedido borrado no frena la confirmación: antes tiraba INTERNAL y el partido quedaba en 3/4.
+      const reqIds = [...new Set(slots.map((s) => s.requestId).filter((id): id is string => !!id))];
+      const reqSnaps = all && reqIds.length ? await tx.getAll(...reqIds.map((id) => clubRef.collection('matchRequests').doc(id))) : [];
       tx.update(matchRef, { slots, status: all ? 'confirmed' : 'pending', updatedAt: now() });
       if (all) {
         tx.update(clubRef.collection('bookings').doc(m.bookingId), { status: 'confirmed', holdExpiresAt: '', updatedAt: now() });
-        for (const reqId of new Set(slots.map((s) => s.requestId))) {
-          tx.update(clubRef.collection('matchRequests').doc(reqId), { status: 'confirmed', updatedAt: now() });
+        for (const rs of reqSnaps) {
+          if (rs.exists) tx.update(rs.ref, { status: 'confirmed', updatedAt: now() });
         }
       }
       return { result: all ? ('confirmed' as const) : ('pending' as const), match: { ...m, slots } };

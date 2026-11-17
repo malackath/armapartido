@@ -473,7 +473,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <div className="relative h-[150px] bg-ink bg-cover bg-[center_30%]" style={{ backgroundImage: `url('${photo}')` }}>
                   <span className="absolute top-3 left-3">
                     {tournament.status === 'in_progress' ? (
-                      <StatusChip kind="live">● En juego</StatusChip>
+                      <StatusChip kind="live">● Torneo en curso</StatusChip>
                     ) : tournament.status === 'registration_open' ? (
                       <StatusChip kind="ok" icon="reservar">Inscripción abierta</StatusChip>
                     ) : (

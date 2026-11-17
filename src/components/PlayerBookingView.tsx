@@ -136,7 +136,9 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
           (b) =>
             b.type !== 'tournament' && // el torneo tiene su propia tarjeta
             ((b.type !== 'counter' && b.createdByUid === userProfile.uid) || b.playerUids.includes(userProfile.uid)) &&
-            b.status !== 'cancelled'
+            b.status !== 'cancelled' &&
+            // Solo las que vienen: las ya jugadas no se pueden cancelar (QA 17/11).
+            (b.date > getTodayISO() || (b.date === getTodayISO() && b.endMinute > new Date().getHours() * 60 + new Date().getMinutes()))
         )
         .sort((a, b) => a.date.localeCompare(b.date) || a.startMinute - b.startMinute),
     [bookings, userProfile.uid]

@@ -339,6 +339,9 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
       } else {
         onToast('Confirmación registrada. Esperando al resto de los jugadores.');
       }
+    } catch {
+      // Antes fallaba en silencio y el botón parecía no hacer nada (QA 17/11).
+      onToast('No se pudo guardar la respuesta. Probá de nuevo en un momento.');
     } finally {
       setBusy(false);
     }
@@ -865,6 +868,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
               const expiresTime = new Date(match.expiresAt).toLocaleTimeString('es-UY', {
                 hour: '2-digit',
                 minute: '2-digit',
+                hourCycle: 'h23',
               });
               // Equilibrio por categoría (sin nivel decimal en la pantalla): 0 = todos de la misma, 1 = una de diferencia.
               const slotCats = match.slots.map((s) => s.category);

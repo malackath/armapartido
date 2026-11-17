@@ -623,6 +623,18 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
     req('demo_req_004', 'demo-p02', 'demo-p03', day(1), T(21, 30), 'priority'),
     req('demo_req_005', 'demo-p15', null, day(3), T(17), 'weekly'),
   ].forEach((r) => put(`${base}/matchRequests/${r.id}`, r));
+  // Pedidos de los partidos ya armados (el servidor los pasa a "confirmado" cuando aceptan los 4;
+  // si no existen, la confirmación del cuarto falla). QA 17/11.
+  for (const [m, status] of [[confirmed, 'confirmed'], [pending, 'proposed']] as const) {
+    for (const s of m.slots) {
+      if (!s.requestId) continue;
+      put(`${base}/matchRequests/${s.requestId}`, {
+        ...req(s.requestId, s.uid, null, m.date, m.startMinute, 'priority'),
+        isSameDay: false,
+        status,
+      });
+    }
+  }
 
   // ---------- Torneos ----------
   const pair = (id: string, a: string, b: string, cat: number): TournamentPair => ({
@@ -733,7 +745,7 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
       ? notif('demo_n2', uids.jugador, 'tournament_next_match', 'Tu próximo partido del torneo', `Ganaron la semifinal: la final de la Copa Primavera es mañana a las 20:00 en la Cancha 2.`)
       : notif('demo_n2', uids.jugador, 'tournament_next_match', 'Tu próximo partido del torneo', `Semifinal de la Copa Primavera hoy a las ${formatHM(semi.start)} en la ${court(semi.courtId).name}.`),
     notif('demo_n3', uids.jugador, 'tournament_new', 'Nuevo torneo: Torneo de Verano', 'Inscripción en pareja abierta, de 3ra a 6ta.', true),
-    notif('demo_n4', uids.jugadora, 'match_proposed', 'Te armamos un partido', 'Faltan 2 jugadores por aceptar para el partido del jueves a las 20:00.'),
+    notif('demo_n4', uids.jugadora, 'match_proposed', 'Te armamos un partido', `Faltan 2 jugadores por aceptar para el partido del ${['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][getDayOfWeekFromISO(pendDate)]} a las 20:00.`),
     notif('demo_n5', uids.jugador, 'booking_confirmed', 'Reserva confirmada', 'Cancha 2 mañana a las 18:30. Se paga en el club.', true),
   ].forEach((n) => put(`${base}/notifications/${n.id}`, n));
 

@@ -57,7 +57,7 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
           platform: res.platform,
         });
         onCurrentFcmTokenIdChange(res.tokenId);
-        onToast(`Dispositivo vinculado (${res.deviceLabel}) para notificaciones push FCM.`);
+        onToast(`Dispositivo vinculado (${res.deviceLabel}) para recibir avisos.`);
       } else {
         onToast('Notificaciones habilitadas en el navegador para avisos en sesión activa.');
       }
@@ -118,7 +118,7 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-medium text-emerald-700">
-            Firebase Cloud Messaging · Matriz Push + Mail
+            Avisos al celular y por mail
           </p>
           <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 sm:text-3xl">
             Centro de notificaciones
@@ -144,8 +144,8 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
             {registeringFcm
               ? 'Vinculando...'
               : pushState === 'granted' && currentDeviceLinked
-                ? 'Actualizar token FCM'
-                : 'Activar Push FCM en este dispositivo'}
+                ? 'Actualizar avisos'
+                : 'Activar avisos en este dispositivo'}
           </button>
 
           <button
@@ -182,7 +182,7 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
         <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-display text-base font-bold text-slate-900">
-              Dispositivos vinculados (Push FCM)
+              Dispositivos con avisos
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">
               Recibí alertas instantáneas al confirmarse un partido (4/4) o cuando un jugador te envía una invitación de pareja.
@@ -216,7 +216,7 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
 
         {fcmTokens.length === 0 ? (
           <p className="mt-4 text-xs text-slate-500">
-            Todavía no hay dispositivos registrados con token FCM en tu cuenta. Pulsá &ldquo;Activar Push FCM en este dispositivo&rdquo; para vincular este navegador.
+            Todavía no activaste los avisos en ningún dispositivo. Tocá &ldquo;Activar avisos en este dispositivo&rdquo;.
           </p>
         ) : (
           <div className="mt-3 divide-y divide-slate-100">
