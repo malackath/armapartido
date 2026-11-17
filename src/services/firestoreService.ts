@@ -2353,3 +2353,13 @@ export async function offerStandby(p: { clubId: string; date: string; startMinut
 export async function cancelStandby(p: { clubId: string; id: string }): Promise<void> {
   await callArmado('suplenteCancelar', p, `clubs/${p.clubId}/standbys`);
 }
+
+/** "Prefiero no jugar con" (etapa 5): privado, en el perfil del jugador (solo él lo lee). */
+export async function updateAvoidUids(uid: string, avoidUids: string[]) {
+  const path = `users/${uid}`;
+  try {
+    await setDoc(doc(db, 'users', uid), { avoidUids: avoidUids.slice(0, 20), updatedAt: serverTimestamp() }, { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}

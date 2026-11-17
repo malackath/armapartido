@@ -8,8 +8,9 @@ import {
   getTodayISO,
   type MatchCandidateResult,
 } from '../../src/lib/padelUtils';
-import { bestMatch, historyFromBookings, type PlannedMatch } from '../../src/lib/planificador';
-import { db, makeId, now } from './admin';
+import { bestMatch, historyFromBookings, type Affinity, type PlannedMatch } from '../../src/lib/planificador';
+import { FieldValue } from 'firebase-admin/firestore';
+import { db, isFakePlayer, makeId, now } from './admin';
 import { notify } from './notify';
 import { replaceInPendingMatch } from './fill';
 
@@ -24,6 +25,8 @@ export interface ClubContext {
   memberships: ClubMembership[];
   /** Partidos propuestos pendientes desde hoy (sus jugadores están ocupados a esa hora). */
   pendingMatches: ProposedMatch[];
+  /** Amigos, "prefiero no" (privado) y horas que rechaza de cada jugador con pedido. */
+  affinity: Map<string, Affinity>;
 }
 
 /** Lee solo lo que el armado necesita: reservas desde hoy, pedidos en espera y las fichas de esos jugadores. */
@@ -46,9 +49,22 @@ export async function loadClubContext(clubId: string): Promise<ClubContext | nul
     if (r.partnerUid) uids.add(r.partnerUid);
   }
   const memberships: ClubMembership[] = [];
+  const affinity = new Map<string, Affinity>();
   if (uids.size > 0) {
-    const snaps = await db.getAll(...[...uids].map((u) => clubRef.collection('memberships').doc(u)));
+    const list = [...uids];
+    const [snaps, userSnaps, friendSnaps] = await Promise.all([
+      db.getAll(...list.map((u) => clubRef.collection('memberships').doc(u))),
+      db.getAll(...list.map((u) => db.doc(`users/${u}`))),
+      Promise.all(list.map((u) => db.collection(`users/${u}/friends`).get())),
+    ]);
     for (const s of snaps) if (s.exists) memberships.push(s.data() as ClubMembership);
+    list.forEach((u, i) => {
+      affinity.set(u, {
+        friends: new Set(friendSnaps[i].docs.map((d) => d.id)),
+        avoid: new Set((userSnaps[i].get('avoidUids') as string[] | undefined) ?? []),
+        declineHours: (userSnaps[i].get('declineHours') as Record<string, number> | undefined) ?? {},
+      });
+    });
   }
   return {
     club: { ...(clubSnap.data() as Club), id: clubId },
@@ -56,6 +72,7 @@ export async function loadClubContext(clubId: string): Promise<ClubContext | nul
     bookings: bookingsSnap.docs.map((d) => ({ ...(d.data() as Booking), id: d.id })),
     requests,
     memberships,
+    affinity,
     pendingMatches: pendingSnap.docs
       .map((d) => ({ ...(d.data() as ProposedMatch), id: d.id }))
       .filter((m) => m.date >= today),
@@ -242,6 +259,12 @@ export async function respondToMatch(params: {
     return outcome.result;
   }
 
+  // Aprende: el que rechaza una propuesta a esa hora baja su prioridad a esa hora (etapa 5).
+  const pm = (await matchRef.get()).data() as ProposedMatch | undefined;
+  if (pm && !isFakePlayer(slotUid)) {
+    const h = String(Math.floor(pm.startMinute / 60));
+    await db.doc(`users/${slotUid}`).set({ declineHours: { [h]: FieldValue.increment(1) } }, { merge: true }).catch(() => undefined);
+  }
   // Rechazo con "falta uno": sale solo el que rechazó (y su pareja fija) y se busca reemplazo.
   if (await replaceInPendingMatch({ clubId, matchId, leavingUids: [slotUid], kind: 'declined' })) return 'replaced_or_cancelled';
   // Si el club lo tiene apagado (o quedarían menos de 2): como antes, se libera la cancha.

@@ -28,6 +28,7 @@ import { uploadProfilePhoto } from '../services/photoService';
 import { obtainFcmDeviceToken } from '../lib/fcm';
 import { MyAccount } from './caja/MyAccount';
 import { AlertPrefsSection } from './FaltaUno';
+import { PrefieroNo } from './PrefieroNo';
 import { InstallGuideModal, PWAInstallButton } from './PWAInstallButton';
 import { AvailabilityGrid, CategoryLadder, MiniLadder, OptionGroup, PlayerFicha } from './registro/parts';
 
@@ -72,6 +73,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   clubs,
   activeClub,
   membership,
+  memberships,
   bookings,
   proposedMatches,
   tournaments,
@@ -259,6 +261,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="mt-3 grid gap-3">
             <PushCard userProfile={userProfile} onToast={onToast} />
             <AlertPrefsSection userProfile={userProfile} onProfileUpdated={onProfileUpdated} onToast={onToast} />
+            <PrefieroNo userProfile={userProfile} memberships={memberships} onProfileUpdated={onProfileUpdated} onToast={onToast} onOpenFriends={onOpenTab ? () => onOpenTab('friends') : undefined} />
             <MyDataCard
               userProfile={userProfile}
               info={privateInfo}

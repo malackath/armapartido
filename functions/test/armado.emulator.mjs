@@ -335,5 +335,36 @@ await step('15. Si uno rechaza, los equipos sugeridos se borran (ya no valen); v
   }
 });
 
+// ---------- Etapa 5 (17/11): preferencias ----------
+await step('16. "Prefiero no jugar con" (privado): el armado no los junta; con un quinto, arma sin juntarlos', async () => {
+  await cleanAll();
+  const D9 = inDays(4); const T = 9 * 60 + 30;
+  await db.doc('users/demo-p26').set({ avoidUids: ['demo-p27'] }, { merge: true });
+  for (const [u, n] of [['demo-p26', 'Leandro'], ['demo-p27', 'Victoria'], ['demo-p28', 'Franco'], ['demo-p29', 'Natalia']]) await req2(u, n, 5, D9, T, T + 90);
+  await jugador.call('armadoBuscar', { clubId: CLUB });
+  assert.equal((await pendingMatches()).filter((m) => m.date === D9).length, 0, 'armó con los que no quieren jugar juntos');
+  await req2('demo-p08', 'Florencia', 5, D9, T, T + 90);
+  await jugador.call('armadoBuscar', { clubId: CLUB });
+  const [m] = (await pendingMatches()).filter((x) => x.date === D9);
+  assert.ok(m, 'no armó con el quinto');
+  assert.ok(!(m.playerUids.includes('demo-p26') && m.playerUids.includes('demo-p27')));
+  await db.doc('users/demo-p26').update({ avoidUids: [] });
+});
+
+await step('17. Aprende: al rechazar una propuesta queda anotada la hora (baja su prioridad a esa hora)', async () => {
+  const [m] = (await pendingMatches()).filter((x) => x.date === inDays(4));
+  const before = (await db.doc(`users/${jugador.uid}`).get()).get('declineHours') ?? {};
+  // El jugador real rechaza una propuesta donde está él.
+  await cleanAll();
+  const D10 = inDays(3); const T = 12 * 60 + 30;
+  for (const [u, n] of [['demo-p08', 'F'], ['demo-p09', 'R'], ['demo-p10', 'M']]) await req2(u, n, 5, D10, T, T + 90);
+  const res = await jugador.call('armadoCrearPedido', { clubId: CLUB, modality: 'masculino', requestType: 'priority', date: D10, dayOfWeek: dow(D10), startMinute: T, endMinute: T + 90, partnerUid: '', partnerName: '' });
+  assert.ok(res.proposedMatch, 'no armó');
+  await jugador.call('armadoResponder', { clubId: CLUB, matchId: res.proposedMatch.id, slotUid: jugador.uid, decision: 'declined' });
+  const after = (await db.doc(`users/${jugador.uid}`).get()).get('declineHours') ?? {};
+  assert.equal((after['12'] ?? 0) - (before['12'] ?? 0), 1, JSON.stringify(after));
+  void m;
+});
+
 console.log('\n' + results.join('\n'));
 process.exit(results.some((r) => r.startsWith('FALLA')) ? 1 : 0);

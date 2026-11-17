@@ -121,5 +121,31 @@ step('P8. Club grande: 200 jugadores, 6 canchas, un día entero en menos de 3 se
   }
 });
 
+step('P9. "Prefiero no jugar con": nunca los junta, aunque sea la única forma de armar', () => {
+  const uids = ['a', 'b', 'c', 'd', 'e'];
+  const affinity = new Map([['a', { avoid: new Set(['b']) }]]);
+  const plan = planDay({ ...base(uids.map((u) => req(u)), uids.map((u) => mem(u))), affinity });
+  assert.equal(plan.length, 1);
+  const u = plan[0].slots.map((s) => s.uid);
+  assert.ok(!(u.includes('a') && u.includes('b')), 'juntó a los que no quieren');
+  const only4 = planDay({ ...base(['a', 'b', 'c', 'd'].map((x) => req(x)), ['a', 'b', 'c', 'd'].map((x) => mem(x))), affinity });
+  assert.equal(only4.length, 0, 'armó igual con los 4');
+});
+
+step('P10. A igualdad de todo, prefiere juntar amigos', () => {
+  const uids = ['a', 'b', 'c', 'd', 'e'];
+  const affinity = new Map([['a', { friends: new Set(['e']) }]]);
+  const plan = planDay({ ...base(uids.map((u) => req(u)), uids.map((u) => mem(u))), affinity });
+  const u = plan[0].slots.map((s) => s.uid);
+  assert.ok(u.includes('a') && u.includes('e'), `eligió ${u}`);
+});
+
+step('P11. Aprende: el que rechazó 3 veces a las 20 h queda atrás a esa hora', () => {
+  const uids = ['a', 'b', 'c', 'd', 'e'];
+  const affinity = new Map([['e', { declineHours: { '20': 3 } }]]);
+  const plan = planDay({ ...base(uids.map((u) => req(u)), uids.map((u) => mem(u))), affinity });
+  assert.ok(!plan[0].slots.some((s) => s.uid === 'e'));
+});
+
 console.log(results.join('\n'));
 process.exit(results.some((x) => x.startsWith('FALLA')) ? 1 : 0);

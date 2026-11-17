@@ -555,5 +555,17 @@ await step('G4. El reloj vence las guardias de días que ya pasaron', async () =
   assert.equal((await club.collection('standbys').doc('sb_test_viejo').get()).get('status'), 'expired');
 });
 
+await step('G5. Un suplente de guardia que alguno del partido marcó "prefiero no" no entra (y no se le dice por qué)', async () => {
+  await H.offerStandby({ clubId: CLUB, uid: 'demo-p26', date: DG, startMinute: 8 * 60, endMinute: 12 * 60 });
+  await db.doc('users/demo-p09').set({ avoidUids: ['demo-p26'] }, { merge: true });
+  const m = await guardMatch('pm_test_guardia3', DG, 9 * 60 + 30, ['demo-p08', 'demo-p09', 'demo-p10', 'demo-p28']);
+  const r = await H.dropFromMatch({ clubId: CLUB, matchId: m.id, uid: 'demo-p28' });
+  const after = (await club.collection('proposedMatches').doc(m.id).get()).data();
+  assert.ok(!after.playerUids.includes('demo-p26'), 'entró igual');
+  const s = (await club.collection('fillSearches').doc(r.searchId).get()).data();
+  assert.ok(!s.invitedUids.includes('demo-p26'), 'lo invitó en la tanda');
+  await db.doc('users/demo-p09').update({ avoidUids: [] });
+});
+
 console.log('\n' + results.join('\n'));
 process.exit(results.some((r) => r.startsWith('FALLA')) ? 1 : 0);

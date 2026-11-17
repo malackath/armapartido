@@ -35,7 +35,23 @@ export const PESOS = {
   porFalta: -5,
   /** Al que tiene pocas opciones ese día se lo cuida (no gastarlo en un turno fácil). */
   escasez: 30,
+  /** Por cada par de amigos en el partido (jugadores favoritos, etapa 5). */
+  porAmigo: 10,
+  /** Por cada propuesta que el jugador rechazó a esa hora (aprende que esa hora no le sirve). */
+  porRechazoEnHora: -10,
 };
+
+/** Preferencias de cada jugador (etapa 5). "Prefiero no" es privado: nunca se muestra, solo evita juntarlos. */
+export interface Affinity {
+  friends?: Set<string>;
+  avoid?: Set<string>;
+  declineHours?: Record<string, number>;
+}
+
+/** ¿Alguno de los dos marcó "prefiero no jugar con" el otro? */
+export function avoids(aff: Map<string, Affinity> | undefined, a: string, b: string): boolean {
+  return !!(aff?.get(a)?.avoid?.has(b) || aff?.get(b)?.avoid?.has(a));
+}
 
 const HIST_DAYS = 28;
 /** Cuántos pedidos por turno se combinan como máximo (los de más prioridad). Mantiene el cálculo chico. */
@@ -65,6 +81,8 @@ export interface PlanInput {
   todayISO?: string;
   /** Ahora en milisegundos (para el plazo de respuesta). */
   nowMs?: number;
+  /** Amigos, "prefiero no" y horas que rechaza, por jugador. */
+  affinity?: Map<string, Affinity>;
 }
 
 export interface PlannedMatch extends MatchCandidateResult {
@@ -203,6 +221,7 @@ export function planDay(input: PlanInput & { date: string }): PlannedMatch[] {
   const nowMs = input.nowMs ?? Date.now();
   const memberMap = new Map(memberships.map((m) => [m.uid, m]));
   const hist = indexHistory(input.history, date);
+  const aff = input.affinity;
   const bookings = [...input.bookings];
 
   const reqs = input.requests.filter(
@@ -263,12 +282,17 @@ export function planDay(input: PlanInput & { date: string }): PlannedMatch[] {
         combos(pool, (g) => {
           const uids = g.flatMap((u) => u.uids);
           const cats = g.flatMap((u) => u.cats);
+          // Regla dura: nunca juntar a quien marcó "prefiero no jugar con" el otro.
+          for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) if (avoids(aff, uids[i], uids[j])) return;
           let score = g.reduce((acc, u) => acc + u.base + PESOS.escasez / options.get(u.req.id)!, 0);
+          const hourKey = String(Math.floor(o.slot.startMinute / 60));
+          for (const u of uids) score += PESOS.porRechazoEnHora * Math.max(0, aff?.get(u)?.declineHours?.[hourKey] ?? 0);
           if (Math.max(...cats) === Math.min(...cats)) score += PESOS.mismaCategoria;
           for (let i = 0; i < 4; i++)
             for (let j = i + 1; j < 4; j++) {
               const sameUnit = g.some((u) => u.uids.includes(uids[i]) && u.uids.includes(uids[j]));
               if (!sameUnit) score += PESOS.porRepeticion * (hist.pairs.get(pairKey(uids[i], uids[j])) ?? 0);
+              if (aff?.get(uids[i])?.friends?.has(uids[j]) || aff?.get(uids[j])?.friends?.has(uids[i])) score += PESOS.porAmigo;
             }
           if (top.length < LOOKAHEAD || score > top[top.length - 1].score + 1e-9) {
             top.push({ o, g: [...g], score, after: 0 });

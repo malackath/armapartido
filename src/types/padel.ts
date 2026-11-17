@@ -51,6 +51,10 @@ export interface UserProfile {
   weeklyAvailability: AvailabilityWindow[];
   activeClubIds: string[];
   alertPrefs?: AlertPrefs;
+  /** "Prefiero no jugar con" (etapa 5): PRIVADO. Solo lo ve el jugador; el servidor lo usa para no juntarlos. */
+  avoidUids?: string[];
+  /** Lo escribe el servidor: cuántas propuestas rechazó por hora de inicio ("20" -> 3). Baja la prioridad a esa hora. */
+  declineHours?: Record<string, number>;
   courtSide?: CourtSide;
   hand?: Hand;
   /** false mientras el jugador no terminó el registro. Los perfiles viejos no lo tienen: cuentan como terminados. */

@@ -435,6 +435,10 @@ export async function runWave(clubId: string, searchId: string, nowDate = new Da
     requests: reqSnap.docs.map((d) => d.data() as MatchRequest),
     now: nowDate,
     lastPlayed,
+    avoid: new Map(userSnaps.map((u) => [u.id, new Set((u.get('avoidUids') as string[] | undefined) ?? [])])),
+    friendsOfCurrent: new Set(
+      (await Promise.all(current.map((c) => db.collection(`users/${c.uid}/friends`).get()))).flatMap((q) => q.docs.map((d) => d.id))
+    ),
   });
   const seatsLeft = s.seatsNeeded - s.seatsFilled;
   const wave = ranked.slice(0, Math.min(12, WAVE_SIZE_PER_SEAT * seatsLeft));
@@ -525,6 +529,14 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
     const m = ms.data() as ProposedMatch;
     if (!m || m.status === 'cancelled') return { r: 'closed' as const };
     if (m.playerUids.includes(p.uid)) return { r: 'won' as const };
+    // "Prefiero no jugar con" (privado): si choca con alguno de los que están, no entra y no se le dice por qué.
+    const userRefs = [p.uid, ...m.playerUids].filter(Boolean).map((u) => db.doc(`users/${u}`));
+    const us = await tx.getAll(...userRefs);
+    const avoidOf = new Map(us.map((u) => [u.id, new Set((u.get('avoidUids') as string[] | undefined) ?? [])]));
+    if (m.playerUids.some((u) => avoidOf.get(p.uid)?.has(u) || avoidOf.get(u)?.has(p.uid))) {
+      tx.update(iRef, { status: 'late', updatedAt: now() });
+      return { r: 'late' as const, refund: inv.countsForCap };
+    }
     let autoHeld = false; // turno libre automático con la cancha ya retenida (2 o más confirmados)
     if (s.auto) {
       const court = await tx.get(cRef.collection('bookings').where('date', '==', s.date).where('courtId', '==', s.courtId));

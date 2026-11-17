@@ -135,6 +135,8 @@ export interface Candidate {
   noShows: number;
   /** Días desde su último partido (tope 28; sin partidos = 28). El que lleva más sin jugar va antes. */
   daysSincePlayed: number;
+  /** Es amigo de alguno de los que ya están. */
+  friend: boolean;
   tiebreak: number;
 }
 
@@ -169,6 +171,10 @@ export function rankCandidates(p: {
   random?: () => number;
   /** Último partido jugado de cada uno (fecha ISO), de las reservas de las últimas semanas. */
   lastPlayed?: Map<string, string>;
+  /** "Prefiero no jugar con" de cada jugador (privado): nunca se invita a quien choca con alguno de los que están. */
+  avoid?: Map<string, Set<string>>;
+  /** Amigos de los que ya están en el partido: a igual categoría van antes. */
+  friendsOfCurrent?: Set<string>;
 }): Candidate[] {
   const { search, clubGap, current, members, bookings, requests, now } = p;
   const rnd = p.random ?? Math.random;
@@ -198,6 +204,7 @@ export function rankCandidates(p: {
   for (const m of members) {
     if (m.role !== 'player' && m.role !== 'admin' && m.role !== 'staff') continue;
     if (exclude.has(m.uid) || busy.has(m.uid) || m.blocked) continue;
+    if (current.some((c) => p.avoid?.get(c.uid)?.has(m.uid) || p.avoid?.get(m.uid)?.has(c.uid))) continue;
     if (!genderFits(search.modality, search.genderNeeded, m.gender)) continue;
     if (search.minCategory && (m.category < search.minCategory || m.category > (search.maxCategory ?? search.minCategory))) continue;
     const prefs = p.prefsByUid.get(m.uid) ?? prefsOf(undefined);
@@ -219,6 +226,7 @@ export function rankCandidates(p: {
       weekCount: c.weekCount,
       noShows: m.noShowCount ?? 0,
       daysSincePlayed: daysSince(p.lastPlayed?.get(m.uid), search.date),
+      friend: !!p.friendsOfCurrent?.has(m.uid),
       tiebreak: rnd(),
     });
   }
@@ -226,6 +234,7 @@ export function rankCandidates(p: {
     (a, b) =>
       Number(b.hasRequest) - Number(a.hasRequest) ||
       a.catDistance - b.catDistance ||
+      Number(b.friend) - Number(a.friend) ||
       b.daysSincePlayed - a.daysSincePlayed ||
       a.weekCount - b.weekCount ||
       Math.min(a.noShows, 1) - Math.min(b.noShows, 1) ||

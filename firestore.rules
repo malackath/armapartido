@@ -115,11 +115,13 @@ service cloud.firestore {
 
     function isValidUserProfile(data, uid) {
       return data.keys().hasAll(['uid', 'displayName', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'activeClubIds', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['uid', 'displayName', 'photoUrl', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'activeClubIds', 'alertPrefs', 'fillCounter', 'courtSide', 'hand', 'signupDone', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'photoUrl', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'activeClubIds', 'alertPrefs', 'fillCounter', 'courtSide', 'hand', 'signupDone', 'avoidUids', 'declineHours', 'createdAt', 'updatedAt'])
         && (!('courtSide' in data) || data.courtSide in ['drive', 'reves', 'indistinto'])
         && (!('hand' in data) || data.hand in ['derecha', 'izquierda'])
         && (!('signupDone' in data) || data.signupDone is bool)
         && (!('alertPrefs' in data) || isValidAlertPrefs(data.alertPrefs))
+        && (!('avoidUids' in data) || (data.avoidUids is list && data.avoidUids.size() <= 20))
+        && (!('declineHours' in data) || data.declineHours is map)
         && data.uid == uid
         && isValidId(data.uid)
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
