@@ -9,6 +9,7 @@ import { formatCategory, formatDateFriendly, formatMinutes, getDayName, getDayOf
 import { db, isFakePlayer, makeId, now } from './admin';
 import { respondToMatch, sweepClub } from './engine';
 import { runClock } from './clock';
+import { cancelStandby, offerStandby } from './guardia';
 import { runAutoFillNow } from './autofill';
 import { notify } from './notify';
 import { openFreeSlot, previewFreeSlot, simulateAnswers } from './hueco';
@@ -317,6 +318,28 @@ export const clientesImportar = onCall({ timeoutSeconds: 300, memory: '512MiB' }
     merged: int(d.merged ?? 0, 0, 100000, 'repetidos'),
     discarded: int(d.discarded ?? 0, 0, 100000, 'descartadas'),
   });
+});
+
+/** Suplente de guardia (etapa 4): "si se baja alguien en ese horario, contá conmigo". */
+export const suplenteOfrecer = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  const date = str(d.date, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpsError('invalid-argument', 'Fecha inválida.');
+  const startMinute = int(d.startMinute, 0, 1440, 'hora de inicio');
+  const endMinute = int(d.endMinute, 0, 1440, 'hora de fin');
+  return { standby: await offerStandby({ clubId, uid, date, startMinute, endMinute }) };
+});
+
+export const suplenteCancelar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  await cancelStandby({ clubId, uid, id: str(d.id) });
+  return { result: 'ok' };
 });
 
 /** "No puedo" en una invitación. */

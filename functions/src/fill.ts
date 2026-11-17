@@ -17,6 +17,7 @@ import type {
 } from '../../src/types/padel';
 import { addDaysISO, formatCategory, formatDateFriendly, formatMinutes } from '../../src/lib/padelUtils';
 import { teamsForSlots } from '../../src/lib/planificador';
+import { tryStandbys } from './guardia';
 import { db, isFakePlayer, makeId, now } from './admin';
 import { notify } from './notify';
 import {
@@ -299,6 +300,7 @@ export async function dropFromMatch(p: { clubId: string; matchId: string; uid: s
     title: `${slot.displayName.split(' ')[0]} no puede ${formatDateFriendly(m.date, false).toLowerCase()}`,
     body: `Ya estamos buscando el cuarto para ${when(m.date, m.startMinute)} hs en ${name}. No tenés que hacer nada.`,
   });
+  await tryStandbys(p.clubId, searchId, nowDate); // suplentes de guardia primero
   await runWave(p.clubId, searchId, nowDate);
   return { status: 'searching' as const, searchId, late };
 }
@@ -357,6 +359,7 @@ export async function replaceInPendingMatch(p: {
     title: `Buscamos ${leaving.length === 1 ? 'el cuarto' : `${leaving.length} jugadores`} · ${when(next.date, next.startMinute)}`,
     body: `${leaving.length === 1 ? 'Uno no pudo' : 'No pudieron todos'}. La cancha sigue retenida en ${name} y ya estamos avisando a otros jugadores.`,
   });
+  await tryStandbys(p.clubId, searchId, nowDate); // suplentes de guardia primero
   await runWave(p.clubId, searchId, nowDate);
   return true;
 }

@@ -527,7 +527,7 @@ export interface FillInvite {
   countsForCap: boolean;
   sentAt: string;
   /** Cómo llegó: aviso de la app (por defecto) o el link compartido por un jugador. */
-  via?: 'aviso' | 'link';
+  via?: 'aviso' | 'link' | 'guardia';
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -549,9 +549,27 @@ export interface RecoveryRecord {
   filledAt: string;
   seatsFilled: number;
   /** Entró por aviso de la app o por el link compartido. */
-  via?: 'aviso' | 'link';
+  via?: 'aviso' | 'link' | 'guardia';
   amountRecovered: number;
   status: 'pending' | 'counted' | 'voided';
   voidReason: string;
   createdAt?: unknown;
+}
+
+/** Suplente de guardia (etapa 4, decisión 4.5): "si se baja alguien en ese horario, contá conmigo". */
+export interface Standby {
+  id: string;
+  clubId: string;
+  uid: string;
+  displayName: string;
+  category: number;
+  date: string; // YYYY-MM-DD
+  startMinute: number;
+  endMinute: number;
+  /** active = esperando; used = entró a un partido; cancelled = lo sacó él; expired = pasó el horario. */
+  status: 'active' | 'used' | 'cancelled' | 'expired';
+  /** Partido al que entró, si entró. */
+  matchId?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }

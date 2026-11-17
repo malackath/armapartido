@@ -3,6 +3,7 @@ import type { Booking, FillSearch, MatchRequest, ProposedMatch } from '../../src
 import { formatDateFriendly, formatMinutes } from '../../src/lib/padelUtils';
 import { db, now } from './admin';
 import { afterRelease, releaseMatch } from './engine';
+import { expireStandbys } from './guardia';
 import type { Club } from '../../src/types/padel';
 import { AUTO_FILL_UID, activeSearchFor, autoFinalize, closeUnfilled, courtBusy, endAutoSearch, replaceInPendingMatch, runWave, settleRecoveries } from './fill';
 import { maybeRunAutoFill } from './autofill';
@@ -125,6 +126,7 @@ export async function runClock(nowDate = new Date()): Promise<ClockReport> {
         }
       }
       report.recoveriesSettled += await settleRecoveries(clubId, nowDate);
+      await expireStandbys(clubId, today);
 
       // 6. "Llenar turnos libres": revisión de las 9:00 y las 14:00 (solo clubes que lo encendieron)
       const auto = await maybeRunAutoFill(clubId, { ...(clubDoc.data() as Club), id: clubId }, nowDate);

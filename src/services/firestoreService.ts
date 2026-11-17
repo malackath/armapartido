@@ -32,6 +32,7 @@ import {
   sanitizeId, MAX_CATEGORY } from '../lib/padelUtils';
 import { sendServerFcmPush, showServiceWorkerNotification } from '../lib/fcm';
 import type {
+  Standby,
   AutoFillReport,
   AvailabilityWindow,
   Booking,
@@ -2330,4 +2331,25 @@ export function subscribeRecoveries(clubId: string, onData: (r: RecoveryRecord[]
     (snap) => onData(snap.docs.map((d) => d.data() as RecoveryRecord)),
     (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/recoveries`)
   );
+}
+
+// -----------------------------------------------------------------------------
+// Suplente de guardia (etapa 4 del algoritmo, 17/11)
+// -----------------------------------------------------------------------------
+
+export function subscribeMyStandbys(clubId: string, uid: string, cb: (items: Standby[]) => void): () => void {
+  return onSnapshot(
+    query(collection(db, 'clubs', clubId, 'standbys'), where('uid', '==', uid)),
+    (snap) => cb(snap.docs.map((d) => d.data() as Standby)),
+    (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/standbys`)
+  );
+}
+
+export async function offerStandby(p: { clubId: string; date: string; startMinute: number; endMinute: number }): Promise<Standby> {
+  const r = await callArmado<{ standby: Standby }>('suplenteOfrecer', p, `clubs/${p.clubId}/standbys`);
+  return r.standby;
+}
+
+export async function cancelStandby(p: { clubId: string; id: string }): Promise<void> {
+  await callArmado('suplenteCancelar', p, `clubs/${p.clubId}/standbys`);
 }

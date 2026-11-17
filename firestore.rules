@@ -983,6 +983,15 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Suplentes de guardia (etapa 4): solo los escribe el servidor; cada jugador lee las suyas, el club todas.
+      match /standbys/{standbyId} {
+        allow get: if isSignedIn() && isValidId(clubId) && isValidId(standbyId)
+          && (existing().uid == request.auth.uid || isClubStaffOrAdmin(clubId) || isPlatformAdmin());
+        allow list: if isSignedIn() && existing().clubId == clubId
+          && (existing().uid == request.auth.uid || isClubStaffOrAdmin(clubId) || isPlatformAdmin());
+        allow write: if false;
+      }
+
       // Turnos recuperados (los cuenta el reloj de Falta uno; los lee el informe del mes)
       match /recoveries/{recoveryId} {
         allow get, list: if isSignedIn() && isValidId(clubId) && (isClubStaffOrAdmin(clubId) || isPlatformAdmin());

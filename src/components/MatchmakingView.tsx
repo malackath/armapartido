@@ -54,6 +54,7 @@ import {
   updateUserGlobalProfile,
 } from '../services/firestoreService';
 import { MercadoPagoModal } from './MercadoPagoModal';
+import { SuplenteGuardia } from './SuplenteGuardia';
 import { BrandIcon } from './BrandIcon';
 import { mapsUrl } from '../lib/compartir';
 import { uploadProfilePhoto } from '../services/photoService';
@@ -835,6 +836,9 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Suplente de guardia (etapa 4) */}
+      <SuplenteGuardia club={club} uid={userProfile.uid} onToast={onToast} />
 
       {/* Proposed & Confirmed Matches */}
       <section className="space-y-4">
