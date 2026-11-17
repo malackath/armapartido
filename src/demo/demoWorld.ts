@@ -31,6 +31,7 @@ import type { CashDay } from '../types/caja';
 import { addCantinaDemo } from './demoCantina';
 import { makeGrouper } from './demoParejas';
 import { addClientesDemo } from './demoClientes';
+import { addInvitadosDemo } from './demoInvitados';
 
 export const DEMO_CLUB_ID = 'los_jacarandas';
 export const DEMO_EMAIL_DOMAIN = 'demo.armapartido.com';
@@ -104,6 +105,7 @@ export const DEMO_CLUB_SUBCOLLECTIONS = [
   'matchResults',
   'gameResults',
   'categorySuggestions',
+  'guestPasses',
   'waitlist',
   'products',
   'consumptions',
@@ -174,6 +176,8 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
     monthlyPricePerCourt: 0,
     courtCount: 4,
     active: true,
+    // Modo invitados (etapa 6b): recibe invitados con recargo de $50.
+    guests: { enabled: true, surcharge: 50, shareMyPlayers: true },
   };
   put(base, club);
 
@@ -573,6 +577,13 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
       toLoad.teamB = others.slice(1);
     }
   }
+  // Modo invitados (etapa 6b): segundo club ficticio, invitación de invitado para Martín y un partido con invitado.
+  addInvitadosDemo({
+    put, day, jacarandasId: C, jacarandasName: club.name, bookings, addBooking, courtName: (id) => court(id).name, four, nameOf, catOf, genOf,
+    martin: { uid: uids.jugador, name: nameOf(uids.jugador), category: catOf(uids.jugador), gender: genOf(uids.jugador) },
+  });
+  const martinUser = docs.find((d) => d.path === `users/${uids.jugador}`);
+  if (martinUser) martinUser.data.alertPrefs = { weeklyInvites: 3, maxCategoryGap: 1, otherClubs: true };
   bookings.forEach((b) => put(`${base}/bookings/${b.id}`, b));
 
   // ---------- Pedidos abiertos (buscan jugadores) ----------

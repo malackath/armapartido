@@ -203,7 +203,9 @@ export default function App() {
       setClubs(nextClubs);
       setActiveClubId((prev) => {
         if (prev && nextClubs.some((c) => c.id === prev)) return prev;
-        return nextClubs[0]?.id || '';
+        // Con varios clubes, se abre uno del jugador (no el primero por orden alfabético).
+        const mine = nextClubs.find((c) => userProfile.activeClubIds?.includes(c.id));
+        return (mine ?? nextClubs[0])?.id || '';
       });
     });
     return () => unsub();

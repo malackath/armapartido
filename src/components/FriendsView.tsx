@@ -25,6 +25,7 @@ import {
   getDayName,
   type PlayerLevelSummary, CATEGORIES } from '../lib/padelUtils';
 import { followUser, unfollowUser } from '../services/firestoreService';
+import { GuestPassButton, useMyGuestPasses } from './Invitados';
 
 interface FriendsViewProps {
   activeClub: Club;
@@ -59,6 +60,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
   onInviteToMatch,
   onToast,
 }) => {
+  const guestPasses = useMyGuestPasses(activeClub.id, userProfile.uid);
   const getLevel = (uid: string, fallbackCat: number) =>
     playerLevelsMap?.get(uid)?.level ?? Math.min(10, Math.max(1, Math.round(10.5 - fallbackCat)));
   const myLevel = getLevel(userProfile.uid, userProfile.category);
@@ -402,6 +404,9 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
                               ? 'Invitar a partido'
                               : `Invitar en ${targetClubName}`}
                           </button>
+                        )}
+                        {!item.inActiveClub && (
+                          <GuestPassButton club={activeClub} friendUid={friend.uid} passes={guestPasses} onToast={onToast} />
                         )}
                         <button
                           type="button"

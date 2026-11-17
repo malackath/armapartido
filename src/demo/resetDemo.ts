@@ -13,6 +13,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { buildDemoWorld, DEMO_CLUB_ID, DEMO_CLUB_SUBCOLLECTIONS, type DemoUids } from './demoWorld';
+import { DEMO_CLUB_2_ID } from './demoInvitados';
 
 export const DEMO_META_PATH = ['demo', 'meta'] as const;
 
@@ -33,7 +34,9 @@ async function listPaths(db: Firestore, path: string[]) {
  */
 export async function resetDemoWorld(db: Firestore, uids: DemoUids, onProgress?: (msg: string) => void) {
   const existing: string[] = [];
-  for (const sub of DEMO_CLUB_SUBCOLLECTIONS) existing.push(...(await listPaths(db, ['clubs', DEMO_CLUB_ID, sub])));
+  // Los dos clubes de la demo: Los Jacarandás y el segundo club del modo invitados (Club del Parque).
+  for (const clubId of [DEMO_CLUB_ID, DEMO_CLUB_2_ID])
+    for (const sub of DEMO_CLUB_SUBCOLLECTIONS) existing.push(...(await listPaths(db, ['clubs', clubId, sub])));
   for (const uid of Object.values(uids)) existing.push(...(await listPaths(db, ['users', uid, 'matchResults'])));
 
   const docs = buildDemoWorld(uids);

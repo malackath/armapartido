@@ -19,7 +19,7 @@ for (const minute of [0, 8 * 60 + 10, 9 * 60 + 15, 11 * 60, 13 * 60 + 40, 17 * 6
   docs.filter((d) => d.path.includes('/memberships/')).forEach((d) => cat.set(d.data.uid as string, d.data.category as number));
   const clients = new Map<string, number | null>();
   docs.filter((d) => d.path.includes('/clients/')).forEach((d) => clients.set(d.data.id as string, d.data.category as number | null));
-  const bookings = docs.filter((d) => d.path.includes('/bookings/')).map((d) => d.data as any);
+  const bookings = docs.filter((d) => d.path.startsWith('clubs/los_jacarandas/bookings/')).map((d) => d.data as any);
   const live = bookings.filter((b) => b.status !== 'cancelled');
   for (const b of live) {
     const tbd = b.type === 'tournament' && b.playerUids.length === 0; // final con parejas a definir
@@ -42,7 +42,7 @@ for (const minute of [0, 8 * 60 + 10, 9 * 60 + 15, 11 * 60, 13 * 60 + 40, 17 * 6
         const both = a.playerUids.filter((u: string) => u && c.playerUids.includes(u));
         if (both.length) fail(`${both.join(',')} en dos canchas: ${a.id} y ${c.id} ${a.date} ${a.startMinute}`);
       }
-  const pms = docs.filter((d) => d.path.includes('/proposedMatches/')).map((d) => d.data as any);
+  const pms = docs.filter((d) => d.path.startsWith('clubs/los_jacarandas/proposedMatches/')).map((d) => d.data as any);
   for (const m of pms) {
     if (m.slots.length !== 4) fail(`partido ${m.id}: ${m.slots.length} lugares`);
     const cs = m.slots.map((s: any) => s.category);

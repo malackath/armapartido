@@ -46,6 +46,7 @@ import { NewMembersReview } from './registro/ClubReview';
 import { PlayerAvatar } from './ui/People';
 import { TuApp } from './appclub/TuApp';
 import { SugerenciasCategoria, useCategorySuggestions } from './Resultados';
+import { InvitadosAdmin } from './Invitados';
 
 interface ClubAdminViewProps {
   club: Club;
@@ -354,6 +355,7 @@ const FillSection: React.FC<{
         </Card>
 
         <AutoFillCard club={club} value={autoFill} onChange={setAutoFill} dirty={autoFillDirty} />
+        <InvitadosAdmin club={club} />
       </div>
 
       <Card title={`Este mes · ${monthName}`}>

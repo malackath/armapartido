@@ -505,6 +505,24 @@ export const AlertPrefsSection: React.FC<{
           </button>
         ))}
       </div>
+      {/* Modo invitados (etapa 6b, OK de Ber 17/11): apagado por defecto. */}
+      <div className={`mt-5 flex items-center justify-between gap-3 border-t border-line pt-4 ${prefs.weeklyInvites === 0 ? 'pointer-events-none opacity-50' : ''}`}>
+        <span>
+          <b className="block text-[14.5px] font-semibold text-ink">Invitaciones de otros clubes</b>
+          <small className="mt-0.5 block text-[12.5px] text-muted">Si a un partido de tu categoría le falta uno en otro club, te avisamos. Solo ven tu nombre y tu categoría.</small>
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={!!prefs.otherClubs}
+          aria-label="Invitaciones de otros clubes"
+          disabled={saving}
+          onClick={() => save({ ...prefs, otherClubs: !prefs.otherClubs })}
+          className={`relative h-[26px] w-11 shrink-0 cursor-pointer rounded-full transition-colors disabled:opacity-60 ${prefs.otherClubs ? 'bg-brand' : 'bg-[#c9d6d7]'}`}
+        >
+          <span className={`absolute top-[3px] h-5 w-5 rounded-full bg-white transition-all ${prefs.otherClubs ? 'left-[21px]' : 'left-[3px]'}`} />
+        </button>
+      </div>
       <p className="mt-3 text-xs text-muted">De 23:00 a 08:00 no te mandamos invitaciones. Los avisos llegan como notificación del celular; activalos en Avisos.</p>
     </section>
   );

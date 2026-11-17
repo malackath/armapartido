@@ -1,6 +1,7 @@
 import type { User } from 'firebase/auth';
 import {
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
@@ -34,6 +35,8 @@ import { sendServerFcmPush, showServiceWorkerNotification } from '../lib/fcm';
 import type {
   Standby,
   MatchResult,
+  GuestPass,
+  ClubGuestsConfig,
   CategorySuggestion,
   AutoFillReport,
   AvailabilityWindow,
@@ -2395,4 +2398,49 @@ export function subscribeCategorySuggestions(clubId: string, cb: (items: Categor
 
 export async function decideCategorySuggestion(p: { clubId: string; uid: string; accept: boolean }): Promise<void> {
   await callArmado('categoriaDecidir', p, `clubs/${p.clubId}/categorySuggestions`);
+}
+
+// ---------- Modo invitados (etapa 6b) ----------
+
+/** Invitaciones del jugador como invitado en otros clubes (solo las suyas; se filtra en el celular). */
+export function subscribeMyGuestInvites(uid: string, cb: (items: FillInvite[]) => void): () => void {
+  return onSnapshot(
+    query(collectionGroup(db, 'fillInvites'), where('uid', '==', uid)),
+    (snap) => cb(snap.docs.map((d) => d.data() as FillInvite).filter((i) => !!i.guest && i.status === 'sent')),
+    () => cb([])
+  );
+}
+
+export async function claimGuestSeat(clubId: string, searchId: string) {
+  const res = await callArmado<{ result: 'won' | 'late' | 'closed' | 'busy' }>('faltaUnoMeSumo', { clubId, searchId }, `clubs/${clubId}/fillSearches/${searchId}`);
+  return res.result;
+}
+
+export async function declineGuestInvite(clubId: string, searchId: string) {
+  await callArmado('faltaUnoNoPuedo', { clubId, searchId }, `clubs/${clubId}/fillSearches/${searchId}`);
+}
+
+export function subscribeMyGuestPasses(clubId: string, uid: string, cb: (items: GuestPass[]) => void): () => void {
+  return onSnapshot(
+    query(collection(db, 'clubs', clubId, 'guestPasses'), where('clubId', '==', clubId), where('invitedBy', '==', uid)),
+    (snap) => cb(snap.docs.map((d) => d.data() as GuestPass)),
+    () => cb([])
+  );
+}
+
+export async function authorizeGuestFriend(clubId: string, friendUid: string) {
+  await callArmado('invitadoAutorizar', { clubId, friendUid }, `clubs/${clubId}/guestPasses/${friendUid}`);
+}
+
+export async function removeGuestFriend(clubId: string, friendUid: string) {
+  await callArmado('invitadoQuitar', { clubId, friendUid }, `clubs/${clubId}/guestPasses/${friendUid}`);
+}
+
+export async function saveClubGuests(clubId: string, guests: ClubGuestsConfig) {
+  const path = `clubs/${clubId}`;
+  try {
+    await updateDoc(doc(db, 'clubs', clubId), { guests, updatedAt: serverTimestamp() });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
 }

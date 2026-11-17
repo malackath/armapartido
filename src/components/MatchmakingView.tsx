@@ -950,6 +950,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                             </p>
                             <div className="mt-1 flex flex-wrap items-center gap-1.5">
                               <CategoryBadge category={slot.category} />
+                              {slot.guest && <span className="rounded-full bg-wait-bg px-2 py-0.5 text-[11.5px] font-bold text-wait">Invitado</span>}
                               {got.has(slot.uid) && (
                                 <StatusChip kind="fu" icon="falta-uno">Lo consiguió la app</StatusChip>
                               )}

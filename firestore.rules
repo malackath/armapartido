@@ -137,7 +137,8 @@ service cloud.firestore {
 
     // "Falta uno": cuántas invitaciones por semana acepta el jugador y cuánta diferencia de categoría.
     function isValidAlertPrefs(p) {
-      return p is map && p.keys().hasOnly(['weeklyInvites', 'maxCategoryGap'])
+      return p is map && p.keys().hasOnly(['weeklyInvites', 'maxCategoryGap', 'otherClubs'])
+        && (!('otherClubs' in p) || p.otherClubs is bool)
         && p.weeklyInvites is int && p.weeklyInvites in [0, 3, 6, -1]
         && p.maxCategoryGap is int && p.maxCategoryGap in [0, 1, 2];
     }
@@ -167,7 +168,7 @@ service cloud.firestore {
           'basePrice', 'nightFromHour', 'nightPrice', 'weekendPrice',
           'cancellationHours', 'maxNoShowsBeforeBlock', 'mpEnabled', 'mpMode',
           'mpDepositPercent', 'subscriptionStatus', 'trialEndsAt', 'monthlyPricePerCourt', 'courtCount',
-          'plan', 'deposit', 'reportEmails', 'fillEnabled', 'fillMaxGap', 'autoFill',
+          'plan', 'deposit', 'reportEmails', 'fillEnabled', 'fillMaxGap', 'autoFill', 'guests',
           'active', 'createdAt', 'updatedAt'
         ])
         && (!('plan' in data) || data.plan in ['entrada', 'estandar'])
@@ -175,6 +176,8 @@ service cloud.firestore {
         && (!('reportEmails' in data) || (data.reportEmails is list && data.reportEmails.size() <= 5))
         && (!('fillEnabled' in data) || data.fillEnabled is bool)
         && (!('fillMaxGap' in data) || data.fillMaxGap in [1, 2])
+        && (!('guests' in data) || (data.guests is map && data.guests.keys().hasOnly(['enabled', 'surcharge', 'shareMyPlayers'])
+          && data.guests.enabled is bool && data.guests.surcharge is int && data.guests.surcharge >= 0 && data.guests.surcharge <= 1000))
         && (!('autoFill' in data) || (data.autoFill is map && data.autoFill.keys().hasOnly(['enabled', 'bands'])
           && data.autoFill.enabled is bool && data.autoFill.bands is list && data.autoFill.bands.size() <= 10))
         && data.id == clubId && isValidId(data.id)
@@ -597,6 +600,11 @@ service cloud.firestore {
       }
     }
 
+    // Modo invitados (etapa 6b): el jugador lista sus invitaciones de cualquier club (solo las suyas).
+    match /{path=**}/fillInvites/{inviteId} {
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
     match /clubs/{clubId} {
       allow get: if isSignedIn() && isValidId(clubId);
       allow list: if isSignedIn() && (
@@ -622,7 +630,7 @@ service cloud.firestore {
             'lat', 'lng', 'slotDurationMinutes', 'openHour', 'closeHour', 'basePrice',
             'nightFromHour', 'nightPrice', 'weekendPrice', 'cancellationHours',
             'maxNoShowsBeforeBlock', 'mpEnabled', 'mpMode', 'mpDepositPercent',
-            'courtCount', 'fillEnabled', 'fillMaxGap', 'autoFill', 'updatedAt'
+            'courtCount', 'fillEnabled', 'fillMaxGap', 'autoFill', 'guests', 'updatedAt'
           ]))
         );
 
