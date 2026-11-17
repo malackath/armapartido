@@ -857,8 +857,9 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                 hour: '2-digit',
                 minute: '2-digit',
               });
-              const slotLevels = match.slots.map((s) => getPlayerLevel(s.uid, s.category));
-              const levelSpread = Math.max(...slotLevels) - Math.min(...slotLevels);
+              // Equilibrio por categoría (sin nivel decimal en la pantalla): 0 = todos de la misma, 1 = una de diferencia.
+              const slotCats = match.slots.map((s) => s.category);
+              const levelSpread = Math.max(...slotCats) - Math.min(...slotCats);
               const search = searchForMatch(fillSearches, match.id);
               const badge = fillBadge(search);
               const got = gotByApp(fillSearches, match.id, match.bookingId);
@@ -871,7 +872,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                         {match.modality.toUpperCase()} · {formatCategory(match.minCategory)}–{formatCategory(match.maxCategory)}
                         <span className="mx-1.5" aria-hidden="true">·</span>
                         <span className=" tabular-nums text-slate-700">
-                          {levelSpread === 0 ? 'Equilibrio: Exacto' : `Equilibrio: ±${levelSpread} nv.`}
+                          {levelSpread === 0 ? 'Misma categoría' : `±${levelSpread} categoría${levelSpread === 1 ? '' : 's'}`}
                         </span>
                         <span className="mx-1.5" aria-hidden="true">·</span>
                         {match.status === 'confirmed' ? (
