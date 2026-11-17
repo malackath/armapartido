@@ -12,6 +12,7 @@ import { runClock } from './clock';
 import { notify } from './notify';
 import { openFreeSlot, previewFreeSlot, simulateAnswers } from './hueco';
 import { cleanRows, importClients } from './importar';
+import { cambiarPaquete, guardarMarca, revisarMarca, subirImagen } from './marca';
 import { chooseUnfilled, claimFromLink, claimSeat, declineInvite, dropFromMatch, publicFillLink, stopSearch } from './fill';
 import type { FillChoice } from '../../src/types/padel';
 
@@ -327,3 +328,9 @@ export const clientesAlSumarse = process.env.SIN_DISPARADORES === '1' ? undefine
   const res = await linkOrCreateClient(event.params.clubId, event.params.uid);
   logger.info('clientes', { clubId: event.params.clubId, uid: event.params.uid, ...res });
 });
+
+// Marca del club (Configuración > Apariencia): el club guarda, la plataforma revisa y marca el paquete.
+export const marcaGuardar = onCall((req) => guardarMarca(req));
+export const marcaRevisar = onCall((req) => revisarMarca(req));
+export const marcaPaquete = onCall((req) => cambiarPaquete(req));
+export const marcaSubirImagen = onCall({ memory: '512MiB' }, (req) => subirImagen(req));

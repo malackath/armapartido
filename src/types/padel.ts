@@ -75,6 +75,34 @@ export interface ClubSponsor {
   url?: string;
 }
 
+/** Esquinas de la app del club (decisión 8: solo con Imagen completa). */
+export type MarcaEsquinas = 'rectas' | 'medias' | 'redondas';
+
+/** Marca del club que se edita en Configuración > Apariencia (17/11/2026). */
+export interface MarcaDatos {
+  colores: { principal: string; acento: string; fondo: string; secundario?: string };
+  fuentes?: { titulos?: string; texto?: string };
+  esquinas?: MarcaEsquinas;
+  slogan?: string;
+  /** URL del logo (fondo transparente) en Storage: clubs/{clubId}/marca/. */
+  logo?: string;
+  /** Fotos de la app: portada de Inicio y encabezados de Reservar, Armar partido y Torneos. */
+  fotos?: { portada?: string; reservar?: string; armar?: string; torneos?: string };
+}
+
+/** La marca que ve el jugador. La escribe solo el servidor (marcaGuardar / marcaRevisar). */
+export interface MarcaPublicada extends MarcaDatos {
+  version: number;
+  publicadaEl: string;
+}
+
+/** Marca que espera revisión a mano (decisión 7: primera vez, logo o fotos nuevas, o colores con aviso). */
+export interface MarcaPendiente extends MarcaDatos {
+  enviadaEl: string;
+  enviadaPor: string;
+  motivo: 'primera' | 'imagenes' | 'colores';
+}
+
 export interface Club {
   id: string;
   name: string;
@@ -110,6 +138,13 @@ export interface Club {
   /** Varios auspiciantes: Inicio muestra uno y rota. Si falta, se usa `sponsor`. */
   sponsors?: ClubSponsor[];
   courtCount: number;
+  /** Paquete de instalación: 'completo' = Imagen completa (US$490). Lo cambia solo la plataforma. Sin dato = básico. */
+  paquete?: 'basico' | 'completo';
+  /** Marca publicada, en revisión, rechazo y la del alta (para Restablecer). Las escribe solo el servidor. */
+  marca?: MarcaPublicada | null;
+  marcaPendiente?: MarcaPendiente | null;
+  marcaRechazo?: { nota: string; el: string } | null;
+  marcaAlta?: MarcaDatos | null;
   /** Plan contratado (para el informe mensual). Sin dato = Estándar. */
   plan?: 'entrada' | 'estandar';
   /** Seña en horario pico. Sin dato = apagada. */

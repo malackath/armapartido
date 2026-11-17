@@ -166,8 +166,12 @@ service cloud.firestore {
           'cancellationHours', 'maxNoShowsBeforeBlock', 'mpEnabled', 'mpMode',
           'mpDepositPercent', 'subscriptionStatus', 'trialEndsAt', 'monthlyPricePerCourt', 'courtCount',
           'plan', 'deposit', 'reportEmails', 'fillEnabled', 'fillMaxGap',
+          // Marca del club (17/11/2026): las escribe solo el servidor (functions/src/marca.ts);
+          // el club no las puede tocar porque no están en la lista de campos del admin.
+          'paquete', 'marca', 'marcaPendiente', 'marcaRechazo', 'marcaAlta',
           'active', 'createdAt', 'updatedAt'
         ])
+        && (!('paquete' in data) || data.paquete in ['basico', 'completo'])
         && (!('plan' in data) || data.plan in ['entrada', 'estandar'])
         && (!('deposit' in data) || isValidDepositRule(data.deposit))
         && (!('reportEmails' in data) || (data.reportEmails is list && data.reportEmails.size() <= 5))

@@ -39,6 +39,7 @@ import { CuponerasAdmin } from './clientes/CuponerasAdmin';
 import { NewMembersReview } from './registro/ClubReview';
 import { PlayerAvatar } from './ui/People';
 import { TuApp } from './appclub/TuApp';
+import { AparienciaPanel } from './apariencia/AparienciaPanel';
 
 interface ClubAdminViewProps {
   club: Club;
@@ -55,7 +56,7 @@ interface ClubAdminViewProps {
   onToast: (msg: string) => void;
 }
 
-type Section = 'courts' | 'prices' | 'fill' | 'members' | 'clients' | 'numbers' | 'tournaments' | 'cash' | 'packs' | 'cantina' | 'fixed' | 'report' | 'app' | 'club';
+type Section = 'courts' | 'prices' | 'fill' | 'members' | 'clients' | 'numbers' | 'tournaments' | 'cash' | 'packs' | 'cantina' | 'fixed' | 'report' | 'app' | 'apariencia' | 'club';
 
 const SECTIONS: { id: Section; label: string; icon: BrandIconName; title: string; subtitle: string }[] = [
   { id: 'courts', label: 'Canchas y horarios', icon: 'cancha', title: 'Canchas y horarios', subtitle: 'Lo que cambies acá se ve al instante en la app de los jugadores y en el Mostrador.' },
@@ -71,7 +72,8 @@ const SECTIONS: { id: Section; label: string; icon: BrandIconName; title: string
   { id: 'fixed', label: 'Turnos fijos', icon: 'horario', title: 'Turnos fijos', subtitle: 'Reservas que se repiten todas las semanas.' },
   { id: 'report', label: 'Informe del mes', icon: 'resultado', title: 'Lo que ganaste con Armá Partido', subtitle: 'Los turnos que llenaron nuestros avisos, en pesos, al lado de la cuota. Llega por mail el día 1.' },
   { id: 'app', label: 'Tu app', icon: 'compartir', title: 'Tu app, con tu nombre', subtitle: 'Tus jugadores instalan la app de tu club: el ícono y el nombre son los tuyos. Imprimí el cartel o subí la story.' },
-  { id: 'club', label: 'Datos del club', icon: 'ubicacion', title: 'Datos del club', subtitle: 'Nombre y color de la app del club.' },
+  { id: 'apariencia', label: 'Apariencia', icon: 'luz', title: 'Apariencia de tu app', subtitle: 'Colores, letras, logo, slogan y fotos de la app de tus jugadores. Los ves al instante en la vista previa.' },
+  { id: 'club', label: 'Datos del club', icon: 'ubicacion', title: 'Datos del club', subtitle: 'Nombre del club en la app.' },
 ];
 
 const STATUS_LABEL: Record<Tournament['status'], { text: string; cls: string }> = {
@@ -521,19 +523,18 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
 
         {section === 'app' && <TuApp club={club} onToast={onToast} />}
 
+        {section === 'apariencia' && <AparienciaPanel club={club} onToast={onToast} />}
+
         {section === 'club' && (
           <Card className="max-w-xl">
             <label className={labelCls}>
               Nombre del club en la app
               <input value={clubName} onChange={(e) => setClubName(e.target.value)} className={inputCls} />
             </label>
-            <div className="mt-4">
-              <p className={labelCls}>Color del club</p>
-              <div className="mt-1.5 flex items-center gap-3">
-                <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-11 w-16 cursor-pointer rounded-xl border border-line bg-white" />
-                <span className="text-sm text-muted tabular-nums">{primaryColor.toUpperCase()}</span>
-              </div>
-            </div>
+            <p className="mt-4 text-[13px] text-muted">
+              Los colores, el logo, el slogan y las fotos están en{' '}
+              <button type="button" onClick={() => setSection('apariencia')} className="font-semibold text-brand underline cursor-pointer">Apariencia</button>.
+            </p>
             <p className="mt-4 text-[13px] text-muted">{club.address}{club.neighborhood ? ` · ${club.neighborhood}` : ''} · {club.city}</p>
           </Card>
         )}

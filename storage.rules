@@ -9,6 +9,13 @@ service firebase.storage {
         && request.resource.size < 300 * 1024
         && request.resource.contentType == 'image/webp';
     }
+    // Logo y fotos de la marca del club (Admin → Apariencia, 17/11/2026). Las ve cualquiera
+    // (salen en la app del club y en la entrada). Las sube solo el servidor (callable marcaSubirImagen),
+    // que revisa que quien sube sea dueño o administrador del club y que sea PNG o WebP de menos de 1 MB.
+    match /clubs/{clubId}/marca/{file} {
+      allow read: if true;
+      allow write: if false;
+    }
     match /{allPaths=**} {
       allow read, write: if false;
     }

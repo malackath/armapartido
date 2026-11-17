@@ -3,7 +3,7 @@ import { DEMO_MODE, db, signInWithEmail, signInWithGoogle, signUpWithEmail } fro
 import { refreshDemoIfStale } from '../demo/resetDemo';
 import { DEMO_ACCOUNTS } from '../demo/demoWorld';
 import { BrandIcon } from './BrandIcon';
-import { marcaClub } from '../lib/marcaClub';
+import { useMarca } from '../lib/marcaClub';
 
 /** Clave de sessionStorage con la pantalla a la que entra la cuenta de demo elegida. */
 export const DEMO_LANDING_KEY = 'demoLanding';
@@ -37,7 +37,7 @@ function friendlyError(err: unknown): string {
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
-  const marca = marcaClub();
+  const marca = useMarca();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);

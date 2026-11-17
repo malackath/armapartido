@@ -168,6 +168,8 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
     trialEndsAt: day(30),
     monthlyPricePerCourt: 0,
     courtCount: 4,
+    // Imagen completa: el dueño puede probar Admin → Apariencia y, cuando el Equipo la aprueba, la ve el jugador.
+    paquete: 'completo',
     active: true,
   };
   put(base, club);
