@@ -7,6 +7,8 @@ interface MercadoPagoModalProps {
   title: string;
   subtitle: string;
   amount: number;
+  /** 'USD' para la cuota de la plataforma (US$ 39 / 59). */
+  currency?: 'UYU' | 'USD';
   receiverName: string;
   onConfirm: () => Promise<void>;
   onClose: () => void;
@@ -17,6 +19,7 @@ export const MercadoPagoModal: React.FC<MercadoPagoModalProps> = ({
   title,
   subtitle,
   amount,
+  currency = 'UYU',
   receiverName,
   onConfirm,
   onClose,
@@ -83,7 +86,7 @@ export const MercadoPagoModal: React.FC<MercadoPagoModalProps> = ({
               <div className="mt-2 flex items-baseline justify-between border-t border-slate-200 pt-2">
                 <span className="text-sm font-medium text-slate-700">Total a pagar</span>
                 <span className="font-mono text-2xl font-bold text-slate-900 tabular-nums">
-                  {formatUYU(amount)}
+                  {(currency === 'USD' ? `US$ ${amount}` : formatUYU(amount))}
                 </span>
               </div>
             </div>
@@ -134,7 +137,7 @@ export const MercadoPagoModal: React.FC<MercadoPagoModalProps> = ({
                 disabled={processing}
                 className="flex-1 rounded-xl bg-sky-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-700 disabled:opacity-60 cursor-pointer"
               >
-                {processing ? 'Procesando...' : `Pagar ${formatUYU(amount)}`}
+                {processing ? 'Procesando...' : `Pagar ${(currency === 'USD' ? `US$ ${amount}` : formatUYU(amount))}`}
               </button>
             </div>
           </>

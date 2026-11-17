@@ -42,11 +42,9 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
 
   const metrics = useMemo(() => {
     const totalCourts = clubs.reduce((acc, c) => acc + c.courtCount, 0);
-    const activeMRR = clubs
-      .filter((c) => c.subscriptionStatus === 'active')
-      .reduce((acc, c) => acc + c.courtCount * c.monthlyPricePerCourt, 0);
-    const trialCount = clubs.filter((c) => c.subscriptionStatus === 'trial').length;
-    return { totalCourts, activeMRR, trialCount };
+    const monthlyUSD = clubs.reduce((acc, c) => acc + planDe(c.courtCount).usd, 0);
+    const entrada = clubs.filter((c) => planDe(c.courtCount).nombre === 'Entrada').length;
+    return { totalCourts, monthlyUSD, entrada, estandar: clubs.length - entrada };
   }, [clubs]);
 
   const handleOnboard = async (e: React.FormEvent) => {
@@ -71,7 +69,7 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
       setAddress('');
       setNeighborhood('');
       onSelectClub(created.id);
-      onToast(`Club "${created.name}" dado de alta con 1 mes de prueba gratis.`);
+      onToast(`Club "${created.name}" dado de alta en el plan ${planDe(created.courtCount).nombre}.`);
     } finally {
       setBusy(false);
     }
@@ -87,7 +85,7 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
           Dueño de la plataforma
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Alta de clubes, ubicación georreferenciada para futura red inter-clubes, prueba gratis de 30 días y débito mensual por cantidad de canchas.
+          Alta de clubes y cuota mensual fija por club: Entrada US$ 39 (hasta 3 canchas) o Estándar US$ 59 (desde 4 canchas), IVA incluido. Sin comisión por reservas.
         </p>
       </div>
 
@@ -102,14 +100,14 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
           <p className="mt-1 font-mono text-2xl font-bold text-slate-900 tabular-nums">{metrics.totalCourts}</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <p className="text-xs font-medium text-slate-500">Cuota mensual activa</p>
+          <p className="text-xs font-medium text-slate-500">Cuotas por mes</p>
           <p className="mt-1 font-mono text-2xl font-bold text-emerald-700 tabular-nums">
-            {formatUYU(metrics.activeMRR)}
+            US$ {metrics.monthlyUSD}
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <p className="text-xs font-medium text-slate-500">Clubes en prueba gratis</p>
-          <p className="mt-1 font-mono text-2xl font-bold text-wait tabular-nums">{metrics.trialCount}</p>
+          <p className="text-xs font-medium text-slate-500">Entrada · Estándar</p>
+          <p className="mt-1 font-mono text-2xl font-bold text-slate-900 tabular-nums">{metrics.entrada} · {metrics.estandar}</p>
         </div>
       </div>
 
@@ -190,13 +188,10 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700">Cuota por cancha (UYU)</label>
-              <input
-                type="number"
-                value={pricePerCourt}
-                onChange={(e) => setPricePerCourt(Number(e.target.value))}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm tabular-nums"
-              />
+              <p className="block text-xs font-semibold text-slate-700">Plan</p>
+              <p className="mt-1 rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-900">
+                {planDe(courtCount).nombre} · US$ {planDe(courtCount).usd}/mes
+              </p>
             </div>
           </div>
 
@@ -216,7 +211,7 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
             className="inline-flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 cursor-pointer"
           >
             <Plus className="h-4 w-4" />
-            {busy ? 'Creando club...' : 'Activar prueba gratis (1 mes)'}
+            {busy ? 'Creando club...' : 'Dar de alta el club'}
           </button>
         </form>
 
@@ -226,12 +221,11 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
             Clubes activos, uso y suscripción mensual
           </h2>
           <p className="mt-1 text-xs text-slate-500">
-            Cuota mensual calculada por cantidad de canchas con débito automático Mercado Pago.
+            Cuota fija por club según el plan, IVA incluido. Se cobra por Mercado Pago.
           </p>
 
           <div className="mt-4 divide-y divide-slate-100">
             {clubs.map((c) => {
-              const monthlyTotal = c.courtCount * c.monthlyPricePerCourt;
               const isSelected = c.id === activeClubId;
               return (
                 <div key={c.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -249,9 +243,7 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
                         {c.name}
                       </button>
                       <span className="text-xs text-slate-500">
-                        {c.subscriptionStatus === 'trial'
-                          ? `Prueba gratis hasta ${c.trialEndsAt || '30 días'}`
-                          : 'Suscripción activa'}
+                        {c.subscriptionStatus === 'active' ? 'Cuota al día' : 'Cuota pendiente'}
                       </span>
                     </div>
                     <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
@@ -268,10 +260,10 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
                       <p className="font-mono text-sm font-bold text-slate-900 tabular-nums">
-                        {formatUYU(monthlyTotal)}/mes
+                        US$ {planDe(c.courtCount).usd}/mes
                       </p>
                       <p className="font-mono text-[11px] text-slate-500 tabular-nums">
-                        {c.courtCount} canchas × {formatUYU(c.monthlyPricePerCourt)}
+                        {planDe(c.courtCount).nombre} · {c.courtCount} canchas
                       </p>
                     </div>
                     <button
@@ -280,7 +272,7 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
                       className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer whitespace-nowrap"
                     >
                       <CreditCard className="h-3.5 w-3.5" />
-                      {c.subscriptionStatus === 'trial' ? 'Activar débito MP' : 'Cobrar cuota'}
+                      Cobrar cuota
                     </button>
                   </div>
                 </div>
@@ -297,10 +289,11 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
         title={debitTarget ? `Débito mensual · ${debitTarget.name}` : ''}
         subtitle={
           debitTarget
-            ? `${debitTarget.courtCount} canchas × ${formatUYU(debitTarget.monthlyPricePerCourt)} (sin comisión por reservas)`
+            ? `Plan ${planDe(debitTarget.courtCount).nombre}: US$ ${planDe(debitTarget.courtCount).usd} por mes, IVA incluido (sin comisión por reservas)`
             : ''
         }
-        amount={debitTarget ? debitTarget.courtCount * debitTarget.monthlyPricePerCourt : 0}
+        amount={debitTarget ? planDe(debitTarget.courtCount).usd : 0}
+        currency="USD"
         receiverName="Armá Partido Plataforma"
         onConfirm={async () => {
           if (!debitTarget) return;
@@ -312,3 +305,8 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
     </div>
   );
 };
+
+/** Plan del club según canchas (Ber, 15–16/11/2026): Entrada hasta 3, Estándar desde 4. IVA incluido. */
+function planDe(canchas: number): { nombre: 'Entrada' | 'Estándar'; usd: number } {
+  return canchas <= 3 ? { nombre: 'Entrada', usd: 39 } : { nombre: 'Estándar', usd: 59 };
+}

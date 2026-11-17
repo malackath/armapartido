@@ -193,7 +193,7 @@ export const CantinaView: React.FC<{
                     {turns.length === 0 ? (
                       <p className="mt-3 rounded-xl bg-mist px-3 py-2.5 text-[13px] text-muted">No hay canchas en juego ahora.</p>
                     ) : (
-                      <ul className="mt-3 grid gap-2">
+                      <ul className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-2">
                         {turns.map((b) => {
                           const live = b.startMinute <= minute && b.endMinute > minute;
                           const ended = b.endMinute <= minute;
