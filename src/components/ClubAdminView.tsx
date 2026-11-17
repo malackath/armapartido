@@ -43,6 +43,8 @@ import { Libro } from './clientes/Libro';
 import { Numeros } from './clientes/Numeros';
 import { CuponerasAdmin } from './clientes/CuponerasAdmin';
 import { NewMembersReview } from './registro/ClubReview';
+import { JoinPolicyCard, JoinRequestsCard } from './registro/Sumarse';
+import { useJoinRequests } from '../services/sumarseService';
 import { PlayerAvatar } from './ui/People';
 import { TuApp } from './appclub/TuApp';
 
@@ -483,7 +485,8 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
   };
 
   const current = SECTIONS.find((s) => s.id === section)!;
-  const pendingReviews = memberships.filter((m) => m.role === 'player' && m.categoryReview === 'pendiente').length;
+  const joinRequests = useJoinRequests(club.id, true);
+  const pendingReviews = memberships.filter((m) => m.role === 'player' && m.categoryReview === 'pendiente').length + joinRequests.length;
   const showSave = section === 'courts' || section === 'prices' || section === 'fill' || section === 'club';
 
   return (
@@ -663,6 +666,8 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
 
         {section === 'members' && (
           <>
+            <JoinRequestsCard club={club} requests={joinRequests} onToast={onToast} />
+            <JoinPolicyCard club={club} onToast={onToast} />
             <NewMembersReview club={club} memberships={memberships} userProfile={userProfile} onToast={onToast} />
             <MembersCard club={club} memberships={memberships} userProfile={userProfile} onToast={onToast} />
           </>

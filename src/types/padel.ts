@@ -33,7 +33,9 @@ export type NotificationEventType =
   | 'pair_invite'
   | 'tournament_next_match'
   | 'waitlist_slot_open'
-  | 'category_changed';
+  | 'category_changed'
+  | 'join_request'
+  | 'join_resolved';
 
 export interface AvailabilityWindow {
   dayOfWeek: number; // 0 = Domingo ... 6 = Sábado
@@ -107,6 +109,11 @@ export interface Club {
   fillMaxGap?: 1 | 2;
   /** "Llenar turnos libres" automático (D12): apagado si falta. Cada club elige las franjas. */
   autoFill?: AutoFillConfig;
+  /**
+   * Quién puede sumarse al club desde la app (17/11/2026). Sin dato = 'abierto' (cualquiera).
+   * 'solo_clientes': si su mail está en Clientes entra directo; si no, queda un pedido que aprueba el club.
+   */
+  joinPolicy?: JoinPolicy;
   /** Auspiciante que el club muestra en Inicio. Si no hay, el espacio no se muestra. */
   sponsor?: ClubSponsor;
   /** Varios auspiciantes: Inicio muestra uno y rota. Si falta, se usa `sponsor`. */
@@ -172,6 +179,30 @@ export interface Court {
   surface: SurfaceType;
   hasLights: boolean;
   active: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export type JoinPolicy = 'abierto' | 'solo_clientes';
+
+/**
+ * Pedido para sumarse a un club con 'solo_clientes' (clubs/{club}/joinRequests/{uid}).
+ * Solo lo escribe el servidor; lo leen el jugador y el club (dueño, administrador y encargado).
+ */
+export interface JoinRequest {
+  uid: string;
+  clubId: string;
+  displayName: string;
+  photoUrl?: string;
+  email: string;
+  phone: string;
+  category: number;
+  status: 'pendiente' | 'aprobado' | 'rechazado';
+  /** Ficha sin app con el mismo celular: el club la puede unir con un toque. */
+  similarClientId?: string;
+  similarClientName?: string;
+  resolvedByUid?: string;
+  resolvedByName?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
 }

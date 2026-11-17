@@ -163,6 +163,11 @@ export const ImportarPlanilla: React.FC<{ club: Club; staff: Staff; onToast: (m:
             {c.already > 0 && <Row k="Ya estaban en el club (no se duplican)" v={c.already} />}
             <Row k="Para revisar a mano" v={c.review} />
           </dl>
+          {report.looksLikeBookings && (
+            <p className="mt-2 rounded-xl bg-wait-bg px-3.5 py-2.5 text-[13px] text-wait" data-testid="parece-reservas">
+              Esta planilla tiene una columna de fecha: parece una lista de reservas, no de jugadores. Revisá la lista antes de cargar.
+            </p>
+          )}
           {report.discarded.length > 0 && (
             <ul className="mt-2 space-y-1 rounded-xl bg-mist p-3 text-[13px] text-ink">
               {report.discarded.slice(0, 8).map((d) => (
@@ -172,6 +177,24 @@ export const ImportarPlanilla: React.FC<{ club: Club; staff: Staff; onToast: (m:
               ))}
               {report.discarded.length > 8 && <li className="text-muted">y {report.discarded.length - 8} más</li>}
             </ul>
+          )}
+          {report.warnings.length > 0 && (
+            <div className="mt-2 rounded-xl border border-line p-3 text-[13px] text-ink" data-testid="importar-avisos">
+              <p className="font-semibold">Se cargan, pero miralos:</p>
+              <ul className="mt-1 space-y-1">
+                {report.warnings.slice(0, 8).map((w) => (
+                  <li key={w.row}>
+                    Fila {w.row}: {w.reason}
+                  </li>
+                ))}
+                {report.warnings.length > 8 && <li className="text-muted">y {report.warnings.length - 8} más</li>}
+              </ul>
+            </div>
+          )}
+          {report.unknownColumns.length > 0 && (
+            <p className="mt-2 text-[13px] text-muted" data-testid="columnas-ignoradas">
+              Columnas que no usamos: {report.unknownColumns.join(', ')}.
+            </p>
           )}
           <button type="button" onClick={() => setShowList((v) => !v)} className="mt-2 text-[13px] font-semibold text-brand cursor-pointer">
             {showList ? 'Ocultar la lista' : `Ver los ${total} jugadores`}
@@ -232,7 +255,7 @@ export const ImportarPlanilla: React.FC<{ club: Club; staff: Staff; onToast: (m:
           <ul className="mt-2 space-y-1">
             <li>{result.created} fichas nuevas{result.already ? ` y ${result.already} que ya estaban, completadas` : ''}.</li>
             <li>
-              {result.fixed} turnos fijos cargados por 12 semanas
+              {result.fixed} turnos fijos cargados por 26 semanas
               {result.weeksSkipped ? ` (${result.weeksSkipped} semanas salteadas porque la cancha ya estaba ocupada)` : ''}.
             </li>
             {result.noCourt.length > 0 && <li>Sin cancha que coincida, cargalos a mano en Turnos fijos: {result.noCourt.join(', ')}.</li>}

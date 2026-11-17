@@ -13,6 +13,7 @@ import { runAutoFillNow } from './autofill';
 import { notify } from './notify';
 import { openFreeSlot, previewFreeSlot, simulateAnswers } from './hueco';
 import { cleanRows, importClients } from './importar';
+import { requestJoin, resolveJoin } from './sumarse';
 import { chooseUnfilled, claimFromLink, claimSeat, declineInvite, dropFromMatch, publicFillLink, stopSearch } from './fill';
 import type { FillChoice } from '../../src/types/padel';
 
@@ -293,6 +294,35 @@ export const clientesImportar = onCall({ timeoutSeconds: 300, memory: '512MiB' }
     merged: int(d.merged ?? 0, 0, 100000, 'repetidos'),
     discarded: int(d.discarded ?? 0, 0, 100000, 'descartadas'),
   });
+});
+
+// -----------------------------------------------------------------------------
+// Sumarse a un club con "Solo mis jugadores" (17/11)
+// -----------------------------------------------------------------------------
+
+/** El jugador se suma al club: entra directo si su mail está en Clientes; si no, queda un pedido. */
+export const clubSumarme = onCall(async (req) => {
+  const uid = requireUid(req);
+  const clubId = str((req.data as Record<string, unknown> | undefined)?.clubId);
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(clubId)) throw new HttpsError('invalid-argument', 'Club inválido.');
+  return requestJoin(clubId, uid);
+});
+
+/** Dueño, administrador o encargado: aprueba, une a una ficha o rechaza un pedido para sumarse. */
+export const clubPedidoResolver = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(clubId)) throw new HttpsError('invalid-argument', 'Club inválido.');
+  const action = str(d.action, 10);
+  if (action !== 'aprobar' && action !== 'unir' && action !== 'rechazar') throw new HttpsError('invalid-argument', 'Acción inválida.');
+  const target = str(d.uid);
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(target)) throw new HttpsError('invalid-argument', 'Jugador inválido.');
+  const [club, member] = await Promise.all([db.doc(`clubs/${clubId}`).get(), db.doc(`clubs/${clubId}/memberships/${uid}`).get()]);
+  const isOwner = club.get('ownerUid') === uid;
+  const role = member.get('role');
+  if (!isOwner && role !== 'admin' && role !== 'staff') throw new HttpsError('permission-denied', 'Solo el dueño, el administrador o el encargado.');
+  return resolveJoin({ clubId, uid: target, action, byUid: uid, byName: String(member.get('displayName') ?? 'El club') });
 });
 
 /** "No puedo" en una invitación. */

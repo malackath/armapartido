@@ -11,6 +11,8 @@ import { RegistroFlow } from './components/registro/RegistroFlow';
 import { FaltaUnoLinkPage } from './components/FaltaUnoLinkPage';
 import { parseFillLink } from './lib/compartir';
 import { getUserProfileOrNull, joinClub } from './services/registroService';
+import { useMyJoinRequest } from './services/sumarseService';
+import { joinPolicyOf } from './lib/sumarse';
 import {
   obtainFcmDeviceToken,
   showServiceWorkerNotification,
@@ -407,13 +409,17 @@ export default function App() {
         await authUser.reload();
         if (!authUser.emailVerified) return;
         await authUser.getIdToken(true);
-        if (await joinClub(userProfile, activeClub)) showToast(`Listo, ya sos parte de ${activeClub.name}.`);
+        const r = await joinClub(userProfile, activeClub);
+        if (r?.status === 'adentro' || r?.status === 'encontrado') showToast(`Listo, ya sos parte de ${activeClub.name}.`);
       } catch {
         /* se reintenta la próxima vez que entre */
       }
     }, 2500);
     return () => clearTimeout(t);
   }, [authUser, userProfile, activeClub, currentMembership]);
+
+  // Club con "Solo mis jugadores": el pedido propio, para avisarle que espera la confirmación.
+  const myJoinRequest = useMyJoinRequest(activeClub?.id, authUser?.uid, !!authUser && !currentMembership && joinPolicyOf(activeClub) === 'solo_clientes');
 
   const canAccessAdmin = useMemo(
     () =>
@@ -573,6 +579,20 @@ export default function App() {
           </div>
         ) : (
           <>
+            {!currentMembership && myJoinRequest && myJoinRequest.status !== 'aprobado' && (
+              <div
+                className={`mb-4 rounded-xl px-4 py-3 text-sm leading-snug ${myJoinRequest.status === 'pendiente' ? 'bg-wait-bg text-wait' : 'border border-line bg-white text-ink'}`}
+                data-testid="pedido-sumarse"
+              >
+                {myJoinRequest.status === 'pendiente' ? (
+                  <>
+                    <b>Esperando que {activeClub.name} te confirme.</b> No encontramos tu mail en la lista del club. Mientras, podés mirar horarios y torneos.
+                  </>
+                ) : (
+                  <>{activeClub.name} no confirmó tu pedido. Si sos jugador del club, hablá con el encargado: quizás te anotaron con otro mail.</>
+                )}
+              </div>
+            )}
             {activeTab === 'home' && (
               <HomeView
                 club={activeClub}

@@ -11,7 +11,8 @@ import { matchCourt, planImport, type ImportRow } from '../../src/lib/importarCl
 import { db, makeId, now } from './admin';
 
 export const MAX_ROWS = 3000;
-const WEEKS = 12;
+/** 26 semanas (el máximo de un turno fijo; decisión D4 del 17/11/2026, antes 12). */
+const WEEKS = 26;
 
 /** Valida lo que llega del celular: nunca se confía en la forma. */
 export function cleanRows(raw: unknown): ImportRow[] {
@@ -53,7 +54,13 @@ export async function importClients(p: {
   discarded: number;
 }) {
   const clubRef = db.doc(`clubs/${p.clubId}`);
-  const [clubSnap, clientsSnap, courtsSnap] = await Promise.all([clubRef.get(), clubRef.collection('clients').get(), clubRef.collection('courts').get()]);
+  const [clubSnap, clientsSnap, courtsSnap, fixedSnap] = await Promise.all([
+    clubRef.get(),
+    clubRef.collection('clients').get(),
+    clubRef.collection('courts').get(),
+    clubRef.collection('fixedBookings').where('active', '==', true).get(),
+  ]);
+  const activeFixed = fixedSnap.docs.map((d) => d.data() as FixedBooking);
   if (!clubSnap.exists) throw new HttpsError('not-found', 'No existe el club.');
   const club = { ...(clubSnap.data() as Club), id: p.clubId };
   const clients = clientsSnap.docs.map((d) => d.data() as ClubClient);
@@ -90,8 +97,8 @@ export async function importClients(p: {
       createdByUid: p.staffUid,
       createdByName: p.staffName.slice(0, 60),
       createdOn: today,
-      // El club declaró que tiene el permiso de sus jugadores para pasar los datos.
-      noticeGiven: true,
+      // Al jugador todavía no se le avisó nada: pasa a true cuando recibe el mail de bienvenida o entra a la app.
+      noticeGiven: false,
       acceptsNews: false,
       rut: '',
       businessName: '',
@@ -119,6 +126,7 @@ export async function importClients(p: {
   const dur = club.slotDurationMinutes || 90;
   let fixedMade = 0;
   let weeksSkipped = 0;
+  let alreadyFixed = 0;
   const noCourt: string[] = [];
   for (const r of [...plan.create, ...plan.update.map((u) => u.row)]) {
     if (!r.fixed) continue;
@@ -128,6 +136,11 @@ export async function importClients(p: {
       continue;
     }
     const clientId = clientIdByRow.get(r.row)!;
+    // Volver a subir la misma planilla no repite el turno fijo que ya tiene.
+    if (activeFixed.some((f) => f.clientId === clientId && f.courtId === court.id && f.dayOfWeek === r.fixed!.dayOfWeek && f.startMinute === r.fixed!.startMinute)) {
+      alreadyFixed++;
+      continue;
+    }
     const start = r.fixed.startMinute;
     const end = start + dur;
     let first = today;
@@ -204,6 +217,7 @@ export async function importClients(p: {
     created: plan.create.length,
     updated: plan.update.length,
     fixed: fixedMade,
+    alreadyFixed,
     weeksSkipped,
     noCourt,
     emailsSent: false,
@@ -212,5 +226,5 @@ export async function importClients(p: {
   ops++;
   await flush(true);
 
-  return { migrationId, created: plan.create.length, already: plan.update.length, fixed: fixedMade, weeksSkipped, noCourt };
+  return { migrationId, created: plan.create.length, already: plan.update.length, fixed: fixedMade, alreadyFixed, weeksSkipped, noCourt };
 }

@@ -42,6 +42,8 @@ import { ClientPicker } from './clientes/ClientPicker';
 import type { ClubClient } from '../types/clientes';
 import { formatPhone } from '../lib/clientes';
 import { BADGE_CLASSES, gotByApp, searchForMatch } from './FaltaUno';
+import { JoinRequestsCard } from './registro/Sumarse';
+import { useJoinRequests } from '../services/sumarseService';
 import { accountOf, participantsOf } from '../lib/caja';
 import { FullscreenButton } from './ui/FullscreenButton';
 import { CourtCard, type CourtCardProps, type CourtSeat } from './mostrador/CourtCard';
@@ -157,6 +159,8 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
 }) => {
   const today = getTodayISO();
   const [selectedDate, setSelectedDate] = useState(today);
+  const joinRequests = useJoinRequests(club.id, true);
+  const [showJoin, setShowJoin] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newTarget, setNewTarget] = useState<{ courtId: string; startMinute: number } | null>(null);
@@ -553,6 +557,26 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
     <ClubOpsContext.Provider value={ops}>
     <ClientesContext.Provider value={clientes}>
     <div className="space-y-5">
+      {joinRequests.length > 0 && (
+        <div className="rounded-xl border border-line bg-white" data-testid="mostrador-pedidos">
+          <button
+            type="button"
+            onClick={() => setShowJoin((v) => !v)}
+            className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-ink"
+          >
+            <span>
+              <span className="mr-2 rounded-full bg-due px-2 py-0.5 text-xs font-bold text-white">{joinRequests.length}</span>
+              {joinRequests.length === 1 ? 'Un jugador pide sumarse al club' : `${joinRequests.length} jugadores piden sumarse al club`}
+            </span>
+            <span className="text-brand">{showJoin ? 'Ocultar' : 'Ver'}</span>
+          </button>
+          {showJoin && (
+            <div className="px-4 pb-1">
+              <JoinRequestsCard club={club} requests={joinRequests} onToast={onToast} hideWhenEmpty />
+            </div>
+          )}
+        </div>
+      )}
       {/* Encabezado */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>

@@ -6,6 +6,8 @@ import { squareWebp } from '../lib/photo';
 import { formatCategory } from '../lib/padelUtils';
 import type { AlertPrefs, AvailabilityWindow, Club, ClubMembership, CourtSide, Gender, Hand, Modality, UserProfile } from '../types/padel';
 import { dispatchNotification } from './firestoreService';
+import { askToJoin, type JoinAnswer } from './sumarseService';
+import { joinPolicyOf } from '../lib/sumarse';
 
 /** Perfil guardado o null si la cuenta todavía no hizo el registro. */
 export async function getUserProfileOrNull(uid: string): Promise<UserProfile | null> {
@@ -59,24 +61,33 @@ function membershipFrom(profile: UserProfile, club: Club): Omit<ClubMembership, 
 
 /**
  * Suma al jugador al club. Necesita el mail confirmado (reglas); si todavía no lo confirmó,
- * devuelve false y la app lo vuelve a intentar cuando entre con el mail confirmado.
+ * devuelve null y la app lo vuelve a intentar cuando entre con el mail confirmado.
+ * Club con "Solo mis jugadores": lo resuelve el servidor (entra si su mail está en Clientes; si no, pedido).
  */
-export async function joinClub(profile: UserProfile, club: Club): Promise<boolean> {
+export async function joinClub(profile: UserProfile, club: Club): Promise<JoinAnswer | null> {
+  if (joinPolicyOf(club) === 'solo_clientes') {
+    try {
+      return await askToJoin(club.id);
+    } catch (e) {
+      console.warn('[registro] Todavía no se pudo pedir para sumarse:', e);
+      return null;
+    }
+  }
   try {
     await setDoc(doc(db, 'clubs', club.id, 'memberships', profile.uid), {
       ...membershipFrom(profile, club),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    return true;
+    return { status: 'adentro' };
   } catch (e) {
     console.warn('[registro] Todavía no se pudo sumar al club:', e);
-    return false;
+    return null;
   }
 }
 
 /** Guarda todo el registro de una vez y suma al jugador al club. */
-export async function finishSignup(data: SignupData, club: Club | null): Promise<{ profile: UserProfile; joined: boolean }> {
+export async function finishSignup(data: SignupData, club: Club | null): Promise<{ profile: UserProfile; joined: boolean; join: JoinAnswer | null }> {
   const profile: UserProfile = {
     uid: data.uid,
     displayName: data.displayName.trim().slice(0, 80),
@@ -99,8 +110,9 @@ export async function finishSignup(data: SignupData, club: Club | null): Promise
     phone: data.phone,
     updatedAt: serverTimestamp(),
   });
-  const joined = club ? await joinClub(profile, club) : false;
-  return { profile, joined };
+  const join = club ? await joinClub(profile, club) : null;
+  const joined = join?.status === 'adentro' || join?.status === 'encontrado';
+  return { profile, joined, join };
 }
 
 /** Guarda cambios del perfil y los copia a la membresía de cada club. */

@@ -4,6 +4,8 @@
  * Puro: sin Firebase. Lo usa scripts/importar-jugadores.ts.
  */
 
+import { normalizePhone as phoneE164 } from './clientes';
+
 export interface RawRow {
   [col: string]: string;
 }
@@ -25,8 +27,12 @@ export interface MigrationReport {
   noEmail: CleanPlayer[];
   duplicates: { kept: number; merged: number; reason: string }[];
   discarded: { row: number; reason: string }[];
+  /** Se cargan, pero con algo para mirar (celular que no se pudo leer, mail compartido). */
+  warnings: { row: number; reason: string }[];
   fixedCount: number;
   unknownColumns: string[];
+  /** La planilla parece una lista de reservas (tiene columna de fecha), no de jugadores. */
+  looksLikeBookings: boolean;
 }
 
 /** CSV simple con comillas, separado por coma o punto y coma (Excel en español usa ;). */
@@ -78,10 +84,17 @@ const norm = (s: string) =>
 
 /** Nombres de columna que reconocemos (de Wona, ATC o planillas a mano). */
 const COLS: Record<string, string[]> = {
-  name: ['nombre', 'name', 'nombrecompleto', 'cliente', 'jugador', 'socio'],
-  last: ['apellido', 'apellidos', 'lastname'],
-  email: ['mail', 'email', 'correo', 'correoelectronico', 'email1'],
-  phone: ['celular', 'telefono', 'tel', 'movil', 'cel', 'whatsapp', 'phone'],
+  name: [
+    'nombre', 'name', 'nombrecompleto', 'cliente', 'jugador', 'socio', 'nombres', 'nombreyapellido', 'nombreyapellidos',
+    'nombresyapellidos', 'nombreapellido', 'apellidoynombre', 'apellidosynombres', 'apellidonombre', 'fullname', 'firstname',
+    'nombredelcliente', 'nombredeljugador', 'nombredelsocio', 'razonsocialnombre',
+  ],
+  last: ['apellido', 'apellidos', 'lastname', 'surname'],
+  email: ['mail', 'email', 'correo', 'correoelectronico', 'email1', 'correoe', 'mail1', 'emailaddress', 'direcciondecorreo', 'direcciondemail', 'emaildelcliente'],
+  phone: [
+    'celular', 'telefono', 'tel', 'movil', 'cel', 'whatsapp', 'phone', 'telefonomovil', 'telefonocelular', 'telcelular', 'celular1',
+    'telefono1', 'movil1', 'cel1', 'nrocelular', 'nrotelefono', 'numerodecelular', 'numerodetelefono', 'numerocelular', 'mobile', 'phonenumber',
+  ],
   category: ['categoria', 'cat', 'nivel', 'categoriapadel'],
   fixedDay: ['turnofijodia', 'diafijo', 'dia', 'diaturnofijo'],
   fixedHour: ['turnofijohora', 'horafijo', 'hora', 'horaturnofijo'],
@@ -145,15 +158,29 @@ export function cleanPlayers(rows: RawRow[]): MigrationReport {
   const { map, unknown } = mapColumns(headers);
   const get = (r: RawRow, f: string) => (map[f] ? r[map[f]] ?? '' : '');
   const discarded: MigrationReport['discarded'] = [];
+  const warnings: MigrationReport['warnings'] = [];
   const players: CleanPlayer[] = [];
   rows.forEach((r, i) => {
     const row = i + 2;
-    const name = [get(r, 'name'), get(r, 'last')].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    let first = get(r, 'name');
+    // "Pereira, Matías" (apellido primero, con coma) → "Matías Pereira"
+    if (!get(r, 'last') && /^[^,]+,[^,]+$/.test(first)) first = first.split(',').map((x) => x.trim()).reverse().join(' ');
+    const name = [first, get(r, 'last')].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
     const emailRaw = get(r, 'email').toLowerCase();
-    const phone = normalizePhone(get(r, 'phone'));
+    const phoneRaw = get(r, 'phone');
+    let phone = normalizePhone(phoneRaw);
     if (!name) {
       discarded.push({ row, reason: 'sin nombre' });
       return;
+    }
+    // Celular que no se puede leer (le faltan números, es de otro formato): se carga sin celular y se avisa.
+    if (phone && !phoneE164(phone)) {
+      if (!isEmail(emailRaw)) {
+        discarded.push({ row, reason: `${name}: el celular "${phoneRaw}" no se puede leer y no tiene mail` });
+        return;
+      }
+      warnings.push({ row, reason: `${name}: el celular "${phoneRaw}" no se puede leer, se carga sin celular` });
+      phone = '';
     }
     if (!emailRaw && !phone) {
       discarded.push({ row, reason: `${name}: sin mail ni celular` });
@@ -182,9 +209,21 @@ export function cleanPlayers(rows: RawRow[]): MigrationReport {
       kept.push(p);
       continue;
     }
-    // Mismo mail con otro nombre: suele ser la pareja que reserva por los dos. Se carga solo el primero.
     const sameName = norm(twin.name) === norm(p.name);
-    duplicates.push({ kept: twin.row, merged: p.row, reason: sameName ? 'repetido' : `mismo ${p.email && twin.email === p.email ? 'mail' : 'celular'} que ${twin.name}, se carga solo el primero` });
+    if (!sameName) {
+      // Mismo mail o celular con otro nombre: suele ser la pareja que reserva por los dos.
+      // Se cargan las dos personas; la segunda sin el dato compartido (decisión D5, 17/11/2026).
+      const what = p.email && twin.email === p.email ? 'mail' : 'celular';
+      const alone = { ...p, email: what === 'mail' ? '' : p.email, phone: what === 'celular' || p.phone === twin.phone ? '' : p.phone };
+      if (!alone.email && !alone.phone) {
+        discarded.push({ row: p.row, reason: `${p.name}: comparte el ${what} con ${twin.name} y no tiene otro dato de contacto` });
+        continue;
+      }
+      warnings.push({ row: p.row, reason: `${p.name}: comparte el ${what} con ${twin.name}, se carga sin ${what === 'mail' ? 'mail' : 'ese celular'}` });
+      kept.push(alone);
+      continue;
+    }
+    duplicates.push({ kept: twin.row, merged: p.row, reason: 'repetido' });
     twin.mergedRows.push(p.row);
     twin.email ||= p.email;
     twin.phone ||= p.phone;
@@ -198,8 +237,10 @@ export function cleanPlayers(rows: RawRow[]): MigrationReport {
     noEmail: kept.filter((p) => !p.email),
     duplicates,
     discarded,
+    warnings,
     fixedCount: kept.filter((p) => p.fixed).length,
     unknownColumns: unknown,
+    looksLikeBookings: headers.some((h) => ['fecha', 'date', 'fechadereserva', 'fechareserva', 'dia/mes'].includes(norm(h)) || /^fecha/.test(norm(h))),
   };
 }
 

@@ -54,34 +54,7 @@ export async function linkOrCreateClient(clubId: string, uid: string): Promise<L
       .filter((c) => c.status === 'active' && !c.uid && !c.erased);
     if (same.length === 1) {
       const c = same[0];
-      const batch = db.batch();
-      batch.update(clients.doc(c.id), { uid, linkedBy: 'mail', linkedAtISO: new Date().toISOString(), updatedAt: now() });
-      const old = `c:${c.id}`;
-      const [cons, bks, packs] = await Promise.all([
-        club.collection('consumptions').where('participantUids', 'array-contains', old).get(),
-        club.collection('bookings').where('clientId', '==', c.id).get(),
-        club.collection('clientPacks').where('clientId', '==', c.id).get(),
-      ]);
-      cons.docs.forEach((d) => {
-        const x = d.data() as Consumption;
-        if (x.status !== 'pending') return;
-        batch.update(d.ref, {
-          participantUids: x.participantUids.map((k) => (k === old ? uid : k)),
-          paidUids: x.paidUids.map((k) => (k === old ? uid : k)),
-          ...(x.forUid === '' && !x.shared ? { forUid: uid } : {}),
-          updatedAt: now(),
-        });
-      });
-      bks.docs.forEach((d) => {
-        const b = d.data() as Booking;
-        if (b.type === 'counter' && b.playerUids.length === 0 && (b.status === 'confirmed' || b.status === 'held') && b.date >= todayISO) {
-          batch.update(d.ref, { playerUids: [uid], updatedAt: now() });
-        }
-      });
-      packs.docs.forEach((d) => batch.update(d.ref, { uid, updatedAt: now() }));
-      // Turno fijo que vino de la planilla: pasa a ser suyo (lo ve en la app).
-      (await club.collection('fixedBookings').where('clientId', '==', c.id).get()).docs.forEach((d) => batch.update(d.ref, { holderUid: uid, updatedAt: now() }));
-      await batch.commit();
+      await transferClientToUid(clubId, c, uid, 'mail');
       return { action: 'unida_por_mail', clientId: c.id };
     }
   }
@@ -126,4 +99,44 @@ export async function linkOrCreateClient(clubId: string, uid: string): Promise<L
     throw err;
   }
   return { action: samePhone.length ? 'creada_posible_repetido' : 'creada', clientId: c.id };
+}
+
+/**
+ * Une una ficha sin app a la cuenta de un jugador: pasan lo que debe, sus cuponeras, sus turnos del
+ * mostrador que vienen y su turno fijo. Lo usan la unión por mail y el club al aprobar un pedido ("Unir a su ficha").
+ */
+export async function transferClientToUid(clubId: string, c: ClubClient, uid: string, linkedBy: 'mail' | 'mostrador'): Promise<void> {
+  const club = db.doc(`clubs/${clubId}`);
+  const clients = club.collection('clients');
+  const todayISO = getTodayISO();
+  const batch = db.batch();
+  // Entró a la app: ya vio el aviso de datos al registrarse.
+  batch.update(clients.doc(c.id), { uid, linkedBy, linkedAtISO: new Date().toISOString(), noticeGiven: true, updatedAt: now() });
+  const old = `c:${c.id}`;
+  const [cons, bks, packs, fixed] = await Promise.all([
+    club.collection('consumptions').where('participantUids', 'array-contains', old).get(),
+    club.collection('bookings').where('clientId', '==', c.id).get(),
+    club.collection('clientPacks').where('clientId', '==', c.id).get(),
+    club.collection('fixedBookings').where('clientId', '==', c.id).get(),
+  ]);
+  cons.docs.forEach((d) => {
+    const x = d.data() as Consumption;
+    if (x.status !== 'pending') return;
+    batch.update(d.ref, {
+      participantUids: x.participantUids.map((k) => (k === old ? uid : k)),
+      paidUids: x.paidUids.map((k) => (k === old ? uid : k)),
+      ...(x.forUid === '' && !x.shared ? { forUid: uid } : {}),
+      updatedAt: now(),
+    });
+  });
+  bks.docs.forEach((d) => {
+    const b = d.data() as Booking;
+    if (b.type === 'counter' && b.playerUids.length === 0 && (b.status === 'confirmed' || b.status === 'held') && b.date >= todayISO) {
+      batch.update(d.ref, { playerUids: [uid], updatedAt: now() });
+    }
+  });
+  packs.docs.forEach((d) => batch.update(d.ref, { uid, updatedAt: now() }));
+  // Turno fijo que vino de la planilla: pasa a ser suyo (lo ve en la app).
+  fixed.docs.forEach((d) => batch.update(d.ref, { holderUid: uid, updatedAt: now() }));
+  await batch.commit();
 }

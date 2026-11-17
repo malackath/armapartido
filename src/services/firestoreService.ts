@@ -93,6 +93,8 @@ const NOTIFICATION_CHANNELS: Record<NotificationEventType, { push: boolean; emai
   tournament_next_match: { push: true, email: true },
   waitlist_slot_open: { push: true, email: false },
   category_changed: { push: true, email: false },
+  join_request: { push: true, email: false },
+  join_resolved: { push: true, email: true },
 };
 
 function getDefaultTabForEvent(eventType: NotificationEventType): string {
@@ -115,6 +117,10 @@ function getDefaultTabForEvent(eventType: NotificationEventType): string {
       return 'tournaments';
     case 'category_changed':
       return 'profile';
+    case 'join_request':
+      return 'staff';
+    case 'join_resolved':
+      return 'home';
     default:
       return 'notifications';
   }

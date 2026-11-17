@@ -115,17 +115,17 @@ await step('I1. Importar: el mostrador no puede y sin el permiso de los jugadore
   await assert.rejects(mostr.call('clientesImportar', { clubId: CLUB, rows: filas, permission: PERMISO }));
   await assert.rejects(dueno.call('clientesImportar', { clubId: CLUB, rows: filas, permission: '' }));
 });
-await step('I2. El dueño importa: fichas nuevas, no duplica a la que ya estaba, turno fijo por 12 semanas y queda el permiso', async () => {
+await step('I2. El dueño importa: fichas nuevas, no duplica a la que ya estaba, turno fijo por 26 semanas y queda el permiso', async () => {
   const antes = (await club.collection('clients').get()).size;
   imp = await dueno.call('clientesImportar', { clubId: CLUB, rows: filas, permission: PERMISO, sourceFile: 'prueba.csv', fileRows: 3 });
   assert.equal(imp.created, 2); assert.equal(imp.already, 1); assert.equal(imp.fixed, 1);
   assert.deepEqual(imp.noCourt, ['Sin Cancha']);
   assert.equal((await club.collection('clients').get()).size, antes + 2);
   const uno = (await club.collection('clients').where('email', '==', 'importada.uno@ejemplo.uy').get()).docs[0].data();
-  assert.equal(uno.origin, 'migracion'); assert.equal(uno.noticeGiven, true); assert.equal(uno.uid, '');
+  assert.equal(uno.origin, 'migracion'); assert.equal(uno.noticeGiven, false, 'todavía no se le avisó'); assert.equal(uno.uid, '');
   const fx = (await club.collection('fixedBookings').where('clientId', '==', uno.id).get()).docs.map((d) => d.data());
   assert.equal(fx.length, 1);
-  assert.equal(fx[0].bookingIds.length + imp.weeksSkipped, 12);
+  assert.equal(fx[0].bookingIds.length + imp.weeksSkipped, 26);
   const bk = (await club.collection('bookings').doc(fx[0].bookingIds[0]).get()).data();
   assert.equal(bk.clientId, uno.id); assert.equal(bk.status, 'confirmed'); assert.ok(bk.totalPrice > 0);
   const anaDespues = (await club.collection('clients').doc('demo_cli_ana').get()).data();
@@ -141,7 +141,88 @@ await step('I3. Cuando el importado se registra con ese mail verificado, la fich
   assert.equal(fx.holderUid, uid);
   const bk = (await club.collection('bookings').doc(fx.bookingIds[0]).get()).data();
   assert.deepEqual(bk.playerUids, [uid]);
+  assert.equal(uno.noticeGiven, true, 'al entrar a la app ya vio el aviso');
 });
+await step('I4. Volver a subir la misma planilla no duplica fichas ni turnos fijos', async () => {
+  const antesF = (await club.collection('fixedBookings').get()).size;
+  const antesC = (await club.collection('clients').get()).size;
+  const r = await dueno.call('clientesImportar', { clubId: CLUB, rows: filas, permission: PERMISO, sourceFile: 'prueba.csv', fileRows: 3 });
+  assert.equal(r.created, 0); assert.equal(r.fixed, 0); assert.equal(r.alreadyFixed, 1);
+  assert.equal((await club.collection('fixedBookings').get()).size, antesF);
+  assert.equal((await club.collection('clients').get()).size, antesC);
+});
+
+// ---------- Sumarse a un club con "Solo mis jugadores" (17/11) ----------
+async function jugadorNuevo(key, email, { verified = true, phone = '' } = {}) {
+  const u = await auth.createUser({ email, emailVerified: verified, password: process.env.DEMO_PASSWORD || 'prueba-local-123', displayName: key });
+  await db.doc(`users/${u.uid}`).set({ uid: u.uid, displayName: `Nuevo ${key}`, category: 6, gender: 'femenino', preferredModality: 'mixto', weeklyAvailability: [], activeClubIds: [CLUB], signupDone: true, createdAt: new Date(), updatedAt: new Date() });
+  await db.doc(`users/${u.uid}/private/info`).set({ uid: u.uid, email, phone, updatedAt: new Date() });
+  return { uid: u.uid, ...(await login(key, email)) };
+}
+const avisosA = async (uid, type) => (await club.collection('notifications').where('recipientUid', '==', uid).where('eventType', '==', type).get()).size;
+const duenoUid = (await auth.getUserByEmail('dueno@demo.armapartido.com')).uid;
+const filasSocios = [
+  { row: 2, name: 'Socia Directa', email: 'socia.directa@ejemplo.uy', phone: '+59893333333', category: 3, fixed: { dayOfWeek: 4, startMinute: 7 * 60, court: 'Cancha 2' } },
+  { row: 3, name: 'Socio Otro Mail', email: 'viejo.mail@ejemplo.uy', phone: '+59894444444', category: 5, fixed: null },
+];
+await step('S1. Club abierto (como hoy): el servidor lo suma directo', async () => {
+  const p = await jugadorNuevo('abierto', 'abierto@ejemplo.uy');
+  const r = await p.call('clubSumarme', { clubId: CLUB });
+  assert.equal(r.status, 'adentro');
+  assert.ok((await club.collection('memberships').doc(p.uid).get()).exists);
+});
+await step('S2. "Solo mis jugadores": con el mail sin confirmar no puede sumarse', async () => {
+  await dueno.call('clientesImportar', { clubId: CLUB, rows: filasSocios, permission: PERMISO, sourceFile: 'socios.csv', fileRows: 2 });
+  await club.update({ joinPolicy: 'solo_clientes' });
+  const p = await jugadorNuevo('sinconfirmar', 'sin.confirmar@ejemplo.uy', { verified: false });
+  await assert.rejects(p.call('clubSumarme', { clubId: CLUB }));
+  assert.equal((await club.collection('memberships').doc(p.uid).get()).exists, false);
+});
+await step('S3. Su mail está en Clientes: entra directo, la ficha y el turno fijo pasan a ser suyos y queda con la categoría del club', async () => {
+  const p = await jugadorNuevo('socia', 'socia.directa@ejemplo.uy');
+  const r = await p.call('clubSumarme', { clubId: CLUB });
+  assert.equal(r.status, 'encontrado');
+  assert.match(r.fixed ?? '', /jueves 07:00 · Cancha 2/);
+  const m = (await club.collection('memberships').doc(p.uid).get()).data();
+  assert.equal(m.role, 'player'); assert.equal(m.category, 3); assert.equal(m.categoryReview, 'ok');
+  const f = await fichasDe(p.uid);
+  assert.equal(f.length, 1); assert.equal(f[0].name, 'Socia Directa');
+  const fx = (await club.collection('fixedBookings').where('clientId', '==', f[0].id).get()).docs[0].data();
+  assert.equal(fx.holderUid, p.uid);
+});
+let pedido = null;
+await step('S4. No está en Clientes pero el celular coincide: queda un pedido con la ficha parecida y se avisa al dueño (una sola vez)', async () => {
+  const antes = await avisosA(duenoUid, 'join_request');
+  pedido = await jugadorNuevo('otromail', 'nuevo.mail@ejemplo.uy', { phone: '+59894444444' });
+  assert.equal((await pedido.call('clubSumarme', { clubId: CLUB })).status, 'pendiente');
+  assert.equal((await pedido.call('clubSumarme', { clubId: CLUB })).status, 'pendiente');
+  const req = (await club.collection('joinRequests').doc(pedido.uid).get()).data();
+  assert.equal(req.status, 'pendiente'); assert.equal(req.similarClientName, 'Socio Otro Mail');
+  assert.equal((await club.collection('memberships').doc(pedido.uid).get()).exists, false);
+  assert.equal(await avisosA(duenoUid, 'join_request'), antes + 1);
+});
+await step('S5. Un jugador no puede aprobar; el encargado lo une a su ficha y al jugador le llega el aviso', async () => {
+  await assert.rejects(pedido.call('clubPedidoResolver', { clubId: CLUB, uid: pedido.uid, action: 'aprobar' }));
+  assert.equal((await mostr.call('clubPedidoResolver', { clubId: CLUB, uid: pedido.uid, action: 'unir' })).status, 'aprobado');
+  assert.ok((await club.collection('memberships').doc(pedido.uid).get()).exists);
+  const f = await fichasDe(pedido.uid);
+  assert.equal(f.length, 1); assert.equal(f[0].name, 'Socio Otro Mail'); assert.equal(f[0].linkedBy, 'mostrador');
+  assert.equal((await club.collection('joinRequests').doc(pedido.uid).get()).data().status, 'aprobado');
+  assert.equal(await avisosA(pedido.uid, 'join_resolved'), 1);
+});
+await step('S6. Desconocido: el dueño lo rechaza y no vuelve a pedir; otro desconocido aprobado queda con ficha nueva', async () => {
+  const x = await jugadorNuevo('desconocido', 'desconocido@ejemplo.uy');
+  assert.equal((await x.call('clubSumarme', { clubId: CLUB })).status, 'pendiente');
+  assert.equal((await dueno.call('clubPedidoResolver', { clubId: CLUB, uid: x.uid, action: 'rechazar' })).status, 'rechazado');
+  assert.equal((await x.call('clubSumarme', { clubId: CLUB })).status, 'rechazado');
+  assert.equal((await club.collection('memberships').doc(x.uid).get()).exists, false);
+  const y = await jugadorNuevo('aprobado', 'aprobado@ejemplo.uy');
+  assert.equal((await y.call('clubSumarme', { clubId: CLUB })).status, 'pendiente');
+  assert.equal((await dueno.call('clubPedidoResolver', { clubId: CLUB, uid: y.uid, action: 'aprobar' })).status, 'aprobado');
+  const f = await fichasDe(y.uid);
+  assert.equal(f.length, 1); assert.equal(f[0].origin, 'app');
+});
+await club.update({ joinPolicy: 'abierto' });
 
 console.log('\nClientes (ficha al sumarse desde la app):');
 results.forEach((r) => console.log(r));

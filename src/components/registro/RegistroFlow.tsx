@@ -13,6 +13,7 @@ import { CATEGORY_QUESTIONS, availabilitySentence, suggestCategory, windowsFromG
 import { CategoryBadge } from '../ui/People';
 import { subscribeClubs } from '../../services/firestoreService';
 import { finishSignup, uploadSignupPhoto } from '../../services/registroService';
+import type { JoinAnswer } from '../../services/sumarseService';
 import type { AlertPrefs, Club, CourtSide, Gender, Hand, Modality, UserProfile, WeeklyInvites } from '../../types/padel';
 import { BrandIcon } from '../BrandIcon';
 import { initialsOf } from '../ui/People';
@@ -66,7 +67,7 @@ export const RegistroFlow: React.FC<{
   );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [done, setDone] = useState<{ profile: UserProfile; joined: boolean } | null>(null);
+  const [done, setDone] = useState<{ profile: UserProfile; joined: boolean; join: JoinAnswer | null } | null>(null);
   const [touched, setTouched] = useState(false);
 
   useEffect(() => subscribeClubs(setClubs), []);
@@ -395,7 +396,9 @@ export const RegistroFlow: React.FC<{
       <div className="min-h-screen bg-page">
         <div className="bg-brand px-5 pt-[max(28px,env(safe-area-inset-top))] pb-20 text-white">
           <div className="mx-auto max-w-md">
-            <h1 className="font-display text-[28px] leading-tight font-bold">Listo, {first}.</h1>
+            <h1 className="font-display text-[28px] leading-tight font-bold">
+              {done.join?.status === 'encontrado' ? `¡Te encontramos, ${first}!` : `Listo, ${first}.`}
+            </h1>
             <p className="mt-1.5 text-[15px] text-[#bfe3e5]">
               {done.joined ? `Ya sos parte de ${clubName}. Así te ven los demás:` : 'Tu perfil está armado. Así te ven los demás:'}
             </p>
@@ -403,7 +406,27 @@ export const RegistroFlow: React.FC<{
         </div>
         <div className="mx-auto -mt-14 max-w-md px-5 pb-10">
           <PlayerFicha profile={done.profile} clubName={done.joined ? clubName : undefined} />
-          {!done.joined && (
+          {done.join?.status === 'encontrado' && (
+            <p className="mt-3 rounded-xl bg-ok-bg px-3.5 py-3 text-sm leading-snug text-ok" data-testid="sumarse-encontrado">
+              {clubName} ya te tenía en su lista con este mail.
+              {done.join.fixed ? ` Tu turno fijo de los ${done.join.fixed} ya está en la app.` : ''}
+            </p>
+          )}
+          {done.join?.status === 'pendiente' && (
+            <div className="mt-3 rounded-xl bg-wait-bg px-3.5 py-3 text-sm leading-snug text-wait" data-testid="sumarse-pendiente">
+              <p className="font-semibold">Le mandamos tu pedido a {clubName}</p>
+              <p className="mt-1">
+                No encontramos tu mail en la lista del club. Te avisamos apenas te confirme. Mientras, podés mirar horarios y torneos. ¿Te anotaron con otro
+                mail? Avisale al club.
+              </p>
+            </div>
+          )}
+          {done.join?.status === 'rechazado' && (
+            <p className="mt-3 rounded-xl border border-line bg-white px-3.5 py-3 text-sm leading-snug" data-testid="sumarse-rechazado">
+              {clubName} no confirmó tu pedido. Si sos jugador del club, hablá con el encargado: quizás te anotaron con otro mail.
+            </p>
+          )}
+          {!done.join && (
             <p className="mt-3 rounded-xl border border-line bg-white px-3.5 py-3 text-sm leading-snug">
               Para sumarte a {clubName} confirmá tu mail con el enlace que te mandamos y volvé a entrar.
             </p>

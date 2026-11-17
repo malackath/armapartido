@@ -165,9 +165,10 @@ service cloud.firestore {
           'basePrice', 'nightFromHour', 'nightPrice', 'weekendPrice',
           'cancellationHours', 'maxNoShowsBeforeBlock', 'mpEnabled', 'mpMode',
           'mpDepositPercent', 'subscriptionStatus', 'trialEndsAt', 'monthlyPricePerCourt', 'courtCount',
-          'plan', 'deposit', 'reportEmails', 'fillEnabled', 'fillMaxGap', 'autoFill',
+          'plan', 'deposit', 'reportEmails', 'fillEnabled', 'fillMaxGap', 'autoFill', 'joinPolicy',
           'active', 'createdAt', 'updatedAt'
         ])
+        && (!('joinPolicy' in data) || data.joinPolicy in ['abierto', 'solo_clientes'])
         && (!('plan' in data) || data.plan in ['entrada', 'estandar'])
         && (!('deposit' in data) || isValidDepositRule(data.deposit))
         && (!('reportEmails' in data) || (data.reportEmails is list && data.reportEmails.size() <= 5))
@@ -620,7 +621,7 @@ service cloud.firestore {
             'lat', 'lng', 'slotDurationMinutes', 'openHour', 'closeHour', 'basePrice',
             'nightFromHour', 'nightPrice', 'weekendPrice', 'cancellationHours',
             'maxNoShowsBeforeBlock', 'mpEnabled', 'mpMode', 'mpDepositPercent',
-            'courtCount', 'fillEnabled', 'fillMaxGap', 'autoFill', 'updatedAt'
+            'courtCount', 'fillEnabled', 'fillMaxGap', 'autoFill', 'joinPolicy', 'updatedAt'
           ]))
         );
 
@@ -662,7 +663,9 @@ service cloud.firestore {
             isPlatformAdmin() ||
             isClubOwner(clubId) ||
             (isOwner(memberUid) && incoming().role == 'player' && incoming().noShowCount == 0 && incoming().blocked == false
-              && (!('categoryReview' in incoming()) || incoming().categoryReview == 'pendiente'))
+              && (!('categoryReview' in incoming()) || incoming().categoryReview == 'pendiente')
+              // Club con "Solo mis jugadores": se suma por el servidor (clubSumarme), que valida contra Clientes.
+              && getClub(clubId).get('joinPolicy', 'abierto') != 'solo_clientes')
           );
         allow update: if isEmailVerified() && isValidId(clubId) && isValidId(memberUid)
           && isValidClubMembership(incoming(), clubId, memberUid)
@@ -959,6 +962,14 @@ service cloud.firestore {
       // Foto del informe del mes: la guarda el servidor el día 1
       match /monthlyReports/{month} {
         allow read: if isClubAdmin(clubId) || isPlatformAdmin();
+        allow write: if false;
+      }
+
+      // Pedidos para sumarse a un club con "Solo mis jugadores" (17/11): solo los escribe el servidor.
+      match /joinRequests/{requestUid} {
+        allow get: if isSignedIn() && isValidId(clubId) && isValidId(requestUid)
+          && (request.auth.uid == requestUid || isClubStaffOrAdmin(clubId));
+        allow list: if isClubStaffOrAdmin(clubId);
         allow write: if false;
       }
 
