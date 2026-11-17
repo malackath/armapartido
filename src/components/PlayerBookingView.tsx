@@ -271,6 +271,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
     <div className="space-y-8">
       <PhotoHeader
         image="/img/cancha-techada.webp"
+        marcaFoto="reservar"
         title="Reservá tu cancha"
         subtitle={
           <span className="inline-flex items-center gap-1">

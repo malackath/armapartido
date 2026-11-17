@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import { useMarca } from '../lib/marcaClub';
+import { PortadaClub } from './apariencia/PortadaClub';
 import type { Booking, Club, ClubMembership, ClubSponsor, Court, FillInvite, FillSearch, MatchRequest, ProposedMatch, Tournament, UserProfile } from '../types/padel';
 import {
   addDaysISO,
@@ -216,6 +218,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
     [tournaments, today]
   );
 
+  const marca = useMarca();
   const courtDetail = (c?: Court) =>
     c ? ` · ${c.roof === 'techada' ? 'techada' : 'descubierta'}, ${c.surface === 'cristal' ? 'vidrio' : 'muro'}` : '';
 
@@ -223,6 +226,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   return (
     <div className="space-y-6">
       <FillInvitesSection club={club} invites={fillInvites} searches={fillSearches} matches={proposedMatches} onToast={onToast} />
+      {marca && (marca.fotos?.portada || marca.slogan) && <PortadaClub marca={marca} />}
       <ResultadosInicio club={club} bookings={bookings} memberships={memberships ?? []} userProfile={userProfile} onToast={onToast} />
       <InvitacionesOtrosClubes uid={userProfile.uid} onToast={onToast} />
       <section>

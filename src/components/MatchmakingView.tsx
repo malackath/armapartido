@@ -399,6 +399,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
       <FillInvitesSection club={club} invites={fillInvites} searches={fillSearches} matches={proposedMatches} onToast={onToast} />
       <PhotoHeader
         image="/img/armar-partido.webp"
+        marcaFoto="armar"
         title="Armá tu partido"
         subtitle="Decinos cuándo podés jugar y te juntamos con tres jugadores de tu categoría. El partido se confirma cuando aceptan los cuatro."
       >

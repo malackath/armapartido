@@ -17,6 +17,7 @@ import { notify } from './notify';
 import { openFreeSlot, previewFreeSlot, simulateAnswers } from './hueco';
 import { cleanRows, importClients } from './importar';
 import { requestJoin, resolveJoin } from './sumarse';
+import { cambiarPaquete, guardarMarca, revisarMarca, subirImagen } from './marca';
 import { chooseUnfilled, claimFromLink, claimSeat, declineInvite, dropFromMatch, publicFillLink, stopSearch } from './fill';
 import type { FillChoice } from '../../src/types/padel';
 
@@ -479,3 +480,9 @@ export const invitadoQuitar = onCall(async (req) => {
   await removeGuestPass({ clubId, byUid: uid, friendUid: str(d.friendUid), isStaff: role === 'admin' || role === 'staff' });
   return { ok: true };
 });
+
+// Marca del club (Configuración > Apariencia): el club guarda, la plataforma revisa y marca el paquete.
+export const marcaGuardar = onCall((req) => guardarMarca(req));
+export const marcaRevisar = onCall((req) => revisarMarca(req));
+export const marcaPaquete = onCall((req) => cambiarPaquete(req));
+export const marcaSubirImagen = onCall({ memory: '512MiB' }, (req) => subirImagen(req));

@@ -9,7 +9,10 @@
  * Control de contraste: el color de texto/encabezado se oscurece hasta leerse sobre blanco (4,5:1)
  * y el texto sobre el acento se elige entre blanco, negro o el color principal, el que más contraste.
  */
+import { useSyncExternalStore } from 'react';
 import { currentClubSlug } from './appDelClub';
+import { contraste, legibleSobreBlanco, variablesDeMarca } from './marcaColores';
+import type { Club, MarcaDatos, MarcaEsquinas, MarcaPublicada } from '../types/padel';
 
 export type MarcaClub = {
   slug: string;
@@ -36,86 +39,44 @@ export type MarcaClub = {
   clubBase?: string;
   /** true = es una vista para un prospecto (datos de ejemplo). */
   prospecto?: boolean;
+  slogan?: string;
+  esquinas?: MarcaEsquinas;
+  fotos?: MarcaDatos['fotos'];
+  /** 'archivo' = marca.json del prospecto; 'club' = la que el club guardó en Configuración > Apariencia. */
+  origen?: 'archivo' | 'club';
 };
 
 let marca: MarcaClub | null = null;
+/** true = la marca vino de public/clubes/<slug>/marca.json (prospecto): manda sobre la del club. */
+let marcaFija = false;
 export const marcaClub = () => marca;
 
-// ---------- colores ----------
-type RGB = [number, number, number];
-const hexToRgb = (hex: string): RGB => {
-  const h = hex.replace('#', '');
-  const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+// Aviso a React cuando cambia la marca (al elegir otro club o cuando el club guarda cambios).
+const oyentes = new Set<() => void>();
+const avisar = () => oyentes.forEach((f) => f());
+export const suscribirMarca = (f: () => void) => {
+  oyentes.add(f);
+  return () => oyentes.delete(f);
 };
-const rgbToHex = (c: RGB) => '#' + c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
-const mix = (a: string, b: string, t: number) => {
-  const x = hexToRgb(a);
-  const y = hexToRgb(b);
-  return rgbToHex([0, 1, 2].map((i) => x[i] + (y[i] - x[i]) * t) as RGB);
-};
-const lum = (hex: string) => {
-  const [r, g, b] = hexToRgb(hex).map((v) => {
-    const s = v / 255;
-    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-};
-export const contraste = (a: string, b: string) => {
-  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
-};
-/** Oscurece el color hasta que se lea sobre blanco (texto normal, 4,5:1). */
-export const legibleSobreBlanco = (hex: string) => {
-  let c = hex;
-  for (let i = 0; i < 20 && contraste(c, '#ffffff') < 4.5; i++) c = mix(c, '#000000', 0.08);
-  return c;
-};
-const mejorTextoSobre = (fondo: string, candidatos: string[]) =>
-  candidatos.reduce((best, c) => (contraste(c, fondo) > contraste(best, fondo) ? c : best), candidatos[0]);
+/** La marca aplicada ahora, para componentes de React (se actualiza sola). */
+export const useMarca = () => useSyncExternalStore(suscribirMarca, marcaClub, marcaClub);
 
-export function variablesDeMarca(m: MarcaClub): Record<string, string> {
-  const brand = legibleSobreBlanco(m.colores.principal);
-  const acento = m.colores.acento || brand;
-  const fondo = m.colores.fondo || mix('#ffffff', m.colores.secundario || brand, 0.07);
-  const segundo = m.colores.secundario || mix(brand, '#ffffff', 0.3);
-  const v: Record<string, string> = {
-    '--color-brand': brand,
-    // 2º tono (texto blanco encima) y 3º (texto oscuro encima), con el segundo color del club si lo hay.
-    '--color-brand-2': legibleSobreBlanco(segundo),
-    '--color-brand-3': mix('#ffffff', segundo, 0.35),
-    '--club-primary': brand,
-    '--club-accent': acento,
-    '--color-action': acento,
-    // Sobre el acento va el color de marca si se lee bien (7:1); si no, el que más contraste.
-    '--color-on-action': contraste(brand, acento) >= 7 ? brand : mejorTextoSobre(acento, [brand, '#ffffff', '#111111']),
-    '--color-page': fondo,
-    '--color-surface': mix('#ffffff', fondo, 0.5),
-    '--color-mist': mix('#ffffff', brand, 0.08),
-    '--color-line': mix('#ffffff', brand, 0.16),
-    // La escala "emerald" del prototipo es la escala de marca (botones, fondos suaves).
-    '--color-emerald-50': mix('#ffffff', brand, 0.06),
-    '--color-emerald-100': mix('#ffffff', brand, 0.14),
-    '--color-emerald-200': mix('#ffffff', brand, 0.3),
-    '--color-emerald-300': mix('#ffffff', brand, 0.48),
-    '--color-emerald-400': mix('#ffffff', brand, 0.68),
-    '--color-emerald-500': mix('#ffffff', brand, 0.86),
-    '--color-emerald-600': brand,
-    '--color-emerald-700': mix(brand, '#000000', 0.12),
-    '--color-emerald-800': mix(brand, '#000000', 0.24),
-    '--color-emerald-900': mix(brand, '#000000', 0.55),
-  };
-  return v;
+export { contraste, legibleSobreBlanco, variablesDeMarca };
+
+const fuentesCargadas = new Set<string>();
+/** Carga letras de Google Fonts (una sola vez cada una). */
+export function cargarFuentesGoogle(familias: (string | undefined)[]) {
+  const nuevas = familias.filter((f): f is string => !!f && /^[A-Za-z0-9 ]{2,40}$/.test(f) && f !== 'Outfit' && !fuentesCargadas.has(f));
+  if (!nuevas.length || typeof document === 'undefined') return;
+  nuevas.forEach((f) => fuentesCargadas.add(f));
+  const l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = `https://fonts.googleapis.com/css2?${nuevas.map((f) => `family=${f.replace(/ /g, '+')}:wght@400;500;600;700`).join('&')}&display=swap`;
+  document.head.appendChild(l);
 }
 
 function cargarFuentes(m: MarcaClub) {
-  const familias = [m.fuentes?.titulos, m.fuentes?.texto].filter((f): f is string => !!f && /^[A-Za-z0-9 ]{2,40}$/.test(f) && f !== 'Outfit');
-  if (familias.length) {
-    const l = document.createElement('link');
-    l.rel = 'stylesheet';
-    l.href = `https://fonts.googleapis.com/css2?${familias.map((f) => `family=${f.replace(/ /g, '+')}:wght@400;500;600;700`).join('&')}&display=swap`;
-    document.head.appendChild(l);
-  }
+  cargarFuentesGoogle([m.fuentes?.titulos, m.fuentes?.texto]);
   const root = document.documentElement;
   if (m.fuentes?.titulos) root.style.setProperty('--font-display', `"${m.fuentes.titulos}", system-ui, sans-serif`);
   if (m.fuentes?.texto) {
@@ -124,10 +85,24 @@ function cargarFuentes(m: MarcaClub) {
   }
 }
 
+/** Variables que puso la marca, para sacarlas al volver a Armá Partido. */
+let puestas: string[] = [];
+function quitarDeLaPagina() {
+  const root = document.documentElement;
+  puestas.forEach((k) => root.style.removeProperty(k));
+  puestas = [];
+  root.style.removeProperty('--font-display');
+  root.style.removeProperty('--font-sans');
+  document.body.style.fontFamily = '';
+  document.body.style.backgroundColor = '';
+}
+
 function aplicarEnLaPagina(m: MarcaClub) {
   const root = document.documentElement;
   const vars = variablesDeMarca(m);
+  quitarDeLaPagina();
   Object.entries(vars).forEach(([k, val]) => root.style.setProperty(k, val));
+  puestas = Object.keys(vars);
   cargarFuentes(m);
   document.body.style.backgroundColor = vars['--color-page'];
   document.title = m.nombre;
@@ -142,7 +117,7 @@ function aplicarEnLaPagina(m: MarcaClub) {
   };
   setMeta('theme-color', vars['--color-brand']);
   setMeta('apple-mobile-web-app-title', m.nombreCorto || m.nombre);
-  if (m.logo) {
+  if (m.logo && m.origen !== 'club') {
     document.querySelectorAll('link[rel="icon"]').forEach((l) => l.remove());
     const l = document.createElement('link');
     l.rel = 'icon';
@@ -164,8 +139,10 @@ export async function cargarMarcaClub(): Promise<MarcaClub | null> {
     if (!r.ok || !(r.headers.get('content-type') || '').includes('json')) return null;
     const m = (await r.json()) as MarcaClub;
     if (!m?.nombre || !m?.colores?.principal) return null;
-    marca = { ...m, slug };
+    marca = { ...m, slug, origen: 'archivo' };
+    marcaFija = true;
     aplicarEnLaPagina(marca);
+    avisar();
     return marca;
   } catch {
     return null;
@@ -189,4 +166,54 @@ export function clubConMarca<T extends { id: string; name: string; address?: str
       ? { ...c, name: marca!.nombre, address: marca!.direccion ?? conTextosDeMarca(c.address || '') }
       : c
   );
+}
+
+// ---------- marca guardada por el club (Configuración > Apariencia) ----------
+
+/**
+ * La regla del look (recomendación técnica del alta): la app usa la marca del club solo si el club
+ * tiene Imagen completa y la marca está aprobada (publicada). Si no, Armá Partido con el nombre del club.
+ */
+export function marcaVigente(club: Pick<Club, 'paquete' | 'marca'> | null | undefined): MarcaPublicada | null {
+  if (!club || club.paquete !== 'completo' || !club.marca?.colores?.principal) return null;
+  return club.marca;
+}
+
+let firmaAplicada = '';
+/** Se llama cada vez que cambia el club elegido o sus datos. Aplica su marca o vuelve a la de Armá Partido. */
+export function aplicarMarcaDelClub(club: Club | null) {
+  if (marcaFija || typeof document === 'undefined') return;
+  const m = marcaVigente(club);
+  const firma = m && club ? `${club.id}:${m.version}:${club.name}` : '';
+  if (firma === firmaAplicada) return;
+  firmaAplicada = firma;
+  if (!m || !club) {
+    if (marca) {
+      quitarDeLaPagina();
+      marca = null;
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', '#0a5761');
+      avisar();
+    }
+    return;
+  }
+  marca = {
+    slug: club.slug || club.id,
+    nombre: club.name,
+    logo: m.logo,
+    colores: { principal: m.colores.principal, acento: m.colores.acento, fondo: m.colores.fondo, secundario: m.colores.secundario },
+    fuentes: m.fuentes,
+    esquinas: m.esquinas,
+    slogan: m.slogan,
+    fotos: m.fotos,
+    clubBase: club.id,
+    origen: 'club',
+  };
+  aplicarEnLaPagina(marca);
+  avisar();
+}
+
+/** Foto de encabezado de la marca para una pantalla, o la de Armá Partido. */
+export function fotoDeMarca(m: MarcaClub | null, cual: 'portada' | 'reservar' | 'armar' | 'torneos', porDefecto: string): string {
+  return m?.fotos?.[cual] || porDefecto;
 }

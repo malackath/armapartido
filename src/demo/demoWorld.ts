@@ -175,6 +175,8 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
     trialEndsAt: day(30),
     monthlyPricePerCourt: 0,
     courtCount: 4,
+    // Imagen completa: el dueño puede probar Admin → Apariencia y, cuando el Equipo la aprueba, la ve el jugador.
+    paquete: 'completo',
     active: true,
     // Modo invitados (etapa 6b): recibe invitados con recargo de $50.
     guests: { enabled: true, surcharge: 50, shareMyPlayers: true },

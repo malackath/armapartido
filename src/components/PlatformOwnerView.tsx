@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Building2, CreditCard, MapPin, Plus } from 'lucide-react';
+import { RevisionMarcas } from './apariencia/RevisionMarcas';
 import type { Club, UserProfile } from '../types/padel';
 import { formatUYU } from '../lib/padelUtils';
 import { onboardNewClub, processClubSubscriptionCharge } from '../services/firestoreService';
@@ -288,6 +289,8 @@ export const PlatformOwnerView: React.FC<PlatformOwnerViewProps> = ({
           </div>
         </div>
       </div>
+
+      <RevisionMarcas clubs={clubs} onToast={onToast} />
 
       <MercadoPagoModal
         open={!!debitTarget}

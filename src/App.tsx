@@ -65,7 +65,7 @@ import { TopBar, type ActiveTab } from './components/TopBar';
 import { TournamentsView } from './components/TournamentsView';
 import { PAGE_CONTAINER } from './lib/layout';
 import { clubAppKey, currentClubSlug, shortClubName } from './lib/appDelClub';
-import { clubConMarca, conTextosDeMarca, marcaClub } from './lib/marcaClub';
+import { aplicarMarcaDelClub, clubConMarca, conTextosDeMarca, marcaClub } from './lib/marcaClub';
 
 const PLATFORM_OWNER_EMAILS = (import.meta.env.VITE_PLATFORM_OWNER_EMAILS || '')
   .split(',')
@@ -323,9 +323,14 @@ export default function App() {
     };
   }, [authUser, userProfile, clubs, activeClub?.id, memberships]);
 
+  // Marca del club elegido (Configuración > Apariencia): solo con Imagen completa y marca aprobada.
+  useEffect(() => {
+    aplicarMarcaDelClub(activeClub);
+  }, [activeClub]);
+
   // Apply dynamic white-label CSS theme tokens for the active club
   useEffect(() => {
-    if (activeClub) {
+    if (activeClub && !marcaClub()) {
       document.documentElement.style.setProperty('--club-primary', activeClub.primaryColor);
       document.documentElement.style.setProperty('--club-accent', activeClub.accentColor);
     }
