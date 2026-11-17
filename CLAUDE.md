@@ -114,3 +114,8 @@ Cada club tiene su app marca blanca sobre una sola plataforma multi-club. Jugado
 - La app usa la marca solo con `club.paquete == 'completo'` y marca aprobada (`aplicarMarcaDelClub` en `src/lib/marcaClub.ts`, hook `useMarca`). El marca.json de prospecto sigue mandando si existe. Plataforma → "Marcas de los clubes" (`RevisionMarcas.tsx`).
 - Verificar: `node scripts/verify-apariencia.cjs <url> <carpeta>` (20 pruebas, con la demo cargada y emuladores con storage).
 - Para publicar: deploy de functions (4 callables nuevas) y storage.rules, y sumar `paquete`, `marca`, `marcaPendiente`, `marcaRechazo`, `marcaAlta` (y `sponsor(s)` si faltan) a la lista de campos del club en Paddle.URU/docs/firestore-demo.rules.
+
+## Publicación consolidada (17/11, rama claude/project-thread-s4a99p)
+- Une sobre yzwrhr (lo publicado): algoritmo de partidos (1numhm, etapas 1–6b), Apariencia (030j6z) y el arreglo de categoría del perfil (o1btjk / n7l22z). Es la nueva rama completa.
+- `firestore.indexes.json`: índice de grupo de colecciones para `fillInvites.uid` (tarjeta "Te invitan a jugar"). La demo lo sube con `npx firebase-tools@15 deploy --only firestore:indexes --project armapartido-demo --config <json con firestore.indexes>` sin tocar las reglas abiertas de la demo.
+- Publicar: funciones + storage.rules (`deploy --only functions,storage`) + índices + app (Paddle.URU/docs/publicar-demo.sh).
