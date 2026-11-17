@@ -102,6 +102,8 @@ export const DEMO_CLUB_SUBCOLLECTIONS = [
   'payments',
   'notifications',
   'matchResults',
+  'gameResults',
+  'categorySuggestions',
   'waitlist',
   'products',
   'consumptions',
@@ -562,6 +564,15 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
     createdByUid: uids.jugadora,
   };
   put(`${base}/proposedMatches/${pending.id}`, pending);
+  // Resultados (etapa 6a): el partido de Martín de hace 5 días va con equipos, para cargar el resultado desde Inicio.
+  {
+    const toLoad = bookings.find((b) => b.date === day(-5) && b.startMinute === T(20) && b.playerUids.includes(uids.jugador));
+    if (toLoad && toLoad.playerUids.length === 4) {
+      const others = toLoad.playerUids.filter((u) => u !== uids.jugador);
+      toLoad.teamA = [uids.jugador, others[0]];
+      toLoad.teamB = others.slice(1);
+    }
+  }
   bookings.forEach((b) => put(`${base}/bookings/${b.id}`, b));
 
   // ---------- Pedidos abiertos (buscan jugadores) ----------
@@ -743,6 +754,83 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
   // Clientes, cuponeras, saldo a favor, venta suelta y facturas
   addClientesDemo(docs, { base, clubId: C, today, uids, nameOf, catOf, price, anaToday: anaSlot ? { courtId: anaSlot.courtId, start: anaSlot.start } : undefined, withHolder });
   addHistory(docs, { base, clubId: C, today, courts, club, four, staffUid: uids.mostrador, ownerUid: uids.dueno, price });
+  // Resultados (etapa 6a, OK de Ber 17/11): un partido para confirmar, la historia de Martín con resultados
+  // confirmados y dos sugerencias de categoría para el club. Va después de la historia para no cambiar el resto de la demo.
+  {
+    const J = uids.jugador;
+    const endMs = (b: Booking) => new Date(`${b.date}T00:00:00`).getTime() + b.endMinute * 60000;
+    const names = (us: string[]) => Object.fromEntries(us.map((u) => [u, nameOf(u)]));
+    const allBookings = () => docs.filter((d) => d.path.startsWith(`${base}/bookings/`)).map((d) => d.data as unknown as Booking);
+    let rb = 0;
+    const addBooking = (b: Partial<Booking> & { date: string; startMinute: number; courtId: string; createdByUid: string }) => {
+      const booking = {
+        id: `demo_bk_res_${String(++rb).padStart(2, '0')}`, clubId: C, courtName: court(b.courtId).name, endMinute: b.startMinute + SLOT, type: 'direct',
+        status: 'confirmed', playerUids: [b.createdByUid], guestName: '', totalPrice: price(b.date, b.startMinute), paidAmount: 0, paymentMethod: 'club',
+        paymentStatus: 'pending', holdExpiresAt: '', ...b,
+      } as Booking;
+      return booking;
+    };
+    const putBooking = (b: Booking) => put(`${base}/bookings/${b.id}`, b);
+    const busyCourt = (date: string, start: number, courtId: string) => allBookings().some((b) => b.date === date && b.courtId === courtId && b.startMinute < start + SLOT && b.endMinute > start);
+    // Jugadores fijos que no usan las pruebas del armado (así la demo de las pruebas no cambia).
+    const ps = [J, 'demo-p30', 'demo-p31', 'demo-p33'];
+    const slotC = [-2, -3, -4]
+      .flatMap((d) => [T(20), T(18, 30), T(21, 30), T(17), T(12, 30)].map((st) => ({ date: day(d), st })))
+      .map((x) => ({ ...x, court: ['cancha_1', 'cancha_2', 'cancha_3', 'cancha_4'].find((c) => !busyCourt(x.date, x.st, c)) }))
+      .find((x) => x.court && ps.every((u) => grouper.isFree(u, x.date, x.st, x.st + SLOT)));
+    if (slotC) {
+      const cDate = slotC.date;
+      {
+        grouper.reserve(ps, cDate, slotC.st, slotC.st + SLOT);
+        const b = addBooking({ date: cDate, startMinute: slotC.st, courtId: slotC.court!, createdByUid: ps[1], playerUids: ps, type: 'matched', paidAmount: price(cDate, slotC.st), paymentStatus: 'paid' });
+        const others = ps.filter((u) => u !== J);
+        b.teamA = [J, others[0]];
+        b.teamB = others.slice(1);
+        putBooking(b);
+        put(`${base}/gameResults/${b.id}`, {
+          id: b.id, clubId: C, bookingId: b.id, date: b.date, startMinute: b.startMinute, courtName: b.courtName, teamA: b.teamA, teamB: b.teamB,
+          names: names(ps), playerUids: ps, winner: 'B', score: '6-4 3-6 7-5', reportedBy: b.teamB[0], status: 'pending',
+          expiresAt: new Date(endMs(b) + 48 * 3600e3 < Date.now() + 3600e3 ? Date.now() + 30 * 3600e3 : endMs(b) + 48 * 3600e3).toISOString(),
+        });
+      }
+    }
+    // Historia: los partidos de 4 de Martín de antes de esta semana, con resultado confirmado.
+    const SCORES = ['6-3 6-4', '4-6 6-2 6-4', '6-2 6-1', '7-6 6-4', '3-6 6-3 7-5', '6-4 6-4'];
+    const histDays = [-8, -10, -14, -17, -21, -24, -29, -31];
+    histDays
+      .map((d, i) => {
+        const date = day(d);
+        const ps = i % 2 ? [J, 'demo-p31', 'demo-p32', 'demo-p33'] : [J, 'demo-p30', 'demo-p32', 'demo-p31'];
+        const free = (st: number) => ['cancha_2', 'cancha_3', 'cancha_1', 'cancha_4'].some((c) => !busyCourt(date, st, c)) && ps.every((u) => grouper.isFree(u, date, st, st + SLOT));
+        const start = [T(20), T(18, 30), T(21, 30), T(17), T(12, 30), T(11), T(9, 30), T(8)].find(free);
+        if (start === undefined) return null;
+        const court = ['cancha_2', 'cancha_3', 'cancha_1', 'cancha_4'].find((c) => !busyCourt(date, start, c));
+        if (!court) return null;
+        grouper.reserve(ps, date, start, start + SLOT);
+        const hb = addBooking({ date, startMinute: start, courtId: court, createdByUid: J, playerUids: ps, paidAmount: price(date, start), paymentStatus: 'paid' });
+        putBooking(hb);
+        return hb;
+      })
+      .filter((b): b is Booking => !!b)
+      .forEach((b, i) => {
+        const others = b.playerUids.filter((u) => u !== J);
+        const teamA = [J, others[0]];
+        const teamB = others.slice(1);
+        put(`${base}/gameResults/${b.id}`, {
+          id: b.id, clubId: C, bookingId: b.id, date: b.date, startMinute: b.startMinute, courtName: b.courtName, teamA, teamB,
+          names: names(b.playerUids), playerUids: b.playerUids, winner: i % 3 === 2 ? 'B' : 'A', score: SCORES[i % SCORES.length],
+          reportedBy: J, status: 'confirmed', confirmedBy: teamB[0], expiresAt: new Date(endMs(b) + 48 * 3600e3).toISOString(),
+        });
+      });
+    put(`${base}/categorySuggestions/demo-p13`, {
+      id: 'demo-p13', clubId: C, uid: 'demo-p13', displayName: nameOf('demo-p13'), from: 6, to: 5, status: 'pending', resultsAtDecision: 0,
+      reason: 'Ganó 8 de sus últimos 10 partidos, 4 contra parejas de 6ta.',
+    });
+    put(`${base}/categorySuggestions/demo-p32`, {
+      id: 'demo-p32', clubId: C, uid: 'demo-p32', displayName: nameOf('demo-p32'), from: 6, to: 7, status: 'pending', resultsAtDecision: 0,
+      reason: 'Perdió 8 de sus últimos 10 partidos, 6 contra parejas de 6ta o de abajo.',
+    });
+  }
   // La caja de hoy ya abierta desde la mañana (si el club ya abrió).
   if (nowMinute >= club.openHour * 60) {
     const cd: CashDay = { id: today, clubId: C, date: today, openingFloat: 2000, openedByUid: uids.mostrador, openedByName: 'Diego Fernández', status: 'open' };

@@ -8,7 +8,7 @@ import { REGLAS_CATEGORIA, suggestCategory, type MyResult } from '../../src/lib/
 import { db, now } from './admin';
 import { notify } from './notify';
 
-const results = (clubId: string) => db.collection(`clubs/${clubId}/matchResults`);
+const results = (clubId: string) => db.collection(`clubs/${clubId}/gameResults`);
 const suggestions = (clubId: string) => db.collection(`clubs/${clubId}/categorySuggestions`);
 
 function bookingEnd(b: Pick<Booking, 'date' | 'endMinute'>): Date {
@@ -192,7 +192,8 @@ export async function evaluateCategory(clubId: string, uid: string): Promise<Cat
   }
   const s = suggestCategory(member.category, pool);
   if (!s) {
-    if (prev?.status === 'pending') await ref.delete(); // ya no aplica
+    // Ya no aplica (con la ventana completa y la regla sin cumplirse). Con pocos partidos no se toca.
+    if (prev?.status === 'pending' && pool.length >= REGLAS_CATEGORIA.ventana) await ref.delete();
     return null;
   }
   const next: CategorySuggestion = {

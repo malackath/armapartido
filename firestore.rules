@@ -987,7 +987,7 @@ service cloud.firestore {
 
       // Suplentes de guardia (etapa 4): solo los escribe el servidor; cada jugador lee las suyas, el club todas.
       // Resultados (etapa 6a): los leen los 4 que jugaron y el club; los escribe solo el servidor.
-      match /matchResults/{resultId} {
+      match /gameResults/{resultId} {
         allow get, list: if isSignedIn() && existing().clubId == clubId
           && (request.auth.uid in existing().playerUids || isClubStaffOrAdmin(clubId) || isPlatformAdmin());
         allow write: if false;

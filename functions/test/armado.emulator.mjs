@@ -214,10 +214,21 @@ async function cleanAll() {
   await Promise.all(held.docs.map((d) => d.ref.update({ status: 'cancelled' })));
 }
 const overlaps = (a, b) => a.date === b.date && a.startMinute < b.endMinute && a.endMinute > b.startMinute;
+/**
+ * La demo se arma alrededor de la hora en que se cargan los datos, así que sus reservas cambian según la hora.
+ * Para que 10 y 14 no dependan de eso, se apartan (cancelan) las reservas de la demo que las tocan y después se restauran.
+ */
+async function setAside(filter) {
+  const docs = (await club.collection('bookings').where('status', '==', 'confirmed').get()).docs.filter((d) => filter(d.data()));
+  await Promise.all(docs.map((d) => d.ref.update({ status: 'cancelled' })));
+  return () => Promise.all(docs.map((d) => d.ref.update({ status: 'confirmed' })));
+}
 
 await step('10. Jugador con dos pedidos que se pisan: no lo ponen en un segundo partido a la misma hora', async () => {
   await cleanAll();
   const D4 = inDays(3); const T = 9 * 60 + 30;
+  const restore = await setAside((b) => overlaps(b, { date: D4, startMinute: T, endMinute: T + 90 }));
+  try {
   for (const [u, n, c] of [['demo-p08', 'Florencia', 5], ['demo-p09', 'Rodrigo', 5], ['demo-p10', 'Mateo', 5], ['demo-p07', 'Santiago', 4]]) await req2(u, n, c, D4, T, T + 90);
   await jugador.call('armadoBuscar', { clubId: CLUB });
   const [first] = await pendingMatches();
@@ -236,6 +247,7 @@ await step('10. Jugador con dos pedidos que se pisan: no lo ponen en un segundo 
   assert.ok(second, 'no armó el segundo partido');
   assert.ok(!second.playerUids.includes('demo-p08'), 'metió a Florencia de nuevo');
   assert.notEqual(second.courtId, first.courtId);
+  } finally { await restore(); }
 });
 
 await step('11. Jugador que ya reservó cancha a esa hora: el armado no le propone otro partido encima', async () => {
@@ -293,6 +305,8 @@ await step('14. Cinco para cuatro lugares: el servidor deja afuera al que jugó 
   await cleanAll();
   const D8 = inDays(2); const T = 8 * 60;
   const five = [['demo-p26', 'Leandro'], ['demo-p27', 'Victoria'], ['demo-p28', 'Franco'], ['demo-p29', 'Natalia'], ['demo-p08', 'Florencia']];
+  const restore = await setAside((b) => b.date < iso(new Date()) && five.some(([u]) => (b.playerUids ?? []).includes(u)));
+  try {
   const yid = 'bk_test_jugo_ayer';
   await club.collection('bookings').doc(yid).set({ id: yid, clubId: CLUB, courtId: 'cancha_4', courtName: 'Cancha 4', date: inDays(-1), startMinute: 600, endMinute: 690, type: 'matched', status: 'confirmed', createdByUid: 'x', playerUids: ['demo-p26', 'demo-p01', 'demo-p02', 'demo-p03'], guestName: '', totalPrice: 0, paidAmount: 0, paymentMethod: 'split', paymentStatus: 'pending', holdExpiresAt: '' });
   for (const [u, n] of five) await req2(u, n, 5, D8, T, T + 90);
@@ -315,6 +329,7 @@ await step('14. Cinco para cuatro lugares: el servidor deja afuera al que jugó 
   const bk = (await club.collection('bookings').doc(m.bookingId).get()).data();
   assert.deepEqual(bk.teamA, m.teamA);
   await club.collection('bookings').doc(yid).delete();
+  } finally { await restore(); }
 });
 
 await step('15. Si uno rechaza, los equipos sugeridos se borran (ya no valen); vuelven cuando entra el reemplazo', async () => {

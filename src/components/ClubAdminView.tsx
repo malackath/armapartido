@@ -45,6 +45,7 @@ import { CuponerasAdmin } from './clientes/CuponerasAdmin';
 import { NewMembersReview } from './registro/ClubReview';
 import { PlayerAvatar } from './ui/People';
 import { TuApp } from './appclub/TuApp';
+import { SugerenciasCategoria, useCategorySuggestions } from './Resultados';
 
 interface ClubAdminViewProps {
   club: Club;
@@ -483,7 +484,8 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
   };
 
   const current = SECTIONS.find((s) => s.id === section)!;
-  const pendingReviews = memberships.filter((m) => m.role === 'player' && m.categoryReview === 'pendiente').length;
+  const catSuggestions = useCategorySuggestions(club.id, true);
+  const pendingReviews = memberships.filter((m) => m.role === 'player' && m.categoryReview === 'pendiente').length + catSuggestions.length;
   const showSave = section === 'courts' || section === 'prices' || section === 'fill' || section === 'club';
 
   return (
@@ -663,6 +665,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
 
         {section === 'members' && (
           <>
+            <SugerenciasCategoria club={club} items={catSuggestions} onToast={onToast} />
             <NewMembersReview club={club} memberships={memberships} userProfile={userProfile} onToast={onToast} />
             <MembersCard club={club} memberships={memberships} userProfile={userProfile} onToast={onToast} />
           </>

@@ -33,6 +33,8 @@ import {
 import { sendServerFcmPush, showServiceWorkerNotification } from '../lib/fcm';
 import type {
   Standby,
+  MatchResult,
+  CategorySuggestion,
   AutoFillReport,
   AvailabilityWindow,
   Booking,
@@ -1097,7 +1099,8 @@ const callArmado = async <T,>(name: string, data: Record<string, unknown>, path:
     return res.data;
   } catch (err) {
     // Reglas de negocio que el servidor explica en criollo (ej. dos pedidos que se pisan): se muestran tal cual.
-    if ((err as { code?: string })?.code === 'functions/already-exists') throw new UserFacingError((err as Error).message.replace(/\s*\[\d+\]$/, ''));
+    const code = (err as { code?: string })?.code ?? '';
+    if (['functions/already-exists', 'functions/failed-precondition', 'functions/invalid-argument', 'functions/not-found', 'functions/permission-denied'].includes(code)) throw new UserFacingError((err as Error).message.replace(/\s*\[\d+\]$/, ''));
     handleFirestoreError(err, OperationType.WRITE, path);
   }
 };
@@ -2362,4 +2365,34 @@ export async function updateAvoidUids(uid: string, avoidUids: string[]) {
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, path);
   }
+}
+
+/** Resultados (etapa 6a): los del jugador en el club (solo los 4 que jugaron y el club los leen). */
+export function subscribeMyResults(clubId: string, uid: string, cb: (items: MatchResult[]) => void): () => void {
+  return onSnapshot(
+    query(collection(db, 'clubs', clubId, 'gameResults'), where('clubId', '==', clubId), where('playerUids', 'array-contains', uid)),
+    (snap) => cb(snap.docs.map((d) => d.data() as MatchResult)),
+    (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/gameResults`)
+  );
+}
+
+export async function reportMatchResult(p: { clubId: string; bookingId: string; winner: 'A' | 'B'; score: string; partnerUid?: string }): Promise<void> {
+  await callArmado('resultadoCargar', p, `clubs/${p.clubId}/gameResults`);
+}
+
+export async function confirmMatchResult(p: { clubId: string; bookingId: string; agree: boolean }): Promise<void> {
+  await callArmado('resultadoConfirmar', p, `clubs/${p.clubId}/gameResults`);
+}
+
+/** Sugerencias de categoría para el club (solo dueño y encargado las leen). */
+export function subscribeCategorySuggestions(clubId: string, cb: (items: CategorySuggestion[]) => void): () => void {
+  return onSnapshot(
+    query(collection(db, 'clubs', clubId, 'categorySuggestions'), where('clubId', '==', clubId)),
+    (snap) => cb(snap.docs.map((d) => d.data() as CategorySuggestion)),
+    (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/categorySuggestions`)
+  );
+}
+
+export async function decideCategorySuggestion(p: { clubId: string; uid: string; accept: boolean }): Promise<void> {
+  await callArmado('categoriaDecidir', p, `clubs/${p.clubId}/categorySuggestions`);
 }

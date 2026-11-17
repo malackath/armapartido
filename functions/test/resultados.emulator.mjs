@@ -88,7 +88,7 @@ await step('RE5. A las 48 h sin confirmar vence y ya no se puede confirmar', asy
   await H.reportResult({ clubId: CLUB, uid: A1, bookingId: b, winner: 'A', score: '' });
   const later = new Date(Date.now() + 49 * 3600e3);
   assert.ok((await H.expireResults(CLUB, later)) >= 1);
-  assert.equal((await club.collection('matchResults').doc(b).get()).get('status'), 'expired');
+  assert.equal((await club.collection('gameResults').doc(b).get()).get('status'), 'expired');
   await assert.rejects(H.confirmResult({ clubId: CLUB, uid: B1, bookingId: b, agree: true }), /ya no espera/);
 });
 
