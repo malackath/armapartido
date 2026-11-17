@@ -17,6 +17,8 @@ export const QUIET_END_HOUR = 8;
 export const MIN_LEAD_MINUTES = 45;
 export const WAVE_SIZE_PER_SEAT = 6;
 export const CHOICE_DEADLINE_MINUTES = 30;
+/** Turno libre automático (4.4): la búsqueda cierra 2 horas antes del turno. */
+export const AUTO_CLOSE_BEFORE_MIN = 120;
 
 /** Fecha y hora real del turno (en la zona horaria del proceso: Montevideo). */
 export function slotStart(date: string, startMinute: number): Date {

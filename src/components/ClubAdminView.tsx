@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import type {
+  AutoFillBand,
+  AutoFillConfig,
+  AutoFillReport,
+  AutoFillSkipped,
   RecoveryRecord,
   Booking,
   Club,
@@ -23,6 +27,8 @@ import {
   removeClubCourt,
   updateClubCourt,
   subscribeRecoveries,
+  subscribeAutoFillRuns,
+  runAutoFillNow,
   updateClubSettings,
   updateMembershipByAdmin,
 } from '../services/firestoreService';
@@ -129,6 +135,168 @@ const Toggle: React.FC<{ on: boolean; onChange: (v: boolean) => void; label: str
 
 const MONTH_NAMES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
+const DAY_LETTERS = [
+  { dow: 1, short: 'L', name: 'lunes' },
+  { dow: 2, short: 'M', name: 'martes' },
+  { dow: 3, short: 'M', name: 'miércoles' },
+  { dow: 4, short: 'J', name: 'jueves' },
+  { dow: 5, short: 'V', name: 'viernes' },
+  { dow: 6, short: 'S', name: 'sábado' },
+  { dow: 0, short: 'D', name: 'domingo' },
+];
+/** Sugerida al encender: el horario muerto típico (lunes a jueves de 14 a 18). */
+export const DEFAULT_AUTOFILL_BAND: AutoFillBand = { days: [1, 2, 3, 4], fromMinute: 14 * 60, toMinute: 18 * 60 };
+
+function daysLabel(days: number[]): string {
+  const order = DAY_LETTERS.map((d) => d.dow).filter((d) => days.includes(d));
+  if (order.length === 7) return 'Todos los días';
+  const idx = order.map((d) => DAY_LETTERS.findIndex((x) => x.dow === d));
+  const consecutive = idx.every((v, i) => i === 0 || v === idx[i - 1] + 1);
+  const name = (d: number) => DAY_LETTERS.find((x) => x.dow === d)!.name;
+  if (consecutive && order.length >= 3) return `De ${name(order[0])} a ${name(order[order.length - 1])}`;
+  const names = order.map(name);
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}` : names[0] ?? 'Ningún día';
+}
+
+const SKIP_LABEL: Record<AutoFillSkipped['reason'], string> = {
+  few_players: 'menos de 6 jugadores que puedan',
+  already_tried: 'ya se avisó antes',
+  too_late: 'falta poco para el turno',
+  no_free_court: 'no hay cancha libre',
+  limit: 'tope de 6 por revisión',
+};
+
+function runWhen(iso: string): string {
+  const d = new Date(iso);
+  const day = d.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10) ? 'hoy' : `el ${d.getDate()}/${d.getMonth() + 1}`;
+  return `${day} a las ${formatMinutes(d.getHours() * 60 + d.getMinutes())}`;
+}
+
+/** Admin → Falta uno → "Llenar turnos libres" (D12): apagado de entrada, el club elige las franjas. */
+const AutoFillCard: React.FC<{
+  club: Club;
+  value: AutoFillConfig;
+  onChange: (v: AutoFillConfig) => void;
+  dirty: boolean;
+}> = ({ club, value, onChange, dirty }) => {
+  const [runs, setRuns] = useState<AutoFillReport[]>([]);
+  const [running, setRunning] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => subscribeAutoFillRuns(club.id, setRuns), [club.id]);
+  const hours = hourOptions(club.openHour, club.closeHour);
+  const setBand = (i: number, b: AutoFillBand) => onChange({ ...value, bands: value.bands.map((x, j) => (j === i ? b : x)) });
+  const toggle = (on: boolean) => onChange({ enabled: on, bands: on && !value.bands.length ? [DEFAULT_AUTOFILL_BAND] : value.bands });
+  const last = runs[0];
+  const today = getTodayISO();
+  const dayWord = (date: string) => (date === today ? 'hoy' : 'mañana');
+
+  const revisar = async () => {
+    setRunning(true);
+    setErr('');
+    try {
+      await runAutoFillNow(club.id);
+    } catch {
+      setErr('No se pudo revisar ahora. Probá de nuevo en un rato.');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Card title="Llenar turnos libres" action={<Toggle on={value.enabled} onChange={toggle} label="Llenar turnos libres" />}>
+      <p className="text-[13px] text-muted">
+        Todos los días a las 9:00 y a las 14:00 miramos las canchas vacías de hoy y mañana en las franjas que elijas. Si hay al menos 6 jugadores de la misma categoría que pueden a esa hora, les avisamos y los primeros 4 que confirman se quedan con el partido.
+      </p>
+      {!value.enabled && <Hint>Apagado: no avisamos por canchas vacías. Igual podés llenar un turno a mano desde el Mostrador con «Llenar con la app».</Hint>}
+      {value.enabled && (
+        <>
+          <div className="mt-4 space-y-3">
+            {value.bands.map((b, i) => (
+              <div key={i} className="rounded-xl border border-line p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[13px] font-semibold text-ink">{daysLabel(b.days)}, de {formatMinutes(b.fromMinute)} a {formatMinutes(b.toMinute)}</p>
+                  {value.bands.length > 1 && (
+                    <button type="button" aria-label="Quitar franja" onClick={() => onChange({ ...value, bands: value.bands.filter((_, j) => j !== i) })} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-mist cursor-pointer">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                <div className="mt-2.5 flex flex-wrap gap-1.5" role="group" aria-label="Días">
+                  {DAY_LETTERS.map((d) => {
+                    const on = b.days.includes(d.dow);
+                    return (
+                      <button
+                        key={d.dow}
+                        type="button"
+                        aria-pressed={on}
+                        aria-label={d.name}
+                        onClick={() => setBand(i, { ...b, days: on ? b.days.filter((x) => x !== d.dow) : [...b.days, d.dow] })}
+                        className={`h-9 w-9 rounded-full border text-[13px] font-bold cursor-pointer ${on ? 'border-brand bg-brand text-white' : 'border-line bg-white text-muted hover:bg-mist'}`}
+                      >
+                        {d.short}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-2.5 flex items-center gap-2 text-[13px] text-muted">
+                  <span>De</span>
+                  <select aria-label="Desde" value={b.fromMinute / 60} onChange={(e) => setBand(i, { ...b, fromMinute: Number(e.target.value) * 60, toMinute: Math.max(b.toMinute, (Number(e.target.value) + 1) * 60) })} className="h-9 rounded-lg border border-line bg-white px-2 text-ink">
+                    {hours.slice(0, -1).map((h) => <option key={h} value={h}>{formatMinutes(h * 60)}</option>)}
+                  </select>
+                  <span>a</span>
+                  <select aria-label="Hasta" value={b.toMinute / 60} onChange={(e) => setBand(i, { ...b, toMinute: Number(e.target.value) * 60 })} className="h-9 rounded-lg border border-line bg-white px-2 text-ink">
+                    {hours.filter((h) => h * 60 > b.fromMinute).map((h) => <option key={h} value={h}>{formatMinutes(h * 60)}</option>)}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+          {value.bands.length < 10 && (
+            <button type="button" onClick={() => onChange({ ...value, bands: [...value.bands, DEFAULT_AUTOFILL_BAND] })} className="mt-3 inline-flex h-10 items-center gap-1.5 rounded-xl border border-line px-3.5 text-[13px] font-semibold text-ink hover:bg-mist cursor-pointer">
+              <Plus className="h-4 w-4" /> Agregar franja
+            </button>
+          )}
+          <Hint>La cancha no se reserva mientras juntamos a los 4: si alguien la reserva antes, dejamos de buscar y les avisamos a los que se habían sumado. Si 2 horas antes no son 4, se cancela sin cargo.</Hint>
+        </>
+      )}
+
+      <div className="mt-4 border-t border-[#eef5f5] pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[13px] font-semibold text-ink">{last ? `Última revisión: ${runWhen(last.ranAt)}` : 'Todavía no hubo revisiones'}</p>
+          {club.autoFill?.enabled && (
+            <button type="button" disabled={running || dirty} onClick={revisar} className="h-9 rounded-xl border border-brand px-3.5 text-[13px] font-semibold text-brand hover:bg-[#ecfcfc] disabled:opacity-50 cursor-pointer">
+              {running ? 'Revisando…' : 'Revisar ahora'}
+            </button>
+          )}
+        </div>
+        {dirty && club.autoFill?.enabled && <p className="mt-1 text-xs text-muted">Guardá los cambios para revisar con las franjas nuevas.</p>}
+        {err && <p className="mt-1 text-xs text-red-700">{err}</p>}
+        {last && last.enabled && (
+          <ul className="mt-2 space-y-1.5 text-[13px]">
+            {last.opened.map((o) => (
+              <li key={o.searchId} className="flex items-start gap-2 text-ink">
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-600" />
+                <span>
+                  {o.invited > 0 ? `Avisamos a ${o.invited}` : 'Buscamos jugadores'} para {dayWord(o.date)} {formatMinutes(o.startMinute)} en {o.courtName} ({o.minCategory === o.maxCategory ? formatCategory(o.minCategory) : `${formatCategory(o.minCategory)}–${formatCategory(o.maxCategory)}`}, {o.candidates} pueden){o.invited === 0 ? '. Los avisos salen a las 8:00 (de noche no mandamos).' : ''}
+                </span>
+              </li>
+            ))}
+            {last.skipped.filter((x) => x.reason === 'few_players').map((x) => (
+              <li key={`${x.date}-${x.startMinute}`} className="flex items-start gap-2 text-muted">
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-300" />
+                <span>{dayWord(x.date)} {formatMinutes(x.startMinute)}: {SKIP_LABEL[x.reason]}{x.candidates ? ` (hay ${x.candidates})` : ''}, no avisamos</span>
+              </li>
+            ))}
+            {!last.opened.length && !last.skipped.some((x) => x.reason === 'few_players') && (
+              <li className="text-muted">{last.checkedSlots ? 'No había canchas vacías para llenar en tus franjas.' : 'No hay horarios de tus franjas en hoy o mañana.'}</li>
+            )}
+          </ul>
+        )}
+      </div>
+    </Card>
+  );
+};
+
 /** Admin → "Falta uno": encender, diferencia de categoría y turnos recuperados del mes (vista 8). */
 const FillSection: React.FC<{
   club: Club;
@@ -136,7 +304,10 @@ const FillSection: React.FC<{
   setEnabled: (v: boolean) => void;
   maxGap: 1 | 2;
   setMaxGap: (v: 1 | 2) => void;
-}> = ({ club, enabled, setEnabled, maxGap, setMaxGap }) => {
+  autoFill: AutoFillConfig;
+  setAutoFill: (v: AutoFillConfig) => void;
+  autoFillDirty: boolean;
+}> = ({ club, enabled, setEnabled, maxGap, setMaxGap, autoFill, setAutoFill, autoFillDirty }) => {
   const [records, setRecords] = useState<RecoveryRecord[]>([]);
   useEffect(() => subscribeRecoveries(club.id, setRecords), [club.id]);
 
@@ -181,9 +352,7 @@ const FillSection: React.FC<{
           <Hint>Entre el más alto y el más bajo de los 4. Si un jugador pidió menos en su perfil, vale lo que pidió él.</Hint>
         </Card>
 
-        <Card title="Llenar turnos libres" action={<span className="rounded-full bg-mist px-2.5 py-1 text-xs font-semibold text-muted">Próximamente</span>}>
-          <p className="text-[13px] text-muted">Invitar a armar partido en canchas vacías de hoy y mañana, en las franjas que elijas. Llega en la próxima versión.</p>
-        </Card>
+        <AutoFillCard club={club} value={autoFill} onChange={setAutoFill} dirty={autoFillDirty} />
       </div>
 
       <Card title={`Este mes · ${monthName}`}>
@@ -245,6 +414,9 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
   const [mpDeposit, setMpDeposit] = useState(club.mpDepositPercent);
   const [fillEnabled, setFillEnabled] = useState(club.fillEnabled !== false);
   const [fillMaxGap, setFillMaxGap] = useState<1 | 2>(club.fillMaxGap ?? 1);
+  const savedAutoFill: AutoFillConfig = club.autoFill ?? { enabled: false, bands: [] };
+  const [autoFill, setAutoFill] = useState<AutoFillConfig>(savedAutoFill);
+  const autoFillDirty = JSON.stringify(autoFill) !== JSON.stringify(savedAutoFill);
 
   const dirty =
     clubName !== club.name ||
@@ -262,7 +434,8 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
     mpMode !== club.mpMode ||
     mpDeposit !== club.mpDepositPercent ||
     fillEnabled !== (club.fillEnabled !== false) ||
-    fillMaxGap !== (club.fillMaxGap ?? 1);
+    fillMaxGap !== (club.fillMaxGap ?? 1) ||
+    autoFillDirty;
 
   const previewSlots = useMemo(
     () => generateDaySlots({ ...club, openHour, closeHour, slotDurationMinutes: slotDuration }),
@@ -272,6 +445,10 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
   const saveConfig = async () => {
     if (!clubName.trim()) {
       onToast('El club necesita un nombre.');
+      return;
+    }
+    if (autoFill.enabled && autoFill.bands.some((b) => !b.days.length)) {
+      onToast('Elegí al menos un día en cada franja de «Llenar turnos libres».');
       return;
     }
     if (closeHour <= openHour) {
@@ -297,6 +474,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
         mpDepositPercent: mpDeposit,
         fillEnabled,
         fillMaxGap,
+        autoFill: { enabled: autoFill.enabled, bands: autoFill.enabled ? autoFill.bands : autoFill.bands.filter((b) => b.days.length) },
       });
       onToast('Cambios guardados.');
     } finally {
@@ -480,7 +658,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
         )}
 
         {section === 'fill' && (
-          <FillSection club={club} enabled={fillEnabled} setEnabled={setFillEnabled} maxGap={fillMaxGap} setMaxGap={setFillMaxGap} />
+          <FillSection club={club} enabled={fillEnabled} setEnabled={setFillEnabled} maxGap={fillMaxGap} setMaxGap={setFillMaxGap} autoFill={autoFill} setAutoFill={setAutoFill} autoFillDirty={autoFillDirty} />
         )}
 
         {section === 'members' && (

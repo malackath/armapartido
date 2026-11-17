@@ -7,7 +7,7 @@ import type { Booking, Club, ClubMembership, FillSearch, MatchRequest, Modality,
 import { calculateSlotPrice } from '../../src/lib/padelUtils';
 import { db, isFakePlayer, makeId, now } from './admin';
 import { claimSeat, runWave } from './fill';
-import { CHOICE_DEADLINE_MINUTES, MIN_LEAD_MINUTES, bestCategoryWindow, minutesUntil, prefsOf, rankCandidates, searchTiming, slotStart, type InviteCounter } from './fillRules';
+import { AUTO_CLOSE_BEFORE_MIN, CHOICE_DEADLINE_MINUTES, MIN_LEAD_MINUTES, bestCategoryWindow, minutesUntil, prefsOf, rankCandidates, searchTiming, slotStart, type InviteCounter } from './fillRules';
 
 const MODALITIES: Modality[] = ['masculino', 'femenino', 'mixto'];
 export const DISCOUNTS = [0, 10, 20, 30] as const;
@@ -22,7 +22,7 @@ export interface FreeSlotOption {
 
 export interface FreeSlotPreview {
   free: boolean;
-  reason: '' | 'taken' | 'too_late' | 'quiet';
+  reason: '' | 'taken' | 'too_late' | 'quiet' | 'searching';
   price: number;
   options: FreeSlotOption[];
   suggested: Modality;
@@ -34,7 +34,14 @@ function overlaps(b: Booking, start: number, end: number) {
   return b.status !== 'cancelled' && b.status !== 'no_show' && b.startMinute < end && b.endMinute > start;
 }
 
-async function loadContext(clubId: string, date: string) {
+/** ¿Ya hay una búsqueda de turno libre viva para esa cancha y hora? (la automática no reserva la cancha) */
+export function liveFreeSlotSearch(searches: FillSearch[], courtId: string, start: number, end: number): FillSearch | undefined {
+  return searches.find(
+    (x) => x.kind === 'free_slot' && x.courtId === courtId && (x.status === 'searching' || x.status === 'filled') && x.startMinute < end && x.endMinute > start
+  );
+}
+
+export async function loadContext(clubId: string, date: string) {
   const cRef = clubRef(clubId);
   const [clubSnap, membersSnap, bookingsSnap, reqSnap] = await Promise.all([
     cRef.get(),
@@ -57,7 +64,7 @@ async function loadContext(clubId: string, date: string) {
 }
 
 /** Candidatos para un turno libre con una modalidad, sin ventana de categoría (para elegir la mejor). */
-function candidatesFor(ctx: Awaited<ReturnType<typeof loadContext>>, p: { date: string; startMinute: number; endMinute: number; modality: Modality; nowDate: Date; window?: { min: number; max: number } }) {
+export function candidatesFor(ctx: Awaited<ReturnType<typeof loadContext>>, p: { date: string; startMinute: number; endMinute: number; modality: Modality; nowDate: Date; window?: { min: number; max: number } }) {
   const search = {
     date: p.date,
     startMinute: p.startMinute,
@@ -91,6 +98,8 @@ export async function previewFreeSlot(p: { clubId: string; courtId: string; date
   const end = p.startMinute + dur;
   const price = calculateSlotPrice(ctx.club, p.date, p.startMinute);
   const taken = ctx.bookings.some((b) => b.courtId === p.courtId && overlaps(b, p.startMinute, end));
+  const searches = (await clubRef(p.clubId).collection('fillSearches').where('date', '==', p.date).get()).docs.map((d) => d.data() as FillSearch);
+  const searching = !taken && !!liveFreeSlotSearch(searches, p.courtId, p.startMinute, end);
   const tooLate = minutesUntil(p.date, p.startMinute, nowDate) < MIN_LEAD_MINUTES + 15;
   const gap = ctx.club.fillMaxGap ?? 1;
   const options: FreeSlotOption[] = MODALITIES.map((modality) => {
@@ -100,7 +109,7 @@ export async function previewFreeSlot(p: { clubId: string; courtId: string; date
   });
   const gendered = options.filter((o) => o.modality !== 'mixto').sort((a, b) => b.count - a.count)[0];
   const suggested: Modality = gendered.count >= 4 ? gendered.modality : 'mixto';
-  return { free: !taken && !tooLate, reason: taken ? 'taken' : tooLate ? 'too_late' : '', price, options, suggested };
+  return { free: !taken && !tooLate && !searching, reason: taken ? 'taken' : searching ? 'searching' : tooLate ? 'too_late' : '', price, options, suggested };
 }
 
 /** El mostrador manda a llenar el hueco: retiene la cancha, abre el partido vacío y la búsqueda de 4. */
@@ -113,6 +122,10 @@ export async function openFreeSlot(p: {
   discountPct: number;
   staffUid: string;
   nowDate?: Date;
+  /** Lo abre la revisión automática: no retiene la cancha y cierra 2 horas antes del turno. */
+  auto?: boolean;
+  /** Ventana de categorías ya elegida (la revisión automática la calcula antes). */
+  window?: { min: number; max: number };
 }): Promise<{ searchId: string; matchId: string; invited: number; window: { min: number; max: number } }> {
   const nowDate = p.nowDate ?? new Date();
   if (!MODALITIES.includes(p.modality)) throw new HttpsError('invalid-argument', 'Modalidad inválida.');
@@ -126,11 +139,11 @@ export async function openFreeSlot(p: {
   const end = p.startMinute + dur;
   const gap = ctx.club.fillMaxGap ?? 1;
   const cands = candidatesFor(ctx, { date: p.date, startMinute: p.startMinute, endMinute: end, modality: p.modality, nowDate });
-  const window = bestCategoryWindow(cands.map((c) => c.category), gap);
+  const window = p.window ? { ...p.window, count: 0 } : bestCategoryWindow(cands.map((c) => c.category), gap);
   const full = calculateSlotPrice(ctx.club, p.date, p.startMinute);
   const total = Math.round((full * (100 - p.discountPct)) / 100);
   const pricePerPlayer = Math.round(total / 4);
-  const { closesAt } = searchTiming(p.date, p.startMinute, nowDate);
+  const closesAt = p.auto ? new Date(slotStart(p.date, p.startMinute).getTime() - AUTO_CLOSE_BEFORE_MIN * 60000) : searchTiming(p.date, p.startMinute, nowDate).closesAt;
   const holdUntil = new Date(slotStart(p.date, p.startMinute).getTime() - CHOICE_DEADLINE_MINUTES * 60000).toISOString();
 
   const cRef = clubRef(p.clubId);
@@ -140,6 +153,10 @@ export async function openFreeSlot(p: {
   await db.runTransaction(async (tx) => {
     const same = await tx.get(cRef.collection('bookings').where('date', '==', p.date).where('courtId', '==', p.courtId));
     if (same.docs.some((d) => overlaps(d.data() as Booking, p.startMinute, end))) throw new HttpsError('already-exists', 'Ese turno ya se ocupó.');
+    const live = await tx.get(cRef.collection('fillSearches').where('date', '==', p.date).where('courtId', '==', p.courtId));
+    if (liveFreeSlotSearch(live.docs.map((d) => d.data() as FillSearch), p.courtId, p.startMinute, end)) {
+      throw new HttpsError('already-exists', 'La app ya está buscando jugadores para ese turno.');
+    }
     const booking: Partial<Booking> & Record<string, unknown> = {
       id: bookingId,
       clubId: p.clubId,
@@ -175,7 +192,7 @@ export async function openFreeSlot(p: {
       pricePerPlayer,
       playerUids: [],
       slots: [],
-      expiresAt: holdUntil,
+      expiresAt: p.auto ? closesAt.toISOString() : holdUntil,
       status: 'pending',
       createdByUid: p.staffUid,
     };
@@ -209,8 +226,10 @@ export async function openFreeSlot(p: {
       minCategory: window.min,
       maxCategory: window.max,
       discountPct: p.discountPct,
+      ...(p.auto ? { auto: true } : {}),
     };
-    tx.set(cRef.collection('bookings').doc(bookingId), { ...booking, createdAt: now(), updatedAt: now() });
+    // La automática no retiene la cancha: la reserva se crea cuando se juntan los 4 (claimSeat).
+    if (!p.auto) tx.set(cRef.collection('bookings').doc(bookingId), { ...booking, createdAt: now(), updatedAt: now() });
     tx.set(cRef.collection('proposedMatches').doc(matchId), { ...match, createdAt: now(), updatedAt: now() });
     tx.set(cRef.collection('fillSearches').doc(searchId), { ...search, createdAt: now(), updatedAt: now() });
   });

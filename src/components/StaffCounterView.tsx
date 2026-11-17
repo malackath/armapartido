@@ -321,6 +321,15 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dayBookings, slots, activeCourts, minuteNow, selectedDate, today, proposedMatches, fillSearches, memberships, tournaments]);
 
+  // "Llenar turnos libres": la app busca jugadores sin reservar la cancha; se ve en la celda libre.
+  const autoSearchAt = (courtId: string, startMinute: number) =>
+    fillSearches.find((x) => x.auto && x.status === 'searching' && x.date === selectedDate && x.courtId === courtId && x.startMinute === startMinute);
+  const autoNote = (courtId: string, startMinute: number) => {
+    const s = autoSearchAt(courtId, startMinute);
+    if (!s) return null;
+    return <span className="mt-1 block rounded-full bg-fu-fill px-2 py-0.5 text-[11px] font-semibold text-ink">La app busca jugadores · {s.seatsFilled} de 4</span>;
+  };
+
   const nameOfUid = React.useCallback((uid: string) => memberByUid.get(uid)?.displayName ?? 'Jugador', [memberByUid]);
   const opsSummary = useMemo(() => cashSummary(ops.allPayments, today, ops.cashDays.find((d) => d.id === today)?.openingFloat ?? 0), [ops.allPayments, ops.cashDays, today]);
   const todayCash = ops.cashDays.find((d) => d.id === today);
@@ -485,7 +494,28 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
           phase,
           people: people.length ? people : [{ name: info.title }],
         };
-      }),
+      }).concat(
+        // "Llenar turnos libres": la app busca 4 sin reservar la cancha. Tocarlo abre la reserva nueva de ese turno.
+        fillSearches
+          .filter((x) => x.auto && x.status === 'searching' && x.date === selectedDate)
+          .map((x) => {
+            const m = proposedMatches.find((pm) => pm.id === x.matchId);
+            const ct = activeCourts.find((c) => c.id === x.courtId);
+            return {
+              id: `auto:${x.id}`,
+              courtId: x.courtId,
+              short: `La app busca · ${x.seatsFilled}/4`,
+              startMinute: x.startMinute,
+              endMinute: x.endMinute,
+              courtName: ct?.name ?? x.courtName,
+              title: 'La app busca jugadores (sin reservar)',
+              statusLabel: `${x.seatsFilled} de 4 · ${x.minCategory === x.maxCategory ? formatCategory(x.minCategory ?? 5) : `${formatCategory(x.minCategory ?? 5)}–${formatCategory(x.maxCategory ?? 5)}`}`,
+              tone: 'fu' as const,
+              phase: 'next' as const,
+              people: (m?.slots ?? []).map((sl) => ({ name: sl.displayName, photoUrl: memberByUid.get(sl.uid)?.photoUrl })),
+            };
+          })
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [dayBookings, selectedDate, today, minuteNow, proposedMatches, fillSearches, memberships, tournaments, activeCourts]
   );
@@ -498,6 +528,14 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
       }),
     [bookings, today, slots, activeCourts]
   );
+
+  /** Turno que la app está llenando sola: abre la reserva nueva de ese horario (cargarla apaga la búsqueda). */
+  const pickAuto = (id: string) => {
+    if (!id.startsWith('auto:')) return false;
+    const x = fillSearches.find((f) => f.id === id.slice(5));
+    if (x) setNewTarget({ courtId: x.courtId, startMinute: x.startMinute });
+    return true;
+  };
 
   const openCourt = (c: (typeof courtCards)[number]) => {
     setCashOpen(null);
@@ -678,6 +716,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
                 selectedId={selectedId}
                 onPick={(id) => {
                   setCashOpen(null);
+                  if (pickAuto(id)) return;
                   setSelectedId(id);
                 }}
               />
@@ -698,6 +737,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
                 selectedId={selectedId}
                 onPick={(id) => {
                   setCashOpen(null);
+                  if (pickAuto(id)) return;
                   setSelectedId(id);
                 }}
               />
@@ -806,6 +846,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
                                   >
                                     + Cargar reserva
                                     <span className="text-xs font-normal text-muted tabular-nums">{formatUYU(calculateSlotPrice(club, selectedDate, slot.startMinute))}</span>
+                                    {autoNote(ct.id, slot.startMinute)}
                                   </button>
                                 </td>
                               );
@@ -854,6 +895,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
                               <span>
                                 <span className="block text-[11px] font-bold tracking-wide text-muted uppercase">{ct.name} · Libre</span>
                                 <span className="mt-0.5 block text-sm font-semibold text-emerald-700">+ Cargar reserva</span>
+                                {autoNote(ct.id, slot.startMinute)}
                               </span>
                               <span className="text-sm font-bold text-muted tabular-nums">{formatUYU(calculateSlotPrice(club, selectedDate, slot.startMinute))}</span>
                             </button>

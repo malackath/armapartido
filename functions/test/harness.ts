@@ -4,3 +4,5 @@ export { runClock } from '../src/clock';
 export { sweepClub } from '../src/engine';
 export { categoryFits, isQuietHour, rankCandidates, searchTiming, weeklyLimit, weekKey } from '../src/fillRules';
 export { linkOrCreateClient } from '../src/clientes';
+export { runAutoFill, slotInBands, dueRunHour } from '../src/autofill';
+export { dropFromMatch } from '../src/fill';

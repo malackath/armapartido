@@ -127,7 +127,11 @@ export const LlenarHueco: React.FC<{
   if (!preview.free)
     return (
       <p className="rounded-xl bg-mist p-4 text-sm text-ink">
-        {preview.reason === 'too_late' ? 'Falta muy poco para este turno: no da el tiempo para avisar. Cargalo a mano.' : 'Ese turno ya está ocupado.'}
+        {preview.reason === 'too_late'
+          ? 'Falta muy poco para este turno: no da el tiempo para avisar. Cargalo a mano.'
+          : preview.reason === 'searching'
+            ? 'La app ya está buscando jugadores para este turno (revisión automática). Si cargás una reserva, deja de buscar y les avisamos.'
+            : 'Ese turno ya está ocupado.'}
       </p>
     );
 

@@ -3,7 +3,9 @@ import type { Booking, FillSearch, MatchRequest, ProposedMatch } from '../../src
 import { formatDateFriendly, formatMinutes } from '../../src/lib/padelUtils';
 import { db, now } from './admin';
 import { afterRelease, releaseMatch } from './engine';
-import { activeSearchFor, autoFinalize, closeUnfilled, replaceInPendingMatch, runWave, settleRecoveries } from './fill';
+import type { Club } from '../../src/types/padel';
+import { activeSearchFor, autoFinalize, closeUnfilled, courtBusy, endAutoSearch, replaceInPendingMatch, runWave, settleRecoveries } from './fill';
+import { maybeRunAutoFill } from './autofill';
 import { CHOICE_DEADLINE_MINUTES, isoDate, slotStart } from './fillRules';
 import { notify } from './notify';
 
@@ -16,6 +18,8 @@ export interface ClockReport {
   searchesClosed: number;
   invitesSent: number;
   recoveriesSettled: number;
+  autoFillOpened: number;
+  autoFillCourtTaken: number;
 }
 
 
@@ -30,7 +34,7 @@ export async function runClock(nowDate = new Date()): Promise<ClockReport> {
   const nowISO = nowDate.toISOString();
   const today = isoDate(nowDate);
   const nowMin = nowDate.getHours() * 60 + nowDate.getMinutes();
-  const report: ClockReport = { clubs: 0, expiredMatches: 0, releasedHolds: 0, unfilledAlerts: 0, expiredRequests: 0, searchesClosed: 0, invitesSent: 0, recoveriesSettled: 0 };
+  const report: ClockReport = { clubs: 0, expiredMatches: 0, releasedHolds: 0, unfilledAlerts: 0, expiredRequests: 0, searchesClosed: 0, invitesSent: 0, recoveriesSettled: 0, autoFillOpened: 0, autoFillCourtTaken: 0 };
 
   const clubs = await db.collection('clubs').get();
   for (const clubDoc of clubs.docs) {
@@ -101,6 +105,14 @@ export async function runClock(nowDate = new Date()): Promise<ClockReport> {
       for (const sd of searches.docs) {
         const fs = sd.data() as FillSearch;
         if (fs.status === 'searching') {
+          // Turno libre automático: si el mostrador (o alguien desde la app) reservó la cancha, se apaga.
+          if (fs.auto) {
+            const court = await clubDoc.ref.collection('bookings').where('date', '==', fs.date).where('courtId', '==', fs.courtId).get();
+            if (courtBusy(court.docs.map((d) => ({ ...(d.data() as Booking), id: d.id })), fs)) {
+              if (await endAutoSearch(clubId, sd.id, 'taken')) report.autoFillCourtTaken++;
+              continue;
+            }
+          }
           if (fs.closesAt <= nowISO) {
             await closeUnfilled(clubId, sd.id, nowDate);
             report.searchesClosed++;
@@ -112,6 +124,10 @@ export async function runClock(nowDate = new Date()): Promise<ClockReport> {
         }
       }
       report.recoveriesSettled += await settleRecoveries(clubId, nowDate);
+
+      // 6. "Llenar turnos libres": revisión de las 9:00 y las 14:00 (solo clubes que lo encendieron)
+      const auto = await maybeRunAutoFill(clubId, { ...(clubDoc.data() as Club), id: clubId }, nowDate);
+      if (auto) report.autoFillOpened += auto.opened.length;
 
       // 3 y 4. Pedidos en espera
       for (const d of waiting.docs) {

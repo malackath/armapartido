@@ -5,7 +5,9 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
+  orderBy,
   query,
   runTransaction,
   serverTimestamp,
@@ -30,6 +32,7 @@ import {
   sanitizeId, MAX_CATEGORY } from '../lib/padelUtils';
 import { sendServerFcmPush, showServiceWorkerNotification } from '../lib/fcm';
 import type {
+  AutoFillReport,
   AvailabilityWindow,
   Booking,
   Club,
@@ -1586,6 +1589,7 @@ export async function updateClubSettings(
       | 'courtCount'
       | 'fillEnabled'
       | 'fillMaxGap'
+      | 'autoFill'
     >
   >
 ) {
@@ -2261,7 +2265,7 @@ export async function claimFillSeatByLink(clubId: string, searchId: string): Pro
 /** Llenar un turno libre con un toque (Mostrador, 16/11). */
 export interface FreeSlotPreview {
   free: boolean;
-  reason: '' | 'taken' | 'too_late' | 'quiet';
+  reason: '' | 'taken' | 'too_late' | 'quiet' | 'searching';
   price: number;
   options: { modality: Modality; count: number; minCategory: number; maxCategory: number }[];
   suggested: Modality;
@@ -2300,6 +2304,19 @@ export async function updateAlertPrefs(uid: string, prefs: AlertPrefs) {
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, path);
   }
+}
+
+/** Últimas revisiones de "Llenar turnos libres" (9:00, 14:00 o "Revisar ahora"). */
+export function subscribeAutoFillRuns(clubId: string, onData: (r: AutoFillReport[]) => void): Unsubscribe {
+  return onSnapshot(
+    query(collection(db, 'clubs', clubId, 'autoFillRuns'), orderBy('ranAt', 'desc'), limit(5)),
+    (snap) => onData(snap.docs.map((d) => d.data() as AutoFillReport).filter((r) => !!r.ranAt)),
+    (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/autoFillRuns`)
+  );
+}
+
+export async function runAutoFillNow(clubId: string) {
+  return (await httpsCallable<Record<string, unknown>, AutoFillReport>(functions, 'turnosLibresRevisar')({ clubId })).data;
 }
 
 export function subscribeRecoveries(clubId: string, onData: (r: RecoveryRecord[]) => void): Unsubscribe {

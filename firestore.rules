@@ -165,7 +165,7 @@ service cloud.firestore {
           'basePrice', 'nightFromHour', 'nightPrice', 'weekendPrice',
           'cancellationHours', 'maxNoShowsBeforeBlock', 'mpEnabled', 'mpMode',
           'mpDepositPercent', 'subscriptionStatus', 'trialEndsAt', 'monthlyPricePerCourt', 'courtCount',
-          'plan', 'deposit', 'reportEmails', 'fillEnabled', 'fillMaxGap',
+          'plan', 'deposit', 'reportEmails', 'fillEnabled', 'fillMaxGap', 'autoFill',
           'active', 'createdAt', 'updatedAt'
         ])
         && (!('plan' in data) || data.plan in ['entrada', 'estandar'])
@@ -173,6 +173,8 @@ service cloud.firestore {
         && (!('reportEmails' in data) || (data.reportEmails is list && data.reportEmails.size() <= 5))
         && (!('fillEnabled' in data) || data.fillEnabled is bool)
         && (!('fillMaxGap' in data) || data.fillMaxGap in [1, 2])
+        && (!('autoFill' in data) || (data.autoFill is map && data.autoFill.keys().hasOnly(['enabled', 'bands'])
+          && data.autoFill.enabled is bool && data.autoFill.bands is list && data.autoFill.bands.size() <= 10))
         && data.id == clubId && isValidId(data.id)
         && data.name is string && data.name.size() >= 2 && data.name.size() <= 80
         && data.slug is string && data.slug.size() >= 2 && data.slug.size() <= 64 && data.slug.matches('^[a-z0-9\\-]+$')
@@ -618,7 +620,7 @@ service cloud.firestore {
             'lat', 'lng', 'slotDurationMinutes', 'openHour', 'closeHour', 'basePrice',
             'nightFromHour', 'nightPrice', 'weekendPrice', 'cancellationHours',
             'maxNoShowsBeforeBlock', 'mpEnabled', 'mpMode', 'mpDepositPercent',
-            'courtCount', 'fillEnabled', 'fillMaxGap', 'updatedAt'
+            'courtCount', 'fillEnabled', 'fillMaxGap', 'autoFill', 'updatedAt'
           ]))
         );
 
@@ -983,6 +985,12 @@ service cloud.firestore {
 
       // Turnos recuperados (los cuenta el reloj de Falta uno; los lee el informe del mes)
       match /recoveries/{recoveryId} {
+        allow get, list: if isSignedIn() && isValidId(clubId) && (isClubStaffOrAdmin(clubId) || isPlatformAdmin());
+        allow write: if false;
+      }
+
+      // "Llenar turnos libres": registro de cada revisión (9:00, 14:00 o "Revisar ahora"). Solo el servidor.
+      match /autoFillRuns/{runId} {
         allow get, list: if isSignedIn() && isValidId(clubId) && (isClubStaffOrAdmin(clubId) || isPlatformAdmin());
         allow write: if false;
       }

@@ -105,6 +105,8 @@ export interface Club {
   /** "Falta uno" automático (por defecto encendido) y diferencia de categoría permitida (1 o 2). */
   fillEnabled?: boolean;
   fillMaxGap?: 1 | 2;
+  /** "Llenar turnos libres" automático (D12): apagado si falta. Cada club elige las franjas. */
+  autoFill?: AutoFillConfig;
   /** Auspiciante que el club muestra en Inicio. Si no hay, el espacio no se muestra. */
   sponsor?: ClubSponsor;
   /** Varios auspiciantes: Inicio muestra uno y rota. Si falta, se usa `sponsor`. */
@@ -119,6 +121,47 @@ export interface Club {
   active: boolean;
   createdAt?: unknown;
   updatedAt?: unknown;
+}
+
+/** Franja en la que el club quiere que la app llene canchas vacías: días (0 = domingo) y horas. */
+export interface AutoFillBand {
+  days: number[];
+  fromMinute: number;
+  toMinute: number;
+}
+
+export interface AutoFillConfig {
+  enabled: boolean;
+  bands: AutoFillBand[];
+}
+
+export interface AutoFillOpened {
+  date: string;
+  startMinute: number;
+  courtName: string;
+  modality: Modality;
+  minCategory: number;
+  maxCategory: number;
+  candidates: number;
+  invited: number;
+  searchId: string;
+}
+
+export interface AutoFillSkipped {
+  date: string;
+  startMinute: number;
+  reason: 'few_players' | 'already_tried' | 'too_late' | 'no_free_court' | 'limit';
+  candidates?: number;
+}
+
+/** Registro de cada revisión (clubs/{club}/autoFillRuns). */
+export interface AutoFillReport {
+  ranAt: string;
+  trigger: 'scheduled' | 'manual';
+  enabled: boolean;
+  checkedSlots: number;
+  opened: AutoFillOpened[];
+  skipped: AutoFillSkipped[];
 }
 
 export interface Court {
@@ -451,6 +494,14 @@ export interface FillSearch {
   maxCategory?: number;
   /** Turno libre: descuento que puso el mostrador (0, 10, 20 o 30). */
   discountPct?: number;
+  /**
+   * Turno libre abierto solo por la revisión de las 9:00 y las 14:00 ("Llenar turnos libres").
+   * No retiene la cancha: la reserva recién se crea cuando se juntan los 4. Si alguien la reserva antes,
+   * la búsqueda se apaga.
+   */
+  auto?: boolean;
+  /** Por qué terminó un turno libre automático sin llenarse. */
+  endReason?: 'taken' | 'unfilled' | 'stopped';
   createdAt?: unknown;
   updatedAt?: unknown;
 }

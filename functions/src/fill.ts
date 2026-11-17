@@ -1,6 +1,6 @@
 // "Falta uno" automático: búsqueda de reemplazo, tandas, carrera, sin cuarto y faltas.
 import { HttpsError } from 'firebase-functions/v2/https';
-import type { Transaction } from 'firebase-admin/firestore';
+import { FieldValue, type Transaction } from 'firebase-admin/firestore';
 import type {
   Booking,
   Club,
@@ -35,6 +35,9 @@ import {
   type InviteCounter,
 } from './fillRules';
 
+/** Quién figura como creador de las reservas que arma sola la revisión de turnos libres. */
+export const AUTO_FILL_UID = 'system_autofill';
+
 const clubRef = (clubId: string) => db.doc(`clubs/${clubId}`);
 const searchRef = (clubId: string, id: string) => clubRef(clubId).collection('fillSearches').doc(id);
 const inviteRef = (clubId: string, searchId: string, uid: string) => clubRef(clubId).collection('fillInvites').doc(`${searchId}_${uid}`);
@@ -52,6 +55,55 @@ export async function activeSearchFor(clubId: string, matchId: string): Promise<
   const s = await clubRef(clubId).collection('fillSearches').where('matchId', '==', matchId).get();
   const live = s.docs.map((d) => d.data() as FillSearch).filter((x) => x.status === 'searching' || (x.status === 'unfilled' && !x.choice));
   return live[0] ?? null;
+}
+
+/** ¿Hay otra reserva viva en la cancha y hora de la búsqueda? (para los turnos libres automáticos) */
+export function courtBusy(bookings: Booking[], s: Pick<FillSearch, 'courtId' | 'bookingId' | 'date' | 'startMinute' | 'endMinute'>): boolean {
+  return bookings.some(
+    (b) =>
+      b.courtId === s.courtId &&
+      b.id !== s.bookingId &&
+      b.date === s.date &&
+      b.status !== 'cancelled' &&
+      b.status !== 'no_show' &&
+      b.startMinute < s.endMinute &&
+      b.endMinute > s.startMinute
+  );
+}
+
+export type AutoEndReason = 'taken' | 'unfilled' | 'stopped';
+
+/**
+ * Turno libre automático que no sigue: se ocupó la cancha, no llegaron a 4 o el mostrador lo apagó.
+ * Como no hay reserva todavía, no se libera nada: se cancela el partido vacío y se avisa a los que se sumaron.
+ */
+export async function endAutoSearch(clubId: string, searchId: string, why: AutoEndReason): Promise<boolean> {
+  const cRef = clubRef(clubId);
+  const sRef = searchRef(clubId, searchId);
+  const res = await db.runTransaction(async (tx) => {
+    const ss = await tx.get(sRef);
+    const s = ss.data() as FillSearch | undefined;
+    if (!s || !s.auto || s.status !== 'searching') return null;
+    const mRef = cRef.collection('proposedMatches').doc(s.matchId);
+    const m = (await tx.get(mRef)).data() as ProposedMatch | undefined;
+    tx.update(sRef, { status: why === 'unfilled' ? 'unfilled' : 'cancelled', choice: 'cancel', endReason: why, updatedAt: now() });
+    if (m && m.status === 'pending') tx.update(mRef, { status: 'cancelled', updatedAt: now() });
+    return { s, uids: m?.playerUids ?? [] };
+  });
+  if (!res) return false;
+  await expireOpenInvites(clubId, searchId);
+  const recs = await cRef.collection('recoveries').where('searchId', '==', searchId).get();
+  const voidReason = why === 'taken' ? 'se ocupó la cancha' : why === 'unfilled' ? 'no llegaron a 4' : 'apagado por el club';
+  await Promise.all(recs.docs.map((d) => d.ref.update({ status: 'voided', voidReason })));
+  const w = when(res.s.date, res.s.startMinute);
+  const msg =
+    why === 'taken'
+      ? { title: `Se ocupó la cancha · ${w}`, body: `Reservaron ${res.s.courtName} antes de que llegáramos a 4. No te quedó nada reservado.` }
+      : why === 'unfilled'
+        ? { title: `No llegamos a 4 · ${w}`, body: `No llegamos a 4 para ${w}. No te quedó nada reservado.` }
+        : { title: `Se suspendió el partido · ${w}`, body: `El club dejó de buscar jugadores para ${w}. No te quedó nada reservado.` };
+  await notifyPlayers(clubId, res.uids, { ...msg, eventType: 'booking_cancelled' });
+  return true;
 }
 
 function fillEnabled(club: Club): boolean {
@@ -161,6 +213,9 @@ export async function dropFromMatch(p: { clubId: string; matchId: string; uid: s
   const cRef = clubRef(p.clubId);
   const club = { ...((await cRef.get()).data() as Club), id: p.clubId };
   const matchDoc = cRef.collection('proposedMatches').doc(p.matchId);
+  // Turno libre que todavía junta gente: el que se baja libera su lugar y la búsqueda sigue (sin falta).
+  const live = await activeSearchFor(p.clubId, p.matchId);
+  const freeSlot = live && live.kind === 'free_slot' && live.status === 'searching' ? live : null;
 
   const result = await db.runTransaction(async (tx) => {
     const ms = await tx.get(matchDoc);
@@ -172,7 +227,16 @@ export async function dropFromMatch(p: { clubId: string; matchId: string; uid: s
     const bs = await tx.get(cRef.collection('bookings').doc(m.bookingId));
     const booking = bs.exists ? (bs.data() as Booking) : null;
     const next = removeFromMatch(tx, p.clubId, m, [p.uid], booking);
-    if (next.slots.length === 0) {
+    if (freeSlot) {
+      const sRef = searchRef(p.clubId, freeSlot.id);
+      tx.update(sRef, {
+        seatsFilled: FieldValue.increment(-1),
+        filledUids: FieldValue.arrayRemove(p.uid),
+        excludedUids: FieldValue.arrayUnion(p.uid),
+        nextWaveAt: nowDate.toISOString(),
+        updatedAt: now(),
+      });
+    } else if (next.slots.length === 0) {
       tx.update(matchDoc, { status: 'cancelled', updatedAt: now() });
       if (booking) tx.update(bs.ref, { status: 'cancelled', updatedAt: now() });
     }
@@ -181,6 +245,16 @@ export async function dropFromMatch(p: { clubId: string; matchId: string; uid: s
 
   const { m, next, slot } = result;
   const name = await clubName(p.clubId);
+  if (freeSlot) {
+    const rec = cRef.collection('recoveries').doc(`rec_${freeSlot.id}_${p.uid}`);
+    if ((await rec.get()).exists) await rec.update({ status: 'voided', voidReason: 'el que entró se bajó' });
+    await notifyPlayers(p.clubId, next.slots.map((s) => s.uid), {
+      title: `${slot.displayName.split(' ')[0]} no puede · ${when(m.date, m.startMinute)}`,
+      body: `Seguimos buscando para completar los 4 en ${name}.`,
+    });
+    await runWave(p.clubId, freeSlot.id, nowDate);
+    return { status: 'searching' as const, searchId: freeSlot.id, late: false };
+  }
   if (next.slots.length === 0) return { status: 'cancelled' as const };
 
   const hoursLeft = minutesUntil(m.date, m.startMinute, nowDate) / 60;
@@ -302,7 +376,17 @@ export async function runWave(clubId: string, searchId: string, nowDate = new Da
   const club = { ...(clubSnap.data() as Club), id: clubId };
   const match = matchSnap.data() as ProposedMatch | undefined;
   const booking = bookingsSnap.docs.find((d) => d.id === s.bookingId)?.data() as Booking | undefined;
-  if (!match || match.status === 'cancelled' || !booking || booking.status === 'cancelled') {
+  if (s.auto) {
+    // Turno libre automático: no hay reserva hasta que se junten los 4. Si alguien reservó la cancha, se apaga.
+    if (!match || match.status === 'cancelled') {
+      await sDoc.ref.update({ status: 'cancelled', updatedAt: now() });
+      return 0;
+    }
+    if (courtBusy(bookingsSnap.docs.map((d) => ({ ...(d.data() as Booking), id: d.id })), s)) {
+      await endAutoSearch(clubId, searchId, 'taken');
+      return 0;
+    }
+  } else if (!match || match.status === 'cancelled' || !booking || booking.status === 'cancelled') {
     await sDoc.ref.update({ status: 'cancelled', updatedAt: now() });
     return 0;
   }
@@ -415,10 +499,14 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
     if (s.closesAt <= nowDate.toISOString()) return { r: 'closed' as const };
     const mRef = cRef.collection('proposedMatches').doc(s.matchId);
     const bRef = cRef.collection('bookings').doc(s.bookingId);
-    const [ms, bs] = await tx.getAll(mRef, bRef);
+    const [ms] = await tx.getAll(mRef);
     const m = ms.data() as ProposedMatch;
     if (!m || m.status === 'cancelled') return { r: 'closed' as const };
     if (m.playerUids.includes(p.uid)) return { r: 'won' as const };
+    if (s.auto) {
+      const court = await tx.get(cRef.collection('bookings').where('date', '==', s.date).where('courtId', '==', s.courtId));
+      if (courtBusy(court.docs.map((d) => ({ ...(d.data() as Booking), id: d.id })), s)) return { r: 'taken' as const };
+    }
     const mine = await tx.get(cRef.collection('bookings').where('date', '==', s.date).where('playerUids', 'array-contains', p.uid));
     const overlap = mine.docs.some((d) => {
       const b = d.data() as Booking;
@@ -448,7 +536,32 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
       ...(confirmNow ? { status: 'confirmed' } : {}),
       updatedAt: now(),
     });
-    tx.update(bRef, { playerUids, ...(confirmNow ? { status: 'confirmed', holdExpiresAt: '' } : {}), updatedAt: now() });
+    if (!s.auto) {
+      tx.update(bRef, { playerUids, ...(confirmNow ? { status: 'confirmed', holdExpiresAt: '' } : {}), updatedAt: now() });
+    } else if (confirmNow) {
+      // Recién ahora se reserva la cancha (la transacción ya comprobó que sigue libre).
+      const booking: Booking & Record<string, unknown> = {
+        id: s.bookingId,
+        clubId: p.clubId,
+        courtId: s.courtId,
+        courtName: s.courtName,
+        date: s.date,
+        startMinute: s.startMinute,
+        endMinute: s.endMinute,
+        type: 'matched',
+        status: 'confirmed',
+        createdByUid: AUTO_FILL_UID,
+        playerUids,
+        guestName: 'Armado por la app',
+        totalPrice: s.pricePerPlayer * 4,
+        paidAmount: 0,
+        paymentMethod: 'split',
+        paymentStatus: 'pending',
+        holdExpiresAt: '',
+        discountPct: s.discountPct ?? 0,
+      } as Booking & Record<string, unknown>;
+      tx.set(bRef, { ...booking, createdAt: now(), updatedAt: now() });
+    }
     if (confirmNow) {
       for (const reqId of new Set(slots.map((x) => x.requestId).filter(Boolean))) {
         tx.update(cRef.collection('matchRequests').doc(reqId), { status: 'confirmed', updatedAt: now() });
@@ -487,6 +600,10 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
   });
 
   if (out.r === 'late' && out.refund) await refundCounter(p.uid, nowDate);
+  if (out.r === 'taken') {
+    await endAutoSearch(p.clubId, p.searchId, 'taken');
+    return 'closed';
+  }
   if (out.r !== 'won' || !('s' in out) || !out.s) return out.r;
 
   const { s, m, full } = out;
@@ -536,6 +653,11 @@ async function refundCounter(uid: string, nowDate: Date) {
 export async function closeUnfilled(clubId: string, searchId: string, nowDate = new Date()) {
   const cRef = clubRef(clubId);
   const sRef = searchRef(clubId, searchId);
+  if ((await sRef.get()).get('auto')) {
+    // Turno libre automático: si a la hora límite no son 4, se cancela (no se pregunta "jugamos igual").
+    await endAutoSearch(clubId, searchId, 'unfilled');
+    return;
+  }
   const res = await db.runTransaction(async (tx) => {
     const ss = await tx.get(sRef);
     const s = ss.data() as FillSearch;
@@ -656,6 +778,7 @@ export async function autoFinalize(clubId: string, searchId: string) {
 
 /** El mostrador apaga la búsqueda (por ejemplo, si llueve). */
 export async function stopSearch(clubId: string, searchId: string) {
+  if (await endAutoSearch(clubId, searchId, 'stopped')) return;
   await searchRef(clubId, searchId).update({ status: 'cancelled', updatedAt: now() });
   await expireOpenInvites(clubId, searchId);
 }

@@ -9,6 +9,7 @@ import { formatCategory, getTodayISO } from '../../src/lib/padelUtils';
 import { db, isFakePlayer, makeId, now } from './admin';
 import { respondToMatch, sweepClub } from './engine';
 import { runClock } from './clock';
+import { runAutoFillNow } from './autofill';
 import { notify } from './notify';
 import { openFreeSlot, previewFreeSlot, simulateAnswers } from './hueco';
 import { cleanRows, importClients } from './importar';
@@ -248,6 +249,16 @@ export const huecoLlenar = onCall(async (req) => {
   const modality = str(d.modality) as Modality;
   if (!MODALITIES.includes(modality)) throw new HttpsError('invalid-argument', 'Modalidad inválida.');
   return openFreeSlot({ ...a, modality, discountPct: int(d.discountPct ?? 0, 0, 30, 'descuento'), staffUid: uid });
+});
+
+/** Admin → Falta uno → "Revisar ahora": corre la revisión de turnos libres en el momento. */
+export const turnosLibresRevisar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  const member = await requireMember(clubId, uid);
+  if (member.get('role') !== 'admin') throw new HttpsError('permission-denied', 'Solo el administrador del club.');
+  return runAutoFillNow(clubId);
 });
 
 /** Solo para la demo de venta: los jugadores ficticios invitados contestan. */

@@ -110,6 +110,7 @@ export const DEMO_CLUB_SUBCOLLECTIONS = [
   'migrations',
   'fillSearches',
   'fillInvites',
+  'autoFillRuns',
   'clients',
   'packTypes',
   'clientPacks',
