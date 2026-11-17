@@ -87,7 +87,8 @@ export function variablesDeMarca(m: MarcaClub): Record<string, string> {
     '--club-primary': brand,
     '--club-accent': acento,
     '--color-action': acento,
-    '--color-on-action': mejorTextoSobre(acento, [brand, '#ffffff', '#111111']),
+    // Sobre el acento va el color de marca si se lee bien (7:1); si no, el que más contraste.
+    '--color-on-action': contraste(brand, acento) >= 7 ? brand : mejorTextoSobre(acento, [brand, '#ffffff', '#111111']),
     '--color-page': fondo,
     '--color-surface': mix('#ffffff', fondo, 0.5),
     '--color-mist': mix('#ffffff', brand, 0.08),
