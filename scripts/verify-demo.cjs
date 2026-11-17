@@ -31,7 +31,7 @@ await logout(p);await login(p,'jugador');const afterRelogin=await misReservas(p)
 console.log('3) Después de cerrar sesión y volver a entrar:',n(afterRelogin),afterRelogin.includes(slotText)?'(la reserva sigue)':'(NO aparece)');
 await p.screenshot({path:OUT+'/p2-tras-volver-a-entrar.png'});
 await logout(p);await login(p,'dueno');
-await p.locator('header button[aria-expanded]').first().click();await sleep(600);await p.getByText('Reiniciar demo').click();await sleep(20000);
+await p.locator('header button[aria-expanded]').first().click();await sleep(600);await p.getByText('Reiniciar demo').click();await p.waitForSelector('text=Demo reiniciada.',{timeout:90000});await sleep(2000);
 await logout(p).catch(()=>{});await login(p,'jugador');const afterReset=await misReservas(p);
 console.log('4) Después de Reiniciar demo:',n(afterReset),'(debería volver a',n(before)+')');
 console.log('Errores de página:',errs.length?errs:'ninguno');await b.close();})().catch(e=>{console.error('FALLÓ:',e.message);process.exit(1)});
