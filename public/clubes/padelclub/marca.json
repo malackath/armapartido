@@ -6,7 +6,8 @@
   "colores": {
     "principal": "#0B132B",
     "acento": "#D4FF00",
-    "secundario": "#0284C7"
+    "secundario": "#0284C7",
+    "fondo": "#C7E4F3"
   },
   "fuentes": {
     "titulos": "Outfit",
