@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import PhotoHeader from './PhotoHeader';
 import { BADGE_CLASSES, DropMatchButton, FillInvitesSection, MatchFillStatus, fillBadge, gotByApp, searchForMatch } from './FaltaUno';
 import { dropFromMatch } from '../services/firestoreService';
@@ -44,6 +44,7 @@ import {
 import {
   acceptMatchPartnerInvite,
   createMatchRequestAndTryMatch,
+  UserFacingError,
   followUser,
   payMatchShare,
   respondToProposedMatch,
@@ -53,6 +54,7 @@ import {
   updateUserGlobalProfile,
 } from '../services/firestoreService';
 import { MercadoPagoModal } from './MercadoPagoModal';
+import { SuplenteGuardia } from './SuplenteGuardia';
 import { BrandIcon } from './BrandIcon';
 import { mapsUrl } from '../lib/compartir';
 import { uploadProfilePhoto } from '../services/photoService';
@@ -281,6 +283,9 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
       } else {
         onToast('Pedido cargado. Te avisaremos en cuanto aparezcan jugadores compatibles.');
       }
+    } catch (err) {
+      if (err instanceof UserFacingError) onToast(err.message);
+      else throw err;
     } finally {
       setBusy(false);
     }
@@ -832,6 +837,9 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
         </form>
       </div>
 
+      {/* Suplente de guardia (etapa 4) */}
+      <SuplenteGuardia club={club} uid={userProfile.uid} onToast={onToast} />
+
       {/* Proposed & Confirmed Matches */}
       <section className="space-y-4">
         <div className="flex items-baseline justify-between">
@@ -911,10 +919,28 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                     </p>
                   )}
 
-                  {/* 4 Player Slots */}
+                  {/* 4 Player Slots: si el planificador sugirió equipos, van agrupados por pareja */}
+                  {(() => {
+                    const teams = suggestedTeams(match);
+                    if (!teams) return null;
+                    const name = (uid: string) => match.slots.find((x) => x.uid === uid)?.displayName.split(' ')[0] ?? '';
+                    return (
+                      <p className="mt-3 rounded-xl bg-brand/5 px-3 py-2 text-xs text-slate-700">
+                        <span className="font-semibold text-slate-900">Equipos sugeridos:</span> {name(teams[0][0])} y {name(teams[0][1])} contra {name(teams[1][0])} y {name(teams[1][1])}.
+                        <span className="text-slate-500"> Parejos por categoría. En la cancha pueden cambiar.</span>
+                      </p>
+                    );
+                  })()}
                   <div className="mt-4 divide-y divide-slate-100">
-                    {match.slots.map((slot) => (
-                      <div key={slot.uid} className="flex items-center justify-between gap-3 py-2.5">
+                    {orderByTeams(match).map((slot, idx) => (
+                      <Fragment key={slot.uid}>
+                      {suggestedTeams(match) && (idx === 0 || idx === 2) && (
+                        <p className={`flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 ${idx === 0 ? 'pb-1' : 'pt-3 pb-1'}`}>
+                          {idx === 2 && <span className="font-display text-xs normal-case text-slate-400">contra</span>}
+                          Pareja {idx === 0 ? 1 : 2}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-between gap-3 py-2.5">
                         <div className="flex min-w-0 items-center gap-3">
                           <PlayerAvatar name={slot.displayName} photoUrl={slot.uid === userProfile.uid ? userProfile.photoUrl : photoByUid.get(slot.uid)} size={44} got={got.has(slot.uid)} />
                           <div className="min-w-0">
@@ -924,6 +950,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                             </p>
                             <div className="mt-1 flex flex-wrap items-center gap-1.5">
                               <CategoryBadge category={slot.category} />
+                              {slot.guest && <span className="rounded-full bg-wait-bg px-2 py-0.5 text-[11.5px] font-bold text-wait">Invitado</span>}
                               {got.has(slot.uid) && (
                                 <StatusChip kind="fu" icon="falta-uno">Lo consiguió la app</StatusChip>
                               )}
@@ -995,6 +1022,7 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                           </button>
                         )}
                       </div>
+                      </Fragment>
                     ))}
                   </div>
 
@@ -1181,3 +1209,19 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
     </div>
   );
 };
+
+/** Equipos que sugirió el planificador, si siguen valiendo (los 4 de la propuesta). */
+function suggestedTeams(m: ProposedMatch): [string[], string[]] | null {
+  const a = m.teamA ?? [], b = m.teamB ?? [];
+  if (a.length !== 2 || b.length !== 2 || m.slots.length !== 4) return null;
+  const inMatch = new Set(m.slots.map((s) => s.uid));
+  return [...a, ...b].every((u) => inMatch.has(u)) ? [a, b] : null;
+}
+
+/** Los 4 lugares ordenados por pareja (si hay equipos sugeridos); si no, como vinieron. */
+function orderByTeams(m: ProposedMatch) {
+  const t = suggestedTeams(m);
+  if (!t) return m.slots;
+  const order = [...t[0], ...t[1]];
+  return [...m.slots].sort((x, y) => order.indexOf(x.uid) - order.indexOf(y.uid));
+}

@@ -115,11 +115,13 @@ service cloud.firestore {
 
     function isValidUserProfile(data, uid) {
       return data.keys().hasAll(['uid', 'displayName', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'activeClubIds', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['uid', 'displayName', 'photoUrl', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'activeClubIds', 'alertPrefs', 'fillCounter', 'courtSide', 'hand', 'signupDone', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'photoUrl', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'activeClubIds', 'alertPrefs', 'fillCounter', 'courtSide', 'hand', 'signupDone', 'avoidUids', 'declineHours', 'createdAt', 'updatedAt'])
         && (!('courtSide' in data) || data.courtSide in ['drive', 'reves', 'indistinto'])
         && (!('hand' in data) || data.hand in ['derecha', 'izquierda'])
         && (!('signupDone' in data) || data.signupDone is bool)
         && (!('alertPrefs' in data) || isValidAlertPrefs(data.alertPrefs))
+        && (!('avoidUids' in data) || (data.avoidUids is list && data.avoidUids.size() <= 20))
+        && (!('declineHours' in data) || data.declineHours is map)
         && data.uid == uid
         && isValidId(data.uid)
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
@@ -135,7 +137,8 @@ service cloud.firestore {
 
     // "Falta uno": cuántas invitaciones por semana acepta el jugador y cuánta diferencia de categoría.
     function isValidAlertPrefs(p) {
-      return p is map && p.keys().hasOnly(['weeklyInvites', 'maxCategoryGap'])
+      return p is map && p.keys().hasOnly(['weeklyInvites', 'maxCategoryGap', 'otherClubs'])
+        && (!('otherClubs' in p) || p.otherClubs is bool)
         && p.weeklyInvites is int && p.weeklyInvites in [0, 3, 6, -1]
         && p.maxCategoryGap is int && p.maxCategoryGap in [0, 1, 2];
     }
@@ -165,7 +168,7 @@ service cloud.firestore {
           'basePrice', 'nightFromHour', 'nightPrice', 'weekendPrice',
           'cancellationHours', 'maxNoShowsBeforeBlock', 'mpEnabled', 'mpMode',
           'mpDepositPercent', 'subscriptionStatus', 'trialEndsAt', 'monthlyPricePerCourt', 'courtCount',
-          'plan', 'deposit', 'reportEmails', 'fillEnabled', 'fillMaxGap', 'autoFill', 'joinPolicy',
+          'plan', 'deposit', 'reportEmails', 'fillEnabled', 'fillMaxGap', 'autoFill', 'joinPolicy', 'guests',
           'active', 'createdAt', 'updatedAt'
         ])
         && (!('joinPolicy' in data) || data.joinPolicy in ['abierto', 'solo_clientes'])
@@ -174,6 +177,8 @@ service cloud.firestore {
         && (!('reportEmails' in data) || (data.reportEmails is list && data.reportEmails.size() <= 5))
         && (!('fillEnabled' in data) || data.fillEnabled is bool)
         && (!('fillMaxGap' in data) || data.fillMaxGap in [1, 2])
+        && (!('guests' in data) || (data.guests is map && data.guests.keys().hasOnly(['enabled', 'surcharge', 'shareMyPlayers'])
+          && data.guests.enabled is bool && data.guests.surcharge is int && data.guests.surcharge >= 0 && data.guests.surcharge <= 1000))
         && (!('autoFill' in data) || (data.autoFill is map && data.autoFill.keys().hasOnly(['enabled', 'bands'])
           && data.autoFill.enabled is bool && data.autoFill.bands is list && data.autoFill.bands.size() <= 10))
         && data.id == clubId && isValidId(data.id)
@@ -596,6 +601,11 @@ service cloud.firestore {
       }
     }
 
+    // Modo invitados (etapa 6b): el jugador lista sus invitaciones de cualquier club (solo las suyas).
+    match /{path=**}/fillInvites/{inviteId} {
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
     match /clubs/{clubId} {
       allow get: if isSignedIn() && isValidId(clubId);
       allow list: if isSignedIn() && (
@@ -621,7 +631,7 @@ service cloud.firestore {
             'lat', 'lng', 'slotDurationMinutes', 'openHour', 'closeHour', 'basePrice',
             'nightFromHour', 'nightPrice', 'weekendPrice', 'cancellationHours',
             'maxNoShowsBeforeBlock', 'mpEnabled', 'mpMode', 'mpDepositPercent',
-            'courtCount', 'fillEnabled', 'fillMaxGap', 'autoFill', 'joinPolicy', 'updatedAt'
+            'courtCount', 'fillEnabled', 'fillMaxGap', 'autoFill', 'joinPolicy', 'guests', 'updatedAt'
           ]))
         );
 
@@ -986,8 +996,34 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Modo invitados (etapa 6b): amigos que un socio autorizó. Los ve el club, el invitado y quien lo invitó.
+      match /guestPasses/{guestId} {
+        allow get, list: if isSignedIn() && existing().clubId == clubId
+          && (existing().uid == request.auth.uid || existing().invitedBy == request.auth.uid || isClubStaffOrAdmin(clubId) || isPlatformAdmin());
+        allow write: if false;
+      }
       match /fillInvites/{inviteId} {
         allow get: if isSignedIn() && isValidId(clubId) && isValidId(inviteId)
+          && (existing().uid == request.auth.uid || isClubStaffOrAdmin(clubId) || isPlatformAdmin());
+        allow list: if isSignedIn() && existing().clubId == clubId
+          && (existing().uid == request.auth.uid || isClubStaffOrAdmin(clubId) || isPlatformAdmin());
+        allow write: if false;
+      }
+
+      // Suplentes de guardia (etapa 4): solo los escribe el servidor; cada jugador lee las suyas, el club todas.
+      // Resultados (etapa 6a): los leen los 4 que jugaron y el club; los escribe solo el servidor.
+      match /gameResults/{resultId} {
+        allow get, list: if isSignedIn() && existing().clubId == clubId
+          && (request.auth.uid in existing().playerUids || isClubStaffOrAdmin(clubId) || isPlatformAdmin());
+        allow write: if false;
+      }
+      // Sugerencias de categoría: solo el club (el jugador nunca ve la sugerencia, solo el cambio).
+      match /categorySuggestions/{suggestionId} {
+        allow get, list: if isSignedIn() && isValidId(clubId) && (isClubStaffOrAdmin(clubId) || isPlatformAdmin());
+        allow write: if false;
+      }
+      match /standbys/{standbyId} {
+        allow get: if isSignedIn() && isValidId(clubId) && isValidId(standbyId)
           && (existing().uid == request.auth.uid || isClubStaffOrAdmin(clubId) || isPlatformAdmin());
         allow list: if isSignedIn() && existing().clubId == clubId
           && (existing().uid == request.auth.uid || isClubStaffOrAdmin(clubId) || isPlatformAdmin());

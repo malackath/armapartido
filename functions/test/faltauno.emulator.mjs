@@ -424,7 +424,8 @@ await step('A8. A la hora límite (2 h antes) no son 4: se cancela, no queda res
   const after = (await club.collection('fillSearches').doc(s.id).get()).data();
   assert.equal(after.status, 'unfilled'); assert.equal(after.choice, 'cancel'); assert.equal(after.endReason, 'unfilled');
   assert.equal((await club.collection('proposedMatches').doc(s.matchId).get()).get('status'), 'cancelled');
-  assert.equal((await club.collection('bookings').doc(s.bookingId).get()).exists, false);
+  const left = await club.collection('bookings').doc(s.bookingId).get();
+  assert.ok(!left.exists || left.get('status') === 'cancelled', 'quedó una reserva viva');
 });
 await step('A9. El reloj corre la revisión de las 9 una sola vez por día', async () => {
   await resetAuto();
@@ -435,6 +436,135 @@ await step('A9. El reloj corre la revisión de las 9 una sola vez por día', asy
   const run = (await club.collection('autoFillRuns').doc(`${inDays(2)}_09`).get()).data();
   assert.equal(run.trigger, 'scheduled'); assert.equal(run.opened.length, a.autoFillOpened);
   await club.update({ autoFill: { enabled: false, bands: [] } });
+});
+await step('A10. Nadie en dos lugares a la vez: quien ya está en otro partido pendiente a esa hora no puede sumarse a un turno libre automático', async () => {
+  const s = (await autoSearches()).filter((x) => x.status === 'searching').sort((a, b) => a.startMinute - b.startMinute)[0];
+  const u = s.invitedUids.find((x) => x.startsWith('demo-'));
+  assert.ok(u, 'no hay jugador de la demo invitado');
+  // Otro partido pendiente (sin reserva todavía, como los turnos libres automáticos) que se pisa 30 minutos.
+  const otherId = 'pm_test_ocupado';
+  await club.collection('proposedMatches').doc(otherId).set({ id: otherId, clubId: CLUB, bookingId: '', courtId: 'cancha_9', courtName: 'Otra', date: DA, startMinute: s.startMinute + 30, endMinute: s.endMinute + 30, modality: s.modality, minCategory: 1, maxCategory: 7, pricePerPlayer: 0, playerUids: [u], slots: [], expiresAt: s.closesAt, status: 'pending', createdByUid: 'system_autofill' });
+  assert.equal(await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: u }), 'busy');
+  // Si ese otro partido se cancela, ya puede sumarse.
+  await club.collection('proposedMatches').doc(otherId).update({ status: 'cancelled' });
+  assert.equal(await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: u }), 'won');
+  await club.collection('proposedMatches').doc(otherId).delete();
+});
+
+// ---------- Etapa 4 (17/11): retener la cancha con 2 de 4 y avisar primero al que lleva más sin jugar ----------
+const freshAuto = async () => (await autoSearches()).filter((x) => x.status === 'searching' && x.seatsFilled === 0).sort((a, b) => a.startMinute - b.startMinute);
+await step('A11. Turno libre automático: con 1 no se reserva; con 2 confirmados se retiene la cancha hasta 3 h antes; con 4 queda confirmada', async () => {
+  const s = (await freshAuto())[0];
+  assert.ok(s, 'no hay turno libre automático abierto');
+  const fakes = s.invitedUids.filter((u) => u.startsWith('demo-'));
+  assert.ok(fakes.length >= 4, `invitados de la demo: ${fakes.length}`);
+  assert.equal(await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: fakes[0] }), 'won');
+  assert.equal((await club.collection('bookings').doc(s.bookingId).get()).exists, false, 'reservó con 1');
+  assert.equal(await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: fakes[1] }), 'won');
+  const held = (await club.collection('bookings').doc(s.bookingId).get()).data();
+  assert.equal(held?.status, 'held', 'no retuvo con 2');
+  assert.deepEqual([...held.playerUids].sort(), [fakes[0], fakes[1]].sort());
+  const start = new Date(`${DA}T${p2(Math.floor(s.startMinute / 60))}:${p2(s.startMinute % 60)}:00`).getTime();
+  assert.equal(new Date(held.holdExpiresAt).getTime(), start - 180 * 60000, 'retiene hasta 3 h antes');
+  assert.equal(await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: fakes[2] }), 'won');
+  assert.equal((await club.collection('bookings').doc(s.bookingId).get()).get('playerUids').length, 3);
+  assert.equal(await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: fakes[3] }), 'won');
+  const bk = (await club.collection('bookings').doc(s.bookingId).get()).data();
+  assert.equal(bk.status, 'confirmed'); assert.equal(bk.playerUids.length, 4); assert.equal(bk.teamA?.length, 2);
+});
+await step('A12. Si de 2 se baja uno, la cancha se suelta (y la búsqueda sigue)', async () => {
+  const s = (await freshAuto())[0];
+  const fakes = s.invitedUids.filter((u) => u.startsWith('demo-'));
+  await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: fakes[0] });
+  await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: fakes[1] });
+  assert.equal((await club.collection('bookings').doc(s.bookingId).get()).get('status'), 'held');
+  await H.dropFromMatch({ clubId: CLUB, matchId: s.matchId, uid: fakes[1] });
+  assert.equal((await club.collection('bookings').doc(s.bookingId).get()).get('status'), 'cancelled');
+  assert.equal((await club.collection('fillSearches').doc(s.id).get()).get('status'), 'searching');
+});
+await step('A13. A las 3 h antes sin llegar a 4, el reloj suelta la cancha pero la búsqueda sigue hasta 2 h antes', async () => {
+  const s = (await autoSearches()).filter((x) => x.status === 'searching').sort((a, b) => a.startMinute - b.startMinute)[0];
+  const fakes = s.invitedUids.filter((u) => u.startsWith('demo-') && !s.filledUids.includes(u) && !s.excludedUids.includes(u));
+  // Que haya 2 confirmados (puede tener 1 de la prueba anterior).
+  for (const u of fakes) { if ((await club.collection('fillSearches').doc(s.id).get()).get('seatsFilled') >= 2) break; await H.claimSeat({ clubId: CLUB, searchId: s.id, uid: u }); }
+  const held = (await club.collection('bookings').doc(s.bookingId).get()).data();
+  assert.equal(held?.status, 'held');
+  await H.runClock(new Date(new Date(held.holdExpiresAt).getTime() + 60000));
+  assert.equal((await club.collection('bookings').doc(s.bookingId).get()).get('status'), 'cancelled', 'no soltó la cancha');
+  assert.equal((await club.collection('fillSearches').doc(s.id).get()).get('status'), 'searching', 'cortó la búsqueda');
+});
+await step('A14. A igual categoría, el aviso va primero al que lleva más días sin jugar', async () => {
+  const mk = (uid) => ({ uid, displayName: uid, role: 'player', category: 5, gender: 'masculino', blocked: false, noShowCount: 0, weeklyAvailability: [{ dayOfWeek: 3, startMinute: 0, endMinute: 1440 }] });
+  const search = { date: '2026-11-25', startMinute: 1200, endMinute: 1290, excludedUids: [], invitedUids: [], filledUids: [], modality: 'masculino', genderNeeded: [] };
+  const ranked = H.rankCandidates({
+    search, clubGap: 1, current: [], targetCategory: 5, members: [mk('ayer'), mk('nunca'), mk('hace10')], prefsByUid: new Map(), counters: new Map(),
+    bookings: [], requests: [], now: new Date('2026-11-20T12:00:00'), random: () => 0.5,
+    lastPlayed: new Map([['ayer', '2026-11-24'], ['hace10', '2026-11-15']]),
+  });
+  assert.deepEqual(ranked.map((c) => c.uid), ['nunca', 'hace10', 'ayer']);
+});
+
+// ---------- Etapa 4 (17/11): suplente de guardia ----------
+async function guardMatch(id, date, startMinute, uids) {
+  const mem = new Map((await club.collection('memberships').get()).docs.map((d) => [d.id, d.data()]));
+  const slots = uids.map((u) => ({ uid: u, displayName: mem.get(u).displayName, category: mem.get(u).category, gender: mem.get(u).gender, status: 'accepted', paid: false, requestId: '' }));
+  const cats = slots.map((x) => x.category);
+  const bookingId = `bk_${id}`;
+  await club.collection('bookings').doc(bookingId).set({ id: bookingId, clubId: CLUB, courtId: 'cancha_3', courtName: 'Cancha 3', date, startMinute, endMinute: startMinute + 90, type: 'matched', status: 'confirmed', createdByUid: 'x', playerUids: uids, guestName: '', totalPrice: 2400, paidAmount: 0, paymentMethod: 'split', paymentStatus: 'pending', holdExpiresAt: '' });
+  await club.collection('proposedMatches').doc(id).set({ id, clubId: CLUB, bookingId, courtId: 'cancha_3', courtName: 'Cancha 3', date, startMinute, endMinute: startMinute + 90, modality: 'mixto', minCategory: Math.min(...cats), maxCategory: Math.max(...cats), pricePerPlayer: 600, playerUids: uids, slots, expiresAt: '', status: 'confirmed', createdByUid: 'x' });
+  return { id, bookingId };
+}
+const DG = inDays(5); const TG = 14 * 60;
+await step('G1. Suplente de guardia: no se puede ofrecer dos veces en franjas que se pisan', async () => {
+  await H.offerStandby({ clubId: CLUB, uid: 'demo-p28', date: DG, startMinute: 12 * 60, endMinute: 17 * 60 });
+  await assert.rejects(H.offerStandby({ clubId: CLUB, uid: 'demo-p28', date: DG, startMinute: 16 * 60, endMinute: 19 * 60 }), /Ya estás de suplente/);
+});
+await step('G2. Se baja uno: entra directo el suplente de guardia (antes de la tanda) y se le avisa', async () => {
+  const m = await guardMatch('pm_test_guardia', DG, TG, ['demo-p08', 'demo-p09', 'demo-p10', 'demo-p26']);
+  const r = await H.dropFromMatch({ clubId: CLUB, matchId: m.id, uid: 'demo-p26' });
+  const after = (await club.collection('proposedMatches').doc(m.id).get()).data();
+  assert.ok(after.playerUids.includes('demo-p28'), `no entró el suplente: ${after.playerUids}`);
+  assert.equal(after.slots.length, 4);
+  const sb = (await club.collection('standbys').where('uid', '==', 'demo-p28').get()).docs[0].data();
+  assert.equal(sb.status, 'used'); assert.equal(sb.matchId, m.id);
+  const inv = (await club.collection('fillInvites').doc(`${r.searchId}_demo-p28`).get()).data();
+  assert.equal(inv.via, 'guardia'); assert.equal(inv.status, 'won');
+  const s = (await club.collection('fillSearches').doc(r.searchId).get()).data();
+  assert.equal(s.status, 'filled');
+  assert.equal(s.invitedUids.length, 0, 'mandó tanda igual');
+  const n = await club.collection('notifications').where('recipientUid', '==', 'demo-p28').get();
+  assert.ok(n.docs.some((d) => /Entraste de suplente/.test(d.get('title'))));
+});
+await step('G3. El suplente que ya juega a esa hora o no es de la categoría no entra (se sigue con la tanda)', async () => {
+  // Se baja Natalia (5ta): hace falta una mujer. Victoria (5ta) está de guardia pero ocupada a esa hora; Lorena (7ma) libre pero muy lejos de 5ta.
+  await H.offerStandby({ clubId: CLUB, uid: 'demo-p27', date: DG, startMinute: 17 * 60, endMinute: 21 * 60 });
+  await H.offerStandby({ clubId: CLUB, uid: 'demo-p15', date: DG, startMinute: 17 * 60, endMinute: 21 * 60 });
+  await club.collection('bookings').doc('bk_test_ocupado_p28').set({ id: 'bk_test_ocupado_p28', clubId: CLUB, courtId: 'cancha_1', courtName: 'Cancha 1', date: DG, startMinute: 18 * 60, endMinute: 19 * 60 + 30, type: 'direct', status: 'confirmed', createdByUid: 'demo-p27', playerUids: ['demo-p27'], guestName: '', totalPrice: 2400, paidAmount: 0, paymentMethod: 'club', paymentStatus: 'pending', holdExpiresAt: '' });
+  const m = await guardMatch('pm_test_guardia2', DG, 18 * 60 + 30, ['demo-p08', 'demo-p09', 'demo-p10', 'demo-p29']);
+  const r = await H.dropFromMatch({ clubId: CLUB, matchId: m.id, uid: 'demo-p29' });
+  const after = (await club.collection('proposedMatches').doc(m.id).get()).data();
+  assert.ok(!after.playerUids.includes('demo-p27'), 'entró el que ya jugaba a esa hora');
+  assert.ok(!after.playerUids.includes('demo-p15'), 'entró uno de 7ma a un partido de 5ta');
+  const st = Object.fromEntries((await club.collection('standbys').where('date', '==', DG).get()).docs.map((d) => [d.get('uid'), d.get('status')]));
+  assert.equal(st['demo-p27'], 'active'); assert.equal(st['demo-p15'], 'active');
+  assert.equal((await club.collection('fillSearches').doc(r.searchId).get()).get('status'), 'searching');
+});
+await step('G4. El reloj vence las guardias de días que ya pasaron', async () => {
+  await club.collection('standbys').doc('sb_test_viejo').set({ id: 'sb_test_viejo', clubId: CLUB, uid: 'demo-p30', displayName: 'x', category: 6, date: inDays(-1), startMinute: 600, endMinute: 900, status: 'active' });
+  await H.runClock(new Date());
+  assert.equal((await club.collection('standbys').doc('sb_test_viejo').get()).get('status'), 'expired');
+});
+
+await step('G5. Un suplente de guardia que alguno del partido marcó "prefiero no" no entra (y no se le dice por qué)', async () => {
+  await H.offerStandby({ clubId: CLUB, uid: 'demo-p26', date: DG, startMinute: 8 * 60, endMinute: 12 * 60 });
+  await db.doc('users/demo-p09').set({ avoidUids: ['demo-p26'] }, { merge: true });
+  const m = await guardMatch('pm_test_guardia3', DG, 9 * 60 + 30, ['demo-p08', 'demo-p09', 'demo-p10', 'demo-p28']);
+  const r = await H.dropFromMatch({ clubId: CLUB, matchId: m.id, uid: 'demo-p28' });
+  const after = (await club.collection('proposedMatches').doc(m.id).get()).data();
+  assert.ok(!after.playerUids.includes('demo-p26'), 'entró igual');
+  const s = (await club.collection('fillSearches').doc(r.searchId).get()).data();
+  assert.ok(!s.invitedUids.includes('demo-p26'), 'lo invitó en la tanda');
+  await db.doc('users/demo-p09').update({ avoidUids: [] });
 });
 
 console.log('\n' + results.join('\n'));

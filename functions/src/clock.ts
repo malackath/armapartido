@@ -3,8 +3,10 @@ import type { Booking, FillSearch, MatchRequest, ProposedMatch } from '../../src
 import { formatDateFriendly, formatMinutes } from '../../src/lib/padelUtils';
 import { db, now } from './admin';
 import { afterRelease, releaseMatch } from './engine';
+import { expireStandbys } from './guardia';
+import { expireResults } from './resultados';
 import type { Club } from '../../src/types/padel';
-import { activeSearchFor, autoFinalize, closeUnfilled, courtBusy, endAutoSearch, replaceInPendingMatch, runWave, settleRecoveries } from './fill';
+import { AUTO_FILL_UID, activeSearchFor, autoFinalize, closeUnfilled, courtBusy, endAutoSearch, replaceInPendingMatch, runWave, settleRecoveries } from './fill';
 import { maybeRunAutoFill } from './autofill';
 import { CHOICE_DEADLINE_MINUTES, isoDate, slotStart } from './fillRules';
 import { notify } from './notify';
@@ -94,7 +96,8 @@ export async function runClock(nowDate = new Date()): Promise<ClockReport> {
       // 2. Canchas retenidas huérfanas
       for (const d of held.docs) {
         const b = d.data() as Booking;
-        if (liveBookingIds.has(d.id)) continue;
+        // Turno libre automático (etapa 4): la cancha se retiene como mucho hasta 3 h antes aunque la búsqueda siga.
+        if (liveBookingIds.has(d.id) && b.createdByUid !== AUTO_FILL_UID) continue;
         if (!b.holdExpiresAt || b.holdExpiresAt > nowISO) continue;
         await d.ref.update({ status: 'cancelled', updatedAt: now() });
         report.releasedHolds++;
@@ -124,6 +127,8 @@ export async function runClock(nowDate = new Date()): Promise<ClockReport> {
         }
       }
       report.recoveriesSettled += await settleRecoveries(clubId, nowDate);
+      await expireStandbys(clubId, today);
+      await expireResults(clubId, nowDate);
 
       // 6. "Llenar turnos libres": revisión de las 9:00 y las 14:00 (solo clubes que lo encendieron)
       const auto = await maybeRunAutoFill(clubId, { ...(clubDoc.data() as Club), id: clubId }, nowDate);

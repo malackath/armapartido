@@ -7,7 +7,7 @@
  */
 
 /** Cómo llegó el cliente al club. */
-export type ClientOrigin = 'app' | 'mostrador' | 'telefono' | 'migracion' | 'falta_uno' | 'torneo';
+export type ClientOrigin = 'app' | 'mostrador' | 'telefono' | 'migracion' | 'falta_uno' | 'torneo' | 'invitado';
 
 export const ORIGIN_LABEL: Record<ClientOrigin, string> = {
   app: 'la app',
@@ -16,6 +16,7 @@ export const ORIGIN_LABEL: Record<ClientOrigin, string> = {
   migracion: 'migración',
   falta_uno: 'un aviso de Falta uno',
   torneo: 'un torneo',
+  invitado: 'invitado a un partido',
 };
 
 /** Ficha de una persona en un club. */

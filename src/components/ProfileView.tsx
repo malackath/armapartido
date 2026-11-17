@@ -4,7 +4,7 @@
  * Vista previa: Paddle.URU/Pantallas/perfil-y-registro.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronRight, Trash2, X } from 'lucide-react';
+import { Check, ChevronRight, X } from 'lucide-react';
 import type {
   Booking,
   Club,
@@ -22,12 +22,14 @@ import type {
 import { formatCategory, formatDateFriendly, getTodayISO, type PlayerLevelSummary } from '../lib/padelUtils';
 import { formatPhone, normalizePhone } from '../lib/clientes';
 import { describeWindows, gridFromWindows, windowsFromGrid, type GridKey } from '../lib/registro';
-import { deletePlayerMatchResult, getUserPrivateInfo, logPlayerMatchResult, saveUserFcmToken } from '../services/firestoreService';
+import { getUserPrivateInfo, saveUserFcmToken } from '../services/firestoreService';
 import { savePrivatePhone, saveProfileChanges } from '../services/registroService';
 import { uploadProfilePhoto } from '../services/photoService';
 import { obtainFcmDeviceToken } from '../lib/fcm';
 import { MyAccount } from './caja/MyAccount';
 import { AlertPrefsSection } from './FaltaUno';
+import { PrefieroNo } from './PrefieroNo';
+import { MisPartidos } from './Resultados';
 import { InstallGuideModal, PWAInstallButton } from './PWAInstallButton';
 import { AvailabilityGrid, CategoryLadder, MiniLadder, OptionGroup, PlayerFicha } from './registro/parts';
 
@@ -51,17 +53,6 @@ interface ProfileViewProps {
 
 type Tab = 'juego' | 'cuenta' | 'ajustes';
 
-interface ResultRow {
-  id: string;
-  manual: boolean;
-  date: string;
-  title: string;
-  detail: string;
-  win: boolean;
-}
-
-const MODALITY_LABEL: Record<Modality, string> = { masculino: 'masculino', femenino: 'femenino', mixto: 'mixto' };
-
 const card = 'rounded-xl border border-line bg-white p-4';
 const linkBtn = 'cursor-pointer text-sm font-semibold text-brand hover:underline';
 const btnDark = 'h-10 cursor-pointer rounded-xl bg-brand px-4 text-sm font-semibold text-white disabled:opacity-60';
@@ -72,6 +63,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   clubs,
   activeClub,
   membership,
+  memberships,
   bookings,
   proposedMatches,
   tournaments,
@@ -111,38 +103,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       setBusy(false);
     }
   };
-
-  // ---------- resultados (torneos + cargados a mano) ----------
-  const results = useMemo<ResultRow[]>(() => {
-    const items: ResultRow[] = [];
-    for (const trn of tournaments) {
-      const mine = new Set(trn.pairs.filter((p) => p.player1Uid === userProfile.uid || p.player2Uid === userProfile.uid).map((p) => p.id));
-      if (!mine.size) continue;
-      for (const m of trn.matches) {
-        if (m.status !== 'completed' || !(mine.has(m.pair1Id) || mine.has(m.pair2Id))) continue;
-        items.push({
-          id: `trn_${trn.id}_${m.id}`,
-          manual: false,
-          date: m.date,
-          title: `${trn.name}, ${m.round.toLowerCase()}`,
-          detail: `torneo, ${m.score || 'finalizado'}`,
-          win: mine.has(m.winnerPairId),
-        });
-      }
-    }
-    for (const r of playerMatchResults) {
-      items.push({
-        id: r.id,
-        manual: true,
-        date: r.date,
-        title: `Partido en ${r.clubName}`,
-        detail: `${MODALITY_LABEL[r.modality]}, ${r.score || 'sin marcador'}`,
-        win: r.outcome === 'win',
-      });
-    }
-    return items.sort((a, b) => b.date.localeCompare(a.date));
-  }, [tournaments, playerMatchResults, userProfile.uid]);
-  const wins = results.filter((r) => r.win).length;
 
   const clubCategory = membership && membership.category !== userProfile.category ? membership.category : null;
 
@@ -225,13 +185,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               onSave={(w) => save({ weeklyAvailability: w }, 'Listo, guardamos tus horarios.')}
             />
             <div className={`${card} lg:col-span-2`}>
-              <ResultsBlock
-                results={results}
-                wins={wins}
-                userProfile={userProfile}
-                club={activeClub}
-                onToast={onToast}
-              />
+              <MisPartidos club={activeClub} userProfile={userProfile} bookings={bookings} tournaments={tournaments} />
             </div>
             {onOpenTab && (
               <button type="button" onClick={() => onOpenTab('friends')} className={`${card} flex cursor-pointer items-center justify-between text-left hover:bg-mist lg:col-span-2`}>
@@ -259,6 +213,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="mt-3 grid gap-3">
             <PushCard userProfile={userProfile} onToast={onToast} />
             <AlertPrefsSection userProfile={userProfile} onProfileUpdated={onProfileUpdated} onToast={onToast} />
+            <PrefieroNo userProfile={userProfile} memberships={memberships} onProfileUpdated={onProfileUpdated} onToast={onToast} onOpenFriends={onOpenTab ? () => onOpenTab('friends') : undefined} />
             <MyDataCard
               userProfile={userProfile}
               info={privateInfo}
@@ -398,158 +353,6 @@ const AvailabilityCard: React.FC<{ profile: UserProfile; busy: boolean; onSave: 
     </div>
   );
 };
-
-const ResultsBlock: React.FC<{
-  results: ResultRow[];
-  wins: number;
-  userProfile: UserProfile;
-  club: Club | null;
-  onToast: (m: string) => void;
-}> = ({ results, wins, userProfile, club, onToast }) => {
-  const [adding, setAdding] = useState(false);
-  const [date, setDate] = useState(getTodayISO());
-  const [win, setWin] = useState(true);
-  const [score, setScore] = useState('');
-  const [modality, setModality] = useState<Modality>(userProfile.preferredModality);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [all, setAll] = useState(false);
-  const losses = results.length - wins;
-  const shown = all ? results : results.slice(0, 5);
-
-  const add = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!club) return;
-    setSaving(true);
-    try {
-      await logPlayerMatchResult({
-        uid: userProfile.uid,
-        clubId: club.id,
-        clubName: club.name,
-        date,
-        outcome: win ? 'win' : 'loss',
-        score: score.trim(),
-        modality,
-      });
-      setScore('');
-      setAdding(false);
-      onToast('Resultado guardado.');
-    } catch {
-      onToast('No se pudo guardar el resultado.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <>
-      <div className="flex items-center justify-between">
-        <h3 className="font-display text-base font-bold text-ink">Mis partidos</h3>
-        {!adding && club && (
-          <button type="button" className={linkBtn} onClick={() => setAdding(true)}>
-            Cargar resultado
-          </button>
-        )}
-      </div>
-      {adding && (
-        <form onSubmit={add} className="mt-3 grid gap-3 rounded-xl bg-surface p-3 sm:grid-cols-2">
-          <label className="grid gap-1 text-[13px] font-semibold">
-            Fecha
-            <input type="date" required value={date} max={getTodayISO()} onChange={(e) => setDate(e.target.value)} className="h-11 rounded-xl border border-line bg-white px-3 text-[15px] font-normal" />
-          </label>
-          <label className="grid gap-1 text-[13px] font-semibold">
-            Marcador
-            <input value={score} onChange={(e) => setScore(e.target.value)} placeholder="6-4 6-3" maxLength={40} className="h-11 rounded-xl border border-line bg-white px-3 text-[15px] font-normal" />
-          </label>
-          <div className="grid gap-1 text-[13px] font-semibold">
-            Resultado
-            <OptionGroup label="Resultado" value={win ? 'g' : 'p'} onChange={(v) => setWin(v === 'g')} options={[{ v: 'g', label: 'Gané' }, { v: 'p', label: 'Perdí' }]} />
-          </div>
-          <div className="grid gap-1 text-[13px] font-semibold">
-            Partido
-            <OptionGroup
-              label="Tipo de partido"
-              value={modality}
-              onChange={setModality}
-              options={[
-                { v: 'masculino', label: 'Masc.' },
-                { v: 'femenino', label: 'Fem.' },
-                { v: 'mixto', label: 'Mixto' },
-              ]}
-            />
-          </div>
-          <div className="flex gap-2 sm:col-span-2">
-            <button type="submit" disabled={saving} className={btnDark}>
-              {saving ? 'Guardando…' : 'Guardar resultado'}
-            </button>
-            <button type="button" className={btnGhost} onClick={() => setAdding(false)}>
-              Cancelar
-            </button>
-          </div>
-        </form>
-      )}
-      <div className="mt-3 grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
-        <div className="grid grid-cols-3 gap-2">
-          <Stat n={results.length} label={results.length === 1 ? 'jugado' : 'jugados'} />
-          <Stat n={wins} label={wins === 1 ? 'ganado' : 'ganados'} tone="ok" />
-          <Stat n={losses} label={losses === 1 ? 'perdido' : 'perdidos'} tone="due" />
-        </div>
-        <div className="min-w-0">
-          {results.length === 0 ? (
-            <p className="text-sm text-muted">Todavía no hay partidos con resultado. Los de torneos aparecen solos; los demás los cargás vos.</p>
-          ) : (
-            shown.map((r) => (
-              <div key={r.id} className="flex items-center justify-between gap-3 border-t border-line py-2.5 first:border-0 first:pt-0">
-                <span className="min-w-0">
-                  <b className="block truncate text-[14.5px] font-semibold text-ink">{r.title}</b>
-                  <small className="text-[12.5px] text-muted">
-                    {formatDateFriendly(r.date)}, {r.detail}
-                  </small>
-                </span>
-                <span className="flex shrink-0 items-center gap-1">
-                  <span className={`text-sm font-semibold ${r.win ? 'text-ok' : 'text-due'}`}>{r.win ? 'Ganado' : 'Perdido'}</span>
-                  {r.manual && (
-                    <button
-                      type="button"
-                      aria-label="Borrar este resultado"
-                      disabled={deleting === r.id}
-                      onClick={async () => {
-                        setDeleting(r.id);
-                        try {
-                          await deletePlayerMatchResult(userProfile.uid, r.id);
-                          onToast('Resultado borrado.');
-                        } catch {
-                          onToast('No se pudo borrar el resultado.');
-                        } finally {
-                          setDeleting(null);
-                        }
-                      }}
-                      className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-muted hover:bg-mist hover:text-due"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </span>
-              </div>
-            ))
-          )}
-          {results.length > 5 && (
-            <button type="button" className={`${linkBtn} mt-1`} onClick={() => setAll((v) => !v)}>
-              {all ? 'Ver menos' : `Ver los ${results.length}`}
-            </button>
-          )}
-        </div>
-      </div>
-    </>
-  );
-};
-
-const Stat: React.FC<{ n: number; label: string; tone?: 'ok' | 'due' }> = ({ n, label, tone }) => (
-  <div className="rounded-[10px] bg-surface p-2.5">
-    <b className={`block font-display text-2xl leading-none font-bold ${tone === 'ok' ? 'text-ok' : tone === 'due' ? 'text-due' : 'text-ink'}`}>{n}</b>
-    <small className="text-xs text-muted">{label}</small>
-  </div>
-);
 
 // ---------- Ajustes ----------
 

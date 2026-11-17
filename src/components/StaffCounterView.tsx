@@ -181,7 +181,18 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
 
   const activeCourts = useMemo(() => courts.filter((c) => c.active), [courts]);
   const slots = useMemo(() => generateDaySlots(club), [club]);
-  const memberByUid = useMemo(() => new Map(memberships.map((m) => [m.uid, m])), [memberships]);
+  const memberByUid = useMemo(() => {
+    const map = new Map(memberships.map((m) => [m.uid, m]));
+    // Invitados (etapa 6b): no son socios; se nombran desde el partido, marcados como invitados.
+    for (const pm of proposedMatches) {
+      for (const sl of pm.slots ?? []) {
+        if (sl.guest && !map.has(sl.uid)) {
+          map.set(sl.uid, { uid: sl.uid, clubId: pm.clubId, displayName: `${sl.displayName} (invitado)`, role: 'player', category: sl.category, gender: sl.gender, preferredModality: 'mixto', weeklyAvailability: [], noShowCount: 0, blocked: false, isDiscoverable: false });
+        }
+      }
+    }
+    return map;
+  }, [memberships, proposedMatches]);
 
   const dayBookings = useMemo(
     () => bookings.filter((b) => b.date === selectedDate && b.status !== 'cancelled'),

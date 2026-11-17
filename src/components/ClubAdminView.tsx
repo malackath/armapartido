@@ -47,6 +47,8 @@ import { JoinPolicyCard, JoinRequestsCard } from './registro/Sumarse';
 import { useJoinRequests } from '../services/sumarseService';
 import { PlayerAvatar } from './ui/People';
 import { TuApp } from './appclub/TuApp';
+import { SugerenciasCategoria, useCategorySuggestions } from './Resultados';
+import { InvitadosAdmin } from './Invitados';
 
 interface ClubAdminViewProps {
   club: Club;
@@ -355,6 +357,7 @@ const FillSection: React.FC<{
         </Card>
 
         <AutoFillCard club={club} value={autoFill} onChange={setAutoFill} dirty={autoFillDirty} />
+        <InvitadosAdmin club={club} />
       </div>
 
       <Card title={`Este mes · ${monthName}`}>
@@ -486,7 +489,8 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
 
   const current = SECTIONS.find((s) => s.id === section)!;
   const joinRequests = useJoinRequests(club.id, true);
-  const pendingReviews = memberships.filter((m) => m.role === 'player' && m.categoryReview === 'pendiente').length + joinRequests.length;
+  const catSuggestions = useCategorySuggestions(club.id, true);
+  const pendingReviews = memberships.filter((m) => m.role === 'player' && m.categoryReview === 'pendiente').length + joinRequests.length + catSuggestions.length;
   const showSave = section === 'courts' || section === 'prices' || section === 'fill' || section === 'club';
 
   return (
@@ -668,6 +672,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
           <>
             <JoinRequestsCard club={club} requests={joinRequests} onToast={onToast} />
             <JoinPolicyCard club={club} onToast={onToast} />
+            <SugerenciasCategoria club={club} items={catSuggestions} onToast={onToast} />
             <NewMembersReview club={club} memberships={memberships} userProfile={userProfile} onToast={onToast} />
             <MembersCard club={club} memberships={memberships} userProfile={userProfile} onToast={onToast} />
           </>

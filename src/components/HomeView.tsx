@@ -13,6 +13,8 @@ import { BrandIcon } from './BrandIcon';
 import { CategoryBadge, PairAvatar, PlayerAvatar, StatusChip } from './ui/People';
 import { BADGE_CLASSES, DropMatchButton, FillInvitesSection, MatchFillStatus, fillBadge, gotByApp, searchForMatch } from './FaltaUno';
 import type { ActiveTab } from './TopBar';
+import { ResultadosInicio } from './Resultados';
+import { InvitacionesOtrosClubes } from './Invitados';
 
 export interface HomeJoinPreset {
   dayOfWeek: number;
@@ -221,6 +223,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   return (
     <div className="space-y-6">
       <FillInvitesSection club={club} invites={fillInvites} searches={fillSearches} matches={proposedMatches} onToast={onToast} />
+      <ResultadosInicio club={club} bookings={bookings} memberships={memberships ?? []} userProfile={userProfile} onToast={onToast} />
+      <InvitacionesOtrosClubes uid={userProfile.uid} onToast={onToast} />
       <section>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3.5">

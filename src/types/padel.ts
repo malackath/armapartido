@@ -53,6 +53,10 @@ export interface UserProfile {
   weeklyAvailability: AvailabilityWindow[];
   activeClubIds: string[];
   alertPrefs?: AlertPrefs;
+  /** "Prefiero no jugar con" (etapa 5): PRIVADO. Solo lo ve el jugador; el servidor lo usa para no juntarlos. */
+  avoidUids?: string[];
+  /** Lo escribe el servidor: cuántas propuestas rechazó por hora de inicio ("20" -> 3). Baja la prioridad a esa hora. */
+  declineHours?: Record<string, number>;
   courtSide?: CourtSide;
   hand?: Hand;
   /** false mientras el jugador no terminó el registro. Los perfiles viejos no lo tienen: cuentan como terminados. */
@@ -107,6 +111,8 @@ export interface Club {
   /** "Falta uno" automático (por defecto encendido) y diferencia de categoría permitida (1 o 2). */
   fillEnabled?: boolean;
   fillMaxGap?: 1 | 2;
+  /** Modo invitados (etapa 6b). Sin esto, el club está en modo interno. */
+  guests?: ClubGuestsConfig;
   /** "Llenar turnos libres" automático (D12): apagado si falta. Cada club elige las franjas. */
   autoFill?: AutoFillConfig;
   /**
@@ -249,6 +255,9 @@ export interface Booking {
   holdExpiresAt: string;
   /** Ficha del cliente (reservas por teléfono o mostrador). */
   clientId?: string;
+  /** Equipos sugeridos (partidos armados por la app). */
+  teamA?: string[];
+  teamB?: string[];
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -284,6 +293,9 @@ export interface ProposedSlot {
   status: 'pending' | 'accepted' | 'declined';
   paid: boolean;
   requestId: string;
+  /** Invitado (etapa 6b): no es socio de este club. Paga su parte más el recargo. */
+  guest?: boolean;
+  surcharge?: number;
 }
 
 export interface ProposedMatch {
@@ -304,6 +316,9 @@ export interface ProposedMatch {
   expiresAt: string;
   status: 'pending' | 'confirmed' | 'cancelled';
   createdByUid: string;
+  /** Equipos sugeridos por el planificador (uids). Es una sugerencia: en la cancha pueden cambiar. */
+  teamA?: string[];
+  teamB?: string[];
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -422,6 +437,50 @@ export interface PlayerMatchResult {
   createdAt?: unknown;
 }
 
+/**
+ * Resultado de un partido de 4 (etapa 6a, decisión 4.2 de Ber, 17/11/2026).
+ * Uno de los 4 lo carga y uno de la otra pareja lo confirma en 48 h. Sin confirmar no cuenta.
+ * Id = id de la reserva. Lo escribe solo el servidor.
+ */
+export interface MatchResult {
+  id: string;
+  clubId: string;
+  bookingId: string;
+  date: string;
+  startMinute: number;
+  courtName: string;
+  teamA: string[];
+  teamB: string[];
+  /** Nombres de los 4 para mostrar sin leer otras fichas. */
+  names: Record<string, string>;
+  playerUids: string[];
+  winner: 'A' | 'B';
+  score: string;
+  reportedBy: string;
+  status: 'pending' | 'confirmed' | 'disputed' | 'expired';
+  expiresAt: string;
+  confirmedBy?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+/** Sugerencia de cambio de categoría para el club (decisión 4.1: la app sugiere, el club confirma). Id = uid. */
+export interface CategorySuggestion {
+  id: string;
+  clubId: string;
+  uid: string;
+  displayName: string;
+  from: number;
+  to: number;
+  reason: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  /** Resultados confirmados que tenía el jugador cuando el club decidió (para no volver a sugerir enseguida). */
+  resultsAtDecision?: number;
+  decidedBy?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
 export interface UserFriend {
   uid: string;
   ownerUid: string;
@@ -482,6 +541,8 @@ export interface AlertPrefs {
   weeklyInvites: WeeklyInvites;
   /** Diferencia de categoría que acepta: 0 = solo la suya, 1 o 2. */
   maxCategoryGap: 0 | 1 | 2;
+  /** Modo invitados (etapa 6b): acepta avisos de "falta uno" de otros clubes. Apagado por defecto. */
+  otherClubs?: boolean;
 }
 
 export const DEFAULT_ALERT_PREFS: AlertPrefs = { weeklyInvites: 3, maxCategoryGap: 1 };
@@ -493,6 +554,8 @@ export type FillChoice = 'keep_searching' | 'play_as_three' | 'cancel';
 
 export interface FillSearch {
   id: string;
+  /** Modo invitados (etapa 6b): ya se avisó a los invitados (una sola vez por búsqueda). */
+  guestsInvited?: boolean;
   clubId: string;
   kind: FillSearchKind;
   matchId: string;
@@ -552,9 +615,43 @@ export interface FillInvite {
   countsForCap: boolean;
   sentAt: string;
   /** Cómo llegó: aviso de la app (por defecto) o el link compartido por un jugador. */
-  via?: 'aviso' | 'link';
+  via?: 'aviso' | 'link' | 'guardia';
+  /** Invitado (etapa 6b): no es socio; sus datos para el partido van acá. */
+  guest?: GuestInfo;
   createdAt?: unknown;
   updatedAt?: unknown;
+}
+
+/** Modo invitados (etapa 6b; decisiones 4.6 de Ber, 17/11/2026). */
+export interface ClubGuestsConfig {
+  /** Recibir invitados cuando falta uno y nadie del club se sumó en la primera tanda. */
+  enabled: boolean;
+  /** Recargo en pesos que paga el invitado, sobre su parte. */
+  surcharge: number;
+  /** false: la app nunca ofrece a los jugadores de este club en otros clubes (4.6c). */
+  shareMyPlayers?: boolean;
+}
+
+export interface GuestInfo {
+  displayName: string;
+  category: number;
+  gender: Gender;
+  /** Club de origen (vacío si es amigo de un socio sin club). */
+  homeClubId: string;
+  kind: 'otro_club' | 'amigo';
+  surcharge: number;
+}
+
+/** Amigo que un socio autorizó a jugar como invitado en el club (clubs/{club}/guestPasses/{uid}). */
+export interface GuestPass {
+  uid: string;
+  clubId: string;
+  displayName: string;
+  category: number;
+  gender: Gender;
+  invitedBy: string;
+  invitedByName: string;
+  createdAt?: unknown;
 }
 
 export interface RecoveryRecord {
@@ -574,9 +671,27 @@ export interface RecoveryRecord {
   filledAt: string;
   seatsFilled: number;
   /** Entró por aviso de la app o por el link compartido. */
-  via?: 'aviso' | 'link';
+  via?: 'aviso' | 'link' | 'guardia';
   amountRecovered: number;
   status: 'pending' | 'counted' | 'voided';
   voidReason: string;
   createdAt?: unknown;
+}
+
+/** Suplente de guardia (etapa 4, decisión 4.5): "si se baja alguien en ese horario, contá conmigo". */
+export interface Standby {
+  id: string;
+  clubId: string;
+  uid: string;
+  displayName: string;
+  category: number;
+  date: string; // YYYY-MM-DD
+  startMinute: number;
+  endMinute: number;
+  /** active = esperando; used = entró a un partido; cancelled = lo sacó él; expired = pasó el horario. */
+  status: 'active' | 'used' | 'cancelled' | 'expired';
+  /** Partido al que entró, si entró. */
+  matchId?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }

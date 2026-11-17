@@ -10,12 +10,16 @@ import type {
   FillSearch,
   FillSearchKind,
   Gender,
+  GuestInfo,
   MatchRequest,
   ProposedMatch,
   ProposedSlot,
   RecoveryRecord,
 } from '../../src/types/padel';
-import { formatCategory, formatDateFriendly, formatMinutes } from '../../src/lib/padelUtils';
+import { addDaysISO, formatCategory, formatDateFriendly, formatMinutes } from '../../src/lib/padelUtils';
+import { teamsForSlots } from '../../src/lib/planificador';
+import { tryStandbys } from './guardia';
+import { guestCandidates, guestClientRecord, guestsDue, type GuestCandidate } from './invitados';
 import { db, isFakePlayer, makeId, now } from './admin';
 import { notify } from './notify';
 import {
@@ -26,8 +30,11 @@ import {
   isQuietHour,
   minutesUntil,
   prefsOf,
+  AUTO_HOLD_FROM_SEATS,
+  AUTO_HOLD_UNTIL_BEFORE_MIN,
   categoryFits,
   genderFits,
+  lastPlayedFrom,
   rankCandidates,
   searchTiming,
   slotStart,
@@ -85,9 +92,13 @@ export async function endAutoSearch(clubId: string, searchId: string, why: AutoE
     const s = ss.data() as FillSearch | undefined;
     if (!s || !s.auto || s.status !== 'searching') return null;
     const mRef = cRef.collection('proposedMatches').doc(s.matchId);
-    const m = (await tx.get(mRef)).data() as ProposedMatch | undefined;
+    const bRef = cRef.collection('bookings').doc(s.bookingId);
+    const [mSnap, bSnap] = await tx.getAll(mRef, bRef);
+    const m = mSnap.data() as ProposedMatch | undefined;
     tx.update(sRef, { status: why === 'unfilled' ? 'unfilled' : 'cancelled', choice: 'cancel', endReason: why, updatedAt: now() });
     if (m && m.status === 'pending') tx.update(mRef, { status: 'cancelled', updatedAt: now() });
+    // Si la cancha estaba retenida (2 o más confirmados), se libera.
+    if (bSnap.exists && bSnap.get('status') === 'held') tx.update(bRef, { status: 'cancelled', updatedAt: now() });
     return { s, uids: m?.playerUids ?? [] };
   });
   if (!res) return false;
@@ -137,9 +148,12 @@ function removeFromMatch(
     playerUids,
     minCategory: next.minCategory,
     maxCategory: next.maxCategory,
+    // Se fue alguien: los equipos sugeridos ya no valen (se vuelven a armar cuando son 4 otra vez).
+    teamA: FieldValue.delete(),
+    teamB: FieldValue.delete(),
     updatedAt: now(),
   });
-  if (booking) tx.update(ref.collection('bookings').doc(m.bookingId), { playerUids, updatedAt: now() });
+  if (booking) tx.update(ref.collection('bookings').doc(m.bookingId), { playerUids, teamA: FieldValue.delete(), teamB: FieldValue.delete(), updatedAt: now() });
   const leavingReqs = new Set(m.slots.filter((s) => leaving.includes(s.uid) && s.requestId).map((s) => s.requestId));
   for (const id of leavingReqs) tx.update(ref.collection('matchRequests').doc(id), { status: 'cancelled', updatedAt: now() });
   return next;
@@ -228,6 +242,10 @@ export async function dropFromMatch(p: { clubId: string; matchId: string; uid: s
     const booking = bs.exists ? (bs.data() as Booking) : null;
     const next = removeFromMatch(tx, p.clubId, m, [p.uid], booking);
     if (freeSlot) {
+      // Turno libre automático con la cancha retenida: si quedan menos de 2, se suelta.
+      if (freeSlot.auto && booking?.status === 'held' && next.slots.length < AUTO_HOLD_FROM_SEATS) {
+        tx.update(bs.ref, { status: 'cancelled', updatedAt: now() });
+      }
       const sRef = searchRef(p.clubId, freeSlot.id);
       tx.update(sRef, {
         seatsFilled: FieldValue.increment(-1),
@@ -284,6 +302,7 @@ export async function dropFromMatch(p: { clubId: string; matchId: string; uid: s
     title: `${slot.displayName.split(' ')[0]} no puede ${formatDateFriendly(m.date, false).toLowerCase()}`,
     body: `Ya estamos buscando el cuarto para ${when(m.date, m.startMinute)} hs en ${name}. No tenés que hacer nada.`,
   });
+  await tryStandbys(p.clubId, searchId, nowDate); // suplentes de guardia primero
   await runWave(p.clubId, searchId, nowDate);
   return { status: 'searching' as const, searchId, late };
 }
@@ -342,6 +361,7 @@ export async function replaceInPendingMatch(p: {
     title: `Buscamos ${leaving.length === 1 ? 'el cuarto' : `${leaving.length} jugadores`} · ${when(next.date, next.startMinute)}`,
     body: `${leaving.length === 1 ? 'Uno no pudo' : 'No pudieron todos'}. La cancha sigue retenida en ${name} y ya estamos avisando a otros jugadores.`,
   });
+  await tryStandbys(p.clubId, searchId, nowDate); // suplentes de guardia primero
   await runWave(p.clubId, searchId, nowDate);
   return true;
 }
@@ -373,6 +393,9 @@ export async function runWave(clubId: string, searchId: string, nowDate = new Da
     cRef.collection('bookings').where('date', '==', s.date).get(),
     cRef.collection('matchRequests').where('status', '==', 'waiting').get(),
   ]);
+  // Lo jugado en las últimas 4 semanas: a igual categoría se avisa primero al que lleva más días sin jugar.
+  const pastSnap = await cRef.collection('bookings').where('date', '>=', addDaysISO(s.date, -28)).where('date', '<', s.date).get();
+  const lastPlayed = lastPlayedFrom(pastSnap.docs.map((d) => d.data() as Booking), s.date);
   const club = { ...(clubSnap.data() as Club), id: clubId };
   const match = matchSnap.data() as ProposedMatch | undefined;
   const booking = bookingsSnap.docs.find((d) => d.id === s.bookingId)?.data() as Booking | undefined;
@@ -413,16 +436,36 @@ export async function runWave(clubId: string, searchId: string, nowDate = new Da
     bookings: bookingsSnap.docs.map((d) => d.data() as Booking),
     requests: reqSnap.docs.map((d) => d.data() as MatchRequest),
     now: nowDate,
+    lastPlayed,
+    avoid: new Map(userSnaps.map((u) => [u.id, new Set((u.get('avoidUids') as string[] | undefined) ?? [])])),
+    friendsOfCurrent: new Set(
+      (await Promise.all(current.map((c) => db.collection(`users/${c.uid}/friends`).get()))).flatMap((q) => q.docs.map((d) => d.id))
+    ),
   });
   const seatsLeft = s.seatsNeeded - s.seatsFilled;
-  const wave = ranked.slice(0, Math.min(12, WAVE_SIZE_PER_SEAT * seatsLeft));
+  const local = ranked.slice(0, Math.min(12, WAVE_SIZE_PER_SEAT * seatsLeft));
+  // Modo invitados (etapa 6b): después de la primera tanda del club, si el club recibe invitados.
+  let guests: GuestCandidate[] = [];
+  if (guestsDue(club, s, ranked.length)) {
+    guests = await guestCandidates({
+      clubId, club, search: s, current, targetCategory: target, members: new Set(members.map((m) => m.uid)),
+      avoid: new Map(userSnaps.map((u) => [u.id, new Set((u.get('avoidUids') as string[] | undefined) ?? [])])),
+      nowDate, limit: Math.min(12, WAVE_SIZE_PER_SEAT * seatsLeft),
+    });
+  }
+  const wave = [
+    ...local.map((c) => ({ uid: c.uid, hasRequest: c.hasRequest, guest: undefined as GuestCandidate['info'] | undefined })),
+    ...guests.map((g) => ({ uid: g.uid, hasRequest: false, guest: g.info as GuestCandidate['info'] | undefined })),
+  ];
   const { waveGapMin } = searchTiming(s.date, s.startMinute, nowDate);
-  const nextWaveAt = wave.length && ranked.length > wave.length ? new Date(nowDate.getTime() + waveGapMin * 60000).toISOString() : s.closesAt;
+  const moreLater = ranked.length > local.length || (!!club.guests?.enabled && !s.guestsInvited && !guests.length);
+  const nextWaveAt = wave.length && moreLater ? new Date(nowDate.getTime() + waveGapMin * 60000).toISOString() : s.closesAt;
 
   await sDoc.ref.update({
     wave: s.wave + (wave.length ? 1 : 0),
     invitedUids: [...s.invitedUids, ...wave.map((c) => c.uid)],
     nextWaveAt,
+    ...(guests.length ? { guestsInvited: true } : {}),
     updatedAt: now(),
   });
   if (!wave.length) return 0;
@@ -441,19 +484,31 @@ export async function runWave(clubId: string, searchId: string, nowDate = new Da
       startMinute: s.startMinute,
       endMinute: s.endMinute,
       courtName: s.courtName,
-      pricePerPlayer: s.pricePerPlayer,
+      pricePerPlayer: s.pricePerPlayer + (c.guest?.surcharge ?? 0),
       status: 'sent',
       countsForCap: !c.hasRequest,
       sentAt,
+      ...(c.guest ? { guest: c.guest } : {}),
     };
     const batch = db.batch();
     batch.set(inviteRef(clubId, searchId, c.uid), { ...inv, createdAt: now(), updatedAt: now() });
     if (!c.hasRequest) {
       const uRef = db.doc(`users/${c.uid}`);
-      const cur = counterFor(counters.get(c.uid), nowDate);
+      const cur = counterFor(c.guest ? ((await uRef.get()).get('fillCounter') as InviteCounter | undefined) : counters.get(c.uid), nowDate);
       batch.set(uRef, { fillCounter: { ...cur, weekCount: cur.weekCount + 1, dayCount: cur.dayCount + 1 } }, { merge: true });
     }
     await batch.commit();
+    if (c.guest) {
+      const extra = c.guest.surcharge ? ` (incluye $${c.guest.surcharge} de invitado)` : '';
+      await notify({
+        clubId,
+        recipientUid: c.uid,
+        eventType: 'fill_invite',
+        title: `Te invitan a jugar en ${name} · ${when(s.date, s.startMinute)}`,
+        body: `Partido de ${catLabel}, ${s.courtName}. Falta ${seatsLeft === 1 ? 'uno' : seatsLeft}. Tu parte: $${inv.pricePerPlayer}${extra}. Pagás en el club.`,
+      });
+      continue;
+    }
     await notify({
       clubId,
       recipientUid: c.uid,
@@ -481,7 +536,10 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
   const sRef = searchRef(p.clubId, p.searchId);
   const iRef = inviteRef(p.clubId, p.searchId, p.uid);
   const memberSnap = await cRef.collection('memberships').doc(p.uid).get();
-  const member = memberSnap.data() as ClubMembership | undefined;
+  let member = memberSnap.data() as ClubMembership | undefined;
+  // Invitado (etapa 6b): no es socio, pero tiene una invitación de invitado para esta búsqueda.
+  const guest = member ? undefined : ((await iRef.get()).get('guest') as GuestInfo | undefined);
+  if (!member && guest) member = { uid: p.uid, displayName: guest.displayName, category: guest.category, gender: guest.gender } as ClubMembership;
   if (!member) throw new HttpsError('permission-denied', 'No sos jugador de este club.');
 
   const out = await db.runTransaction(async (tx) => {
@@ -503,9 +561,20 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
     const m = ms.data() as ProposedMatch;
     if (!m || m.status === 'cancelled') return { r: 'closed' as const };
     if (m.playerUids.includes(p.uid)) return { r: 'won' as const };
+    // "Prefiero no jugar con" (privado): si choca con alguno de los que están, no entra y no se le dice por qué.
+    const userRefs = [p.uid, ...m.playerUids].filter(Boolean).map((u) => db.doc(`users/${u}`));
+    const us = await tx.getAll(...userRefs);
+    const avoidOf = new Map(us.map((u) => [u.id, new Set((u.get('avoidUids') as string[] | undefined) ?? [])]));
+    if (m.playerUids.some((u) => avoidOf.get(p.uid)?.has(u) || avoidOf.get(u)?.has(p.uid))) {
+      tx.update(iRef, { status: 'late', updatedAt: now() });
+      return { r: 'late' as const, refund: inv.countsForCap };
+    }
+    let autoHeld = false; // turno libre automático con la cancha ya retenida (2 o más confirmados)
     if (s.auto) {
       const court = await tx.get(cRef.collection('bookings').where('date', '==', s.date).where('courtId', '==', s.courtId));
-      if (courtBusy(court.docs.map((d) => ({ ...(d.data() as Booking), id: d.id })), s)) return { r: 'taken' as const };
+      const courtDocs = court.docs.map((d) => ({ ...(d.data() as Booking), id: d.id }));
+      if (courtBusy(courtDocs, s)) return { r: 'taken' as const };
+      autoHeld = courtDocs.some((b) => b.id === s.bookingId && b.status === 'held');
     }
     const mine = await tx.get(cRef.collection('bookings').where('date', '==', s.date).where('playerUids', 'array-contains', p.uid));
     const overlap = mine.docs.some((d) => {
@@ -513,6 +582,13 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
       return d.id !== s.bookingId && b.status !== 'cancelled' && b.status !== 'no_show' && b.startMinute < s.endMinute && b.endMinute > s.startMinute;
     });
     if (overlap) return { r: 'busy' as const };
+    // Los turnos libres automáticos todavía no tienen reserva: también se mira si ya está en otro partido pendiente a esa hora.
+    const myPending = await tx.get(cRef.collection('proposedMatches').where('date', '==', s.date).where('playerUids', 'array-contains', p.uid));
+    const pendingOverlap = myPending.docs.some((d) => {
+      const pm = d.data() as ProposedMatch;
+      return d.id !== s.matchId && pm.status === 'pending' && pm.startMinute < s.endMinute && pm.endMinute > s.startMinute;
+    });
+    if (pendingOverlap) return { r: 'busy' as const };
 
     const newSlot: ProposedSlot = {
       uid: p.uid,
@@ -522,24 +598,40 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
       status: 'accepted',
       paid: false,
       requestId: '',
+      ...(guest ? { guest: true, surcharge: guest.surcharge } : {}),
     };
     const slots = [...m.slots, newSlot];
     const playerUids = slots.map((x) => x.uid);
     const cats = slots.map((x) => x.category);
     const full = s.seatsFilled + 1 >= s.seatsNeeded;
     const confirmNow = m.status === 'pending' && full && slots.length >= 4 && slots.every((x) => x.status === 'accepted');
+    const teams = teamsForSlots(slots) ?? {};
     tx.update(mRef, {
       slots,
       playerUids,
       minCategory: Math.min(...cats),
       maxCategory: Math.max(...cats),
+      ...teams,
       ...(confirmNow ? { status: 'confirmed' } : {}),
       updatedAt: now(),
     });
     if (!s.auto) {
-      tx.update(bRef, { playerUids, ...(confirmNow ? { status: 'confirmed', holdExpiresAt: '' } : {}), updatedAt: now() });
-    } else if (confirmNow) {
-      // Recién ahora se reserva la cancha (la transacción ya comprobó que sigue libre).
+      tx.update(bRef, { playerUids, ...teams, ...(confirmNow ? { status: 'confirmed', holdExpiresAt: '' } : {}), updatedAt: now() });
+    } else if (!confirmNow) {
+      // Turno libre automático (decisión 4.4): con 2 confirmados se retiene la cancha, como mucho hasta 3 h antes.
+      const holdUntil = new Date(slotStart(s.date, s.startMinute).getTime() - AUTO_HOLD_UNTIL_BEFORE_MIN * 60000);
+      if (autoHeld) {
+        tx.update(bRef, { playerUids, ...teams, updatedAt: now() });
+      } else if (s.seatsFilled + 1 >= AUTO_HOLD_FROM_SEATS && nowDate < holdUntil) {
+        tx.set(bRef, {
+          id: s.bookingId, clubId: p.clubId, courtId: s.courtId, courtName: s.courtName, date: s.date,
+          startMinute: s.startMinute, endMinute: s.endMinute, type: 'matched', status: 'held', createdByUid: AUTO_FILL_UID,
+          playerUids, guestName: 'Armado por la app', totalPrice: s.pricePerPlayer * 4, paidAmount: 0, paymentMethod: 'split',
+          paymentStatus: 'pending', holdExpiresAt: holdUntil.toISOString(), discountPct: s.discountPct ?? 0, createdAt: now(), updatedAt: now(),
+        });
+      }
+    } else {
+      // Recién ahora se confirma la cancha (la transacción ya comprobó que sigue libre).
       const booking: Booking & Record<string, unknown> = {
         id: s.bookingId,
         clubId: p.clubId,
@@ -552,6 +644,7 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
         status: 'confirmed',
         createdByUid: AUTO_FILL_UID,
         playerUids,
+        ...teams,
         guestName: 'Armado por la app',
         totalPrice: s.pricePerPlayer * 4,
         paidAmount: 0,
@@ -614,11 +707,12 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
     recipientUid: p.uid,
     eventType: 'match_confirmed',
     title: `¡Adentro! · ${when(s.date, s.startMinute)}`,
-    body: `Jugás ${when(s.date, s.startMinute)} hs en ${s.courtName}, ${name}. Tu parte: $${s.pricePerPlayer}.`,
+    body: `Jugás ${when(s.date, s.startMinute)} hs en ${s.courtName}, ${name}. Tu parte: $${s.pricePerPlayer + (guest?.surcharge ?? 0)}.`,
   });
+  if (guest) await guestClientRecord(p.clubId, p.uid, guest);
   const others = m.slots.map((x) => x.uid).filter((u) => u !== p.uid);
   await notifyPlayers(p.clubId, others, full
-    ? { title: `Ya son ${m.slots.length} · ${when(s.date, s.startMinute)}`, body: `Entra ${first} (${formatCategory(member.category)}). ${s.courtName}, ${name}.`, eventType: 'match_confirmed' }
+    ? { title: `Ya son ${m.slots.length} · ${when(s.date, s.startMinute)}`, body: `Entra ${first} (${formatCategory(member.category)}${guest ? ', invitado' : ''}). ${s.courtName}, ${name}.`, eventType: 'match_confirmed' }
     : { title: `Entró ${first} · ${when(s.date, s.startMinute)}`, body: `Falta ${s.seatsNeeded - s.seatsFilled - 1} más. Seguimos buscando.` });
   if (full) await expireOpenInvites(p.clubId, p.searchId);
   return 'won';

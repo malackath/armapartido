@@ -1,6 +1,7 @@
 import type { User } from 'firebase/auth';
 import {
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
@@ -32,6 +33,11 @@ import {
   sanitizeId, MAX_CATEGORY } from '../lib/padelUtils';
 import { sendServerFcmPush, showServiceWorkerNotification } from '../lib/fcm';
 import type {
+  Standby,
+  MatchResult,
+  GuestPass,
+  ClubGuestsConfig,
+  CategorySuggestion,
   AutoFillReport,
   AvailabilityWindow,
   Booking,
@@ -1101,9 +1107,15 @@ const callArmado = async <T,>(name: string, data: Record<string, unknown>, path:
     const res = await httpsCallable<Record<string, unknown>, T>(functions, name)(data);
     return res.data;
   } catch (err) {
+    // Reglas de negocio que el servidor explica en criollo (ej. dos pedidos que se pisan): se muestran tal cual.
+    const code = (err as { code?: string })?.code ?? '';
+    if (['functions/already-exists', 'functions/failed-precondition', 'functions/invalid-argument', 'functions/not-found', 'functions/permission-denied'].includes(code)) throw new UserFacingError((err as Error).message.replace(/\s*\[\d+\]$/, ''));
     handleFirestoreError(err, OperationType.WRITE, path);
   }
 };
+
+/** Error con un mensaje pensado para mostrarle al jugador. */
+export class UserFacingError extends Error {}
 
 export async function createMatchRequestAndTryMatch(params: {
   club: Club;
@@ -2331,4 +2343,110 @@ export function subscribeRecoveries(clubId: string, onData: (r: RecoveryRecord[]
     (snap) => onData(snap.docs.map((d) => d.data() as RecoveryRecord)),
     (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/recoveries`)
   );
+}
+
+// -----------------------------------------------------------------------------
+// Suplente de guardia (etapa 4 del algoritmo, 17/11)
+// -----------------------------------------------------------------------------
+
+export function subscribeMyStandbys(clubId: string, uid: string, cb: (items: Standby[]) => void): () => void {
+  return onSnapshot(
+    query(collection(db, 'clubs', clubId, 'standbys'), where('uid', '==', uid)),
+    (snap) => cb(snap.docs.map((d) => d.data() as Standby)),
+    (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/standbys`)
+  );
+}
+
+export async function offerStandby(p: { clubId: string; date: string; startMinute: number; endMinute: number }): Promise<Standby> {
+  const r = await callArmado<{ standby: Standby }>('suplenteOfrecer', p, `clubs/${p.clubId}/standbys`);
+  return r.standby;
+}
+
+export async function cancelStandby(p: { clubId: string; id: string }): Promise<void> {
+  await callArmado('suplenteCancelar', p, `clubs/${p.clubId}/standbys`);
+}
+
+/** "Prefiero no jugar con" (etapa 5): privado, en el perfil del jugador (solo él lo lee). */
+export async function updateAvoidUids(uid: string, avoidUids: string[]) {
+  const path = `users/${uid}`;
+  try {
+    await setDoc(doc(db, 'users', uid), { avoidUids: avoidUids.slice(0, 20), updatedAt: serverTimestamp() }, { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+/** Resultados (etapa 6a): los del jugador en el club (solo los 4 que jugaron y el club los leen). */
+export function subscribeMyResults(clubId: string, uid: string, cb: (items: MatchResult[]) => void): () => void {
+  return onSnapshot(
+    query(collection(db, 'clubs', clubId, 'gameResults'), where('clubId', '==', clubId), where('playerUids', 'array-contains', uid)),
+    (snap) => cb(snap.docs.map((d) => d.data() as MatchResult)),
+    (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/gameResults`)
+  );
+}
+
+export async function reportMatchResult(p: { clubId: string; bookingId: string; winner: 'A' | 'B'; score: string; partnerUid?: string }): Promise<void> {
+  await callArmado('resultadoCargar', p, `clubs/${p.clubId}/gameResults`);
+}
+
+export async function confirmMatchResult(p: { clubId: string; bookingId: string; agree: boolean }): Promise<void> {
+  await callArmado('resultadoConfirmar', p, `clubs/${p.clubId}/gameResults`);
+}
+
+/** Sugerencias de categoría para el club (solo dueño y encargado las leen). */
+export function subscribeCategorySuggestions(clubId: string, cb: (items: CategorySuggestion[]) => void): () => void {
+  return onSnapshot(
+    query(collection(db, 'clubs', clubId, 'categorySuggestions'), where('clubId', '==', clubId)),
+    (snap) => cb(snap.docs.map((d) => d.data() as CategorySuggestion)),
+    (err) => handleFirestoreError(err, OperationType.LIST, `clubs/${clubId}/categorySuggestions`)
+  );
+}
+
+export async function decideCategorySuggestion(p: { clubId: string; uid: string; accept: boolean }): Promise<void> {
+  await callArmado('categoriaDecidir', p, `clubs/${p.clubId}/categorySuggestions`);
+}
+
+// ---------- Modo invitados (etapa 6b) ----------
+
+/** Invitaciones del jugador como invitado en otros clubes (solo las suyas; se filtra en el celular). */
+export function subscribeMyGuestInvites(uid: string, cb: (items: FillInvite[]) => void): () => void {
+  return onSnapshot(
+    query(collectionGroup(db, 'fillInvites'), where('uid', '==', uid)),
+    (snap) => cb(snap.docs.map((d) => d.data() as FillInvite).filter((i) => !!i.guest && i.status === 'sent')),
+    () => cb([])
+  );
+}
+
+export async function claimGuestSeat(clubId: string, searchId: string) {
+  const res = await callArmado<{ result: 'won' | 'late' | 'closed' | 'busy' }>('faltaUnoMeSumo', { clubId, searchId }, `clubs/${clubId}/fillSearches/${searchId}`);
+  return res.result;
+}
+
+export async function declineGuestInvite(clubId: string, searchId: string) {
+  await callArmado('faltaUnoNoPuedo', { clubId, searchId }, `clubs/${clubId}/fillSearches/${searchId}`);
+}
+
+export function subscribeMyGuestPasses(clubId: string, uid: string, cb: (items: GuestPass[]) => void): () => void {
+  return onSnapshot(
+    query(collection(db, 'clubs', clubId, 'guestPasses'), where('clubId', '==', clubId), where('invitedBy', '==', uid)),
+    (snap) => cb(snap.docs.map((d) => d.data() as GuestPass)),
+    () => cb([])
+  );
+}
+
+export async function authorizeGuestFriend(clubId: string, friendUid: string) {
+  await callArmado('invitadoAutorizar', { clubId, friendUid }, `clubs/${clubId}/guestPasses/${friendUid}`);
+}
+
+export async function removeGuestFriend(clubId: string, friendUid: string) {
+  await callArmado('invitadoQuitar', { clubId, friendUid }, `clubs/${clubId}/guestPasses/${friendUid}`);
+}
+
+export async function saveClubGuests(clubId: string, guests: ClubGuestsConfig) {
+  const path = `clubs/${clubId}`;
+  try {
+    await updateDoc(doc(db, 'clubs', clubId), { guests, updatedAt: serverTimestamp() });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
 }

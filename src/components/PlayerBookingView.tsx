@@ -44,7 +44,6 @@ import {
   joinCourtWaitlist,
   leaveCourtWaitlist,
 } from '../services/firestoreService';
-import { ClubRankingSection } from './ClubRankingSection';
 import { MercadoPagoModal } from './MercadoPagoModal';
 import { depositFor } from '../lib/caja';
 import { BrandIcon } from './BrandIcon';
@@ -682,19 +681,7 @@ export const PlayerBookingView: React.FC<PlayerBookingViewProps> = ({
           </div>
         </div>
 
-        <ClubRankingSection
-          club={club}
-          memberships={memberships}
-          bookings={bookings}
-          proposedMatches={proposedMatches}
-          tournaments={tournaments}
-          playerMatchResults={playerMatchResults}
-          clubMatchResults={clubMatchResults}
-          playerLevelsMap={playerLevelsMap}
-          userProfile={userProfile}
-          onToast={onToast}
-          compactHeader
-        />
+        {/* Ranking del prototipo escondido (etapa 6a, decisión 4.3: sin ranking ni puntos). */}
       </div>
 
       {/* Instant Booking Confirmation Sheet */}

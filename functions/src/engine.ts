@@ -1,13 +1,16 @@
 import type { Booking, Club, ClubMembership, Court, MatchRequest, ProposedMatch, ProposedSlot } from '../../src/types/padel';
 import {
+  addDaysISO,
+  busyUidsAt,
   calculateSlotPrice,
-  findMatchForClub,
   formatDateFriendly,
   formatMinutes,
   getTodayISO,
   type MatchCandidateResult,
 } from '../../src/lib/padelUtils';
-import { db, makeId, now } from './admin';
+import { bestMatch, historyFromBookings, type Affinity, type PlannedMatch } from '../../src/lib/planificador';
+import { FieldValue } from 'firebase-admin/firestore';
+import { db, isFakePlayer, makeId, now } from './admin';
 import { notify } from './notify';
 import { replaceInPendingMatch } from './fill';
 
@@ -20,17 +23,23 @@ export interface ClubContext {
   bookings: Booking[];
   requests: MatchRequest[];
   memberships: ClubMembership[];
+  /** Partidos propuestos pendientes desde hoy (sus jugadores están ocupados a esa hora). */
+  pendingMatches: ProposedMatch[];
+  /** Amigos, "prefiero no" (privado) y horas que rechaza de cada jugador con pedido. */
+  affinity: Map<string, Affinity>;
 }
 
 /** Lee solo lo que el armado necesita: reservas desde hoy, pedidos en espera y las fichas de esos jugadores. */
 export async function loadClubContext(clubId: string): Promise<ClubContext | null> {
   const clubRef = db.doc(`clubs/${clubId}`);
   const today = getTodayISO();
-  const [clubSnap, courtsSnap, bookingsSnap, reqSnap] = await Promise.all([
+  const [clubSnap, courtsSnap, bookingsSnap, reqSnap, pendingSnap] = await Promise.all([
     clubRef.get(),
     clubRef.collection('courts').get(),
-    clubRef.collection('bookings').where('date', '>=', today).get(),
+    // Desde 4 semanas atrás: lo ya jugado es la historia del planificador (quién lleva más sin jugar, con quién ya jugó).
+    clubRef.collection('bookings').where('date', '>=', addDaysISO(today, -28)).get(),
     clubRef.collection('matchRequests').where('status', '==', 'waiting').get(),
+    clubRef.collection('proposedMatches').where('status', '==', 'pending').get(),
   ]);
   if (!clubSnap.exists) return null;
   const requests = reqSnap.docs.map((d) => ({ ...(d.data() as MatchRequest), id: d.id }));
@@ -40,9 +49,22 @@ export async function loadClubContext(clubId: string): Promise<ClubContext | nul
     if (r.partnerUid) uids.add(r.partnerUid);
   }
   const memberships: ClubMembership[] = [];
+  const affinity = new Map<string, Affinity>();
   if (uids.size > 0) {
-    const snaps = await db.getAll(...[...uids].map((u) => clubRef.collection('memberships').doc(u)));
+    const list = [...uids];
+    const [snaps, userSnaps, friendSnaps] = await Promise.all([
+      db.getAll(...list.map((u) => clubRef.collection('memberships').doc(u))),
+      db.getAll(...list.map((u) => db.doc(`users/${u}`))),
+      Promise.all(list.map((u) => db.collection(`users/${u}/friends`).get())),
+    ]);
     for (const s of snaps) if (s.exists) memberships.push(s.data() as ClubMembership);
+    list.forEach((u, i) => {
+      affinity.set(u, {
+        friends: new Set(friendSnaps[i].docs.map((d) => d.id)),
+        avoid: new Set((userSnaps[i].get('avoidUids') as string[] | undefined) ?? []),
+        declineHours: (userSnaps[i].get('declineHours') as Record<string, number> | undefined) ?? {},
+      });
+    });
   }
   return {
     club: { ...(clubSnap.data() as Club), id: clubId },
@@ -50,13 +72,17 @@ export async function loadClubContext(clubId: string): Promise<ClubContext | nul
     bookings: bookingsSnap.docs.map((d) => ({ ...(d.data() as Booking), id: d.id })),
     requests,
     memberships,
+    affinity,
+    pendingMatches: pendingSnap.docs
+      .map((d) => ({ ...(d.data() as ProposedMatch), id: d.id }))
+      .filter((m) => m.date >= today),
   };
 }
 
 /**
  * Busca un partido de 4 y, si lo encuentra, retiene la cancha y manda la propuesta.
- * Es la misma regla que corría en el celular (findMatchForClub), ahora en el servidor.
- * El orden entre candidatos compatibles es solo por categoría (no por el nivel interno con decimales).
+ * Desde la etapa 3 (17/11) usa el planificador (src/lib/planificador.ts): elige el mejor grupo
+ * (el que lleva más días sin jugar primero, sin repetir caras, sin perder partidos) y sugiere los equipos.
  */
 export async function sweepClub(
   clubId: string,
@@ -66,7 +92,13 @@ export async function sweepClub(
   for (let attempt = 0; attempt < 3; attempt++) {
     const ctx = await loadClubContext(clubId);
     if (!ctx) return null;
-    const candidate = findMatchForClub({ ...ctx, targetDate });
+    const today = getTodayISO();
+    const candidate = bestMatch({
+      ...ctx,
+      bookings: ctx.bookings.filter((b) => b.date >= today),
+      history: historyFromBookings(ctx.bookings, today),
+      targetDate,
+    });
     if (!candidate) return null;
     try {
       const proposed = await commitCandidate(ctx.club, candidate, triggeredByUid);
@@ -80,7 +112,7 @@ export async function sweepClub(
   return null;
 }
 
-async function commitCandidate(club: Club, c: MatchCandidateResult, triggeredByUid: string): Promise<ProposedMatch> {
+async function commitCandidate(club: Club, c: MatchCandidateResult | PlannedMatch, triggeredByUid: string): Promise<ProposedMatch> {
   const clubRef = db.doc(`clubs/${club.id}`);
   const bookingId = makeId('bk');
   const matchId = makeId('pm');
@@ -103,6 +135,8 @@ async function commitCandidate(club: Club, c: MatchCandidateResult, triggeredByU
     expiresAt: c.expiresAt,
     status: 'pending',
     createdByUid: triggeredByUid,
+    // Equipos sugeridos (Firestore no guarda listas dentro de listas: van en dos campos).
+    ...('teams' in c ? { teamA: c.teams[0], teamB: c.teams[1] } : {}),
   };
 
   await db.runTransaction(async (tx) => {
@@ -118,6 +152,20 @@ async function commitCandidate(club: Club, c: MatchCandidateResult, triggeredByU
       return (b.status === 'confirmed' || b.status === 'held') && b.startMinute < c.endMinute && b.endMinute > c.startMinute;
     });
     if (busy) throw new Conflict('court taken');
+
+    // Ninguno de los 4 puede tener otra reserva o partido propuesto que se pise (en cualquier cancha).
+    const [sameDay, pendingSameDay] = await Promise.all([
+      tx.get(clubRef.collection('bookings').where('date', '==', c.date)),
+      tx.get(clubRef.collection('proposedMatches').where('date', '==', c.date)),
+    ]);
+    const taken = busyUidsAt(
+      sameDay.docs.map((d) => ({ ...(d.data() as Booking), id: d.id })),
+      pendingSameDay.docs.map((d) => ({ ...(d.data() as ProposedMatch), id: d.id })),
+      c.date,
+      c.startMinute,
+      c.endMinute
+    );
+    if (proposed.playerUids.some((u) => taken.has(u))) throw new Conflict('player busy');
 
     tx.set(clubRef.collection('bookings').doc(bookingId), {
       id: bookingId,
@@ -137,6 +185,7 @@ async function commitCandidate(club: Club, c: MatchCandidateResult, triggeredByU
       paymentMethod: 'split',
       paymentStatus: 'pending',
       holdExpiresAt: c.expiresAt,
+      ...(proposed.teamA ? { teamA: proposed.teamA, teamB: proposed.teamB } : {}),
       createdAt: now(),
       updatedAt: now(),
     });
@@ -210,6 +259,12 @@ export async function respondToMatch(params: {
     return outcome.result;
   }
 
+  // Aprende: el que rechaza una propuesta a esa hora baja su prioridad a esa hora (etapa 5).
+  const pm = (await matchRef.get()).data() as ProposedMatch | undefined;
+  if (pm && !isFakePlayer(slotUid)) {
+    const h = String(Math.floor(pm.startMinute / 60));
+    await db.doc(`users/${slotUid}`).set({ declineHours: { [h]: FieldValue.increment(1) } }, { merge: true }).catch(() => undefined);
+  }
   // Rechazo con "falta uno": sale solo el que rechazó (y su pareja fija) y se busca reemplazo.
   if (await replaceInPendingMatch({ clubId, matchId, leavingUids: [slotUid], kind: 'declined' })) return 'replaced_or_cancelled';
   // Si el club lo tiene apagado (o quedarían menos de 2): como antes, se libera la cancha.

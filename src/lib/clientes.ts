@@ -488,7 +488,7 @@ export interface ClubNumbers {
   saldoAFavor: number;
 }
 
-const emptyOrigins = (): Record<ClientOrigin, number> => ({ app: 0, mostrador: 0, telefono: 0, migracion: 0, falta_uno: 0, torneo: 0 });
+const emptyOrigins = (): Record<ClientOrigin, number> => ({ app: 0, mostrador: 0, telefono: 0, migracion: 0, falta_uno: 0, torneo: 0, invitado: 0 });
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 
 /** Claves de los que jugaron cada turno (cuenta de la app o ficha) para contar clientes activos. */

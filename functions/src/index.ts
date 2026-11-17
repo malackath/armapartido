@@ -5,10 +5,13 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { linkOrCreateClient } from './clientes';
 import type { MatchRequest, Modality } from '../../src/types/padel';
-import { formatCategory, getTodayISO } from '../../src/lib/padelUtils';
+import { formatCategory, formatDateFriendly, formatMinutes, getDayName, getDayOfWeekFromISO, getTodayISO, requestsOverlap } from '../../src/lib/padelUtils';
 import { db, isFakePlayer, makeId, now } from './admin';
 import { respondToMatch, sweepClub } from './engine';
 import { runClock } from './clock';
+import { cancelStandby, offerStandby } from './guardia';
+import { confirmResult, decideSuggestion, reportResult } from './resultados';
+import { authorizeGuest, removeGuestPass } from './invitados';
 import { runAutoFillNow } from './autofill';
 import { notify } from './notify';
 import { openFreeSlot, previewFreeSlot, simulateAnswers } from './hueco';
@@ -68,6 +71,30 @@ export const armadoCrearPedido = onCall(async (req) => {
   const creatorName = (str(profile.get('displayName'), 80) || str(member.get('displayName'), 80) || 'Jugador');
   const category = Number(profile.get('category') ?? member.get('category'));
   const autoAccept = !partnerUid || isFakePlayer(partnerUid);
+  // Un jugador no puede tener dos pedidos que se pisen (ni él ni su pareja fija).
+  const asked = { requestType, date: requestType === 'priority' ? date : '', dayOfWeek: requestType === 'priority' ? getDayOfWeekFromISO(date) : dayOfWeek, startMinute, endMinute } as const;
+  const people = [uid, partnerUid].filter((u) => u && !isFakePlayer(u));
+  const reqsCol = db.collection(`clubs/${clubId}/matchRequests`);
+  const open = (
+    await Promise.all(
+      people.flatMap((u) => [
+        reqsCol.where('creatorUid', '==', u).get(),
+        reqsCol.where('partnerUid', '==', u).get(),
+      ])
+    )
+  )
+    .flatMap((q) => q.docs.map((x) => x.data() as MatchRequest))
+    .filter((r) => r.status === 'waiting' || r.status === 'proposed');
+  const clash = open.find((r) => (r.requestType === 'weekly' || r.date >= getTodayISO()) && requestsOverlap(asked, r));
+  if (clash) {
+    const who = clash.creatorUid === uid || clash.partnerUid === uid ? 'Ya tenés' : `${partnerName || 'Tu pareja'} ya tiene`;
+    const when = clash.requestType === 'priority' ? formatDateFriendly(clash.date, false) : `cada ${getDayName(clash.dayOfWeek).toLowerCase()}`;
+    throw new HttpsError(
+      'already-exists',
+      `${who} un pedido ${when} de ${formatMinutes(clash.startMinute)} a ${formatMinutes(clash.endMinute)} que se pisa con este. Cambiá el horario o cancelá el otro.`
+    );
+  }
+
   const reqId = makeId('mreq');
   const newReq: MatchRequest = {
     id: reqId,
@@ -192,9 +219,19 @@ export const faltaUnoMeSumo = onCall(async (req) => {
   const uid = requireUid(req);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const clubId = str(d.clubId);
-  await requireMember(clubId, uid);
-  return { result: await claimSeat({ clubId, searchId: str(d.searchId), uid }) };
+  const searchId = str(d.searchId);
+  await requireMemberOrGuest(clubId, uid, searchId);
+  return { result: await claimSeat({ clubId, searchId, uid }) };
 });
+
+/** Socio del club, o invitado (etapa 6b) con una invitación de invitado para esa búsqueda. */
+async function requireMemberOrGuest(clubId: string, uid: string, searchId: string) {
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(clubId) || !/^[a-zA-Z0-9_-]{1,128}$/.test(searchId)) throw new HttpsError('invalid-argument', 'Datos inválidos.');
+  const m = await db.doc(`clubs/${clubId}/memberships/${uid}`).get();
+  if (m.exists) return;
+  const inv = await db.doc(`clubs/${clubId}/fillInvites/${searchId}_${uid}`).get();
+  if (!inv.get('guest')) throw new HttpsError('permission-denied', 'No sos jugador de este club.');
+}
 
 /** Página pública del link de "Falta uno": no pide cuenta y no devuelve datos de los jugadores. */
 export const faltaUnoLink = onCall(async (req) => {
@@ -325,12 +362,34 @@ export const clubPedidoResolver = onCall(async (req) => {
   return resolveJoin({ clubId, uid: target, action, byUid: uid, byName: String(member.get('displayName') ?? 'El club') });
 });
 
+/** Suplente de guardia (etapa 4): "si se baja alguien en ese horario, contá conmigo". */
+export const suplenteOfrecer = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  const date = str(d.date, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpsError('invalid-argument', 'Fecha inválida.');
+  const startMinute = int(d.startMinute, 0, 1440, 'hora de inicio');
+  const endMinute = int(d.endMinute, 0, 1440, 'hora de fin');
+  return { standby: await offerStandby({ clubId, uid, date, startMinute, endMinute }) };
+});
+
+export const suplenteCancelar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  await cancelStandby({ clubId, uid, id: str(d.id) });
+  return { result: 'ok' };
+});
+
 /** "No puedo" en una invitación. */
 export const faltaUnoNoPuedo = onCall(async (req) => {
   const uid = requireUid(req);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const clubId = str(d.clubId);
-  await requireMember(clubId, uid);
+  await requireMemberOrGuest(clubId, uid, str(d.searchId));
   await declineInvite({ clubId, searchId: str(d.searchId), uid });
   return { result: 'ok' };
 });
@@ -367,4 +426,56 @@ export const faltaUnoDejarDeBuscar = onCall(async (req) => {
 export const clientesAlSumarse = process.env.SIN_DISPARADORES === '1' ? undefined : onDocumentCreated('clubs/{clubId}/memberships/{uid}', async (event) => {
   const res = await linkOrCreateClient(event.params.clubId, event.params.uid);
   logger.info('clientes', { clubId: event.params.clubId, uid: event.params.uid, ...res });
+});
+
+/** Resultados (etapa 6a): uno de los 4 carga, uno de la otra pareja confirma en 48 h. */
+export const resultadoCargar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  const bookingId = str(d.bookingId);
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(bookingId)) throw new HttpsError('invalid-argument', 'Partido inválido.');
+  if (d.winner !== 'A' && d.winner !== 'B') throw new HttpsError('invalid-argument', 'Elegí quién ganó.');
+  const partnerUid = str(d.partnerUid) || undefined;
+  return { result: await reportResult({ clubId, uid, bookingId, winner: d.winner, score: str(d.score, 40), partnerUid }) };
+});
+
+export const resultadoConfirmar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  return { status: await confirmResult({ clubId, uid, bookingId: str(d.bookingId), agree: d.agree === true }) };
+});
+
+/** El club (dueño o encargado) acepta o descarta una sugerencia de categoría. */
+export const categoriaDecidir = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireStaff(clubId, uid);
+  await decideSuggestion({ clubId, byUid: uid, uid: str(d.uid), accept: d.accept === true });
+  return { ok: true };
+});
+
+/** Modo invitados (etapa 6b): un socio autoriza a un amigo suyo a jugar como invitado en el club. */
+export const invitadoAutorizar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  const friendUid = str(d.friendUid);
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(friendUid)) throw new HttpsError('invalid-argument', 'Jugador inválido.');
+  return { pass: await authorizeGuest({ clubId, byUid: uid, friendUid }) };
+});
+
+export const invitadoQuitar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  const member = await requireMember(clubId, uid);
+  const role = member.get('role');
+  await removeGuestPass({ clubId, byUid: uid, friendUid: str(d.friendUid), isStaff: role === 'admin' || role === 'staff' });
+  return { ok: true };
 });

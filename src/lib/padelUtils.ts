@@ -142,6 +142,50 @@ export function sanitizeId(raw: string): string {
     .slice(0, 64) || 'item';
 }
 
+/**
+ * Quiénes ya tienen algo en ese día y horario (se pisa aunque sea un minuto).
+ * Cuenta las reservas vivas (retenidas o confirmadas) con sus jugadores, el que reservó
+ * por su cuenta (tipo 'direct') y los partidos propuestos pendientes (los del llenado
+ * automático de turnos libres todavía no tienen reserva).
+ * El encargado que carga una reserva del mostrador NO queda ocupado por eso.
+ */
+export function busyUidsAt(
+  bookings: Booking[],
+  pendingMatches: ProposedMatch[] | undefined,
+  dateISO: string,
+  startMinute: number,
+  endMinute: number
+): Set<string> {
+  const busy = new Set<string>();
+  const overlaps = (s: number, e: number) => s < endMinute && e > startMinute;
+  for (const b of bookings) {
+    if (b.date !== dateISO || (b.status !== 'confirmed' && b.status !== 'held')) continue;
+    if (!overlaps(b.startMinute, b.endMinute)) continue;
+    for (const u of b.playerUids ?? []) if (u) busy.add(u);
+    if (b.type === 'direct' && b.createdByUid) busy.add(b.createdByUid);
+  }
+  for (const m of pendingMatches ?? []) {
+    if (m.date !== dateISO || m.status !== 'pending') continue;
+    if (!overlaps(m.startMinute, m.endMinute)) continue;
+    for (const u of m.playerUids ?? []) if (u) busy.add(u);
+  }
+  return busy;
+}
+
+/** ¿Dos pedidos del mismo jugador se pisan? (mismo día puntual, o mismo día de la semana si son semanales) */
+export function requestsOverlap(
+  a: Pick<MatchRequest, 'requestType' | 'date' | 'dayOfWeek' | 'startMinute' | 'endMinute'>,
+  b: Pick<MatchRequest, 'requestType' | 'date' | 'dayOfWeek' | 'startMinute' | 'endMinute'>
+): boolean {
+  if (!(a.startMinute < b.endMinute && a.endMinute > b.startMinute)) return false;
+  if (a.requestType === 'priority' && b.requestType === 'priority') return a.date === b.date;
+  if (a.requestType === 'weekly' && b.requestType === 'weekly') return a.dayOfWeek === b.dayOfWeek;
+  // Un semanal y un puntual: se pisan si el puntual cae ese día de la semana.
+  const punctual = a.requestType === 'priority' ? a : b;
+  const weekly = a.requestType === 'priority' ? b : a;
+  return getDayOfWeekFromISO(punctual.date) === weekly.dayOfWeek;
+}
+
 export interface MatchCandidateResult {
   court: Court;
   date: string;
@@ -171,8 +215,10 @@ export function findMatchForClub(params: {
   memberships: ClubMembership[];
   targetDate?: string;
   playerLevels?: Map<string, number>;
+  /** Partidos propuestos pendientes: sus jugadores están ocupados a esa hora. */
+  pendingMatches?: ProposedMatch[];
 }): MatchCandidateResult | null {
-  const { club, courts, bookings, requests, memberships, targetDate, playerLevels } = params;
+  const { club, courts, bookings, requests, memberships, targetDate, playerLevels, pendingMatches } = params;
   const activeCourts = courts.filter((c) => c.active);
   if (activeCourts.length === 0) return null;
 
@@ -228,9 +274,16 @@ export function findMatchForClub(params: {
       });
       if (!freeCourt) continue;
 
+      // Nadie en dos lugares a la vez: fuera los que ya juegan (o tienen partido propuesto) a esa hora.
+      const busy = busyUidsAt(bookings, pendingMatches, dateISO, slot.startMinute, slot.endMinute);
+
       // Requests covering the entire slot
       const covering = reqsForDate.filter(
-        (r) => r.startMinute <= slot.startMinute && r.endMinute >= slot.endMinute
+        (r) =>
+          r.startMinute <= slot.startMinute &&
+          r.endMinute >= slot.endMinute &&
+          !busy.has(r.creatorUid) &&
+          !(r.partnerUid && busy.has(r.partnerUid))
       );
 
       for (const anchor of covering) {
