@@ -116,7 +116,7 @@ export const JoinRequestsCard: React.FC<{ club: Club; requests: JoinRequest[]; o
               <PlayerAvatar name={r.displayName} photoUrl={r.photoUrl} size={44} />
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2 font-semibold text-ink">
-                  {r.displayName} <CategoryBadge category={r.category} size={22} />
+                  {r.displayName} <CategoryBadge category={r.category} size={22} showSuffix={false} />
                 </p>
                 <p className="text-[13px] break-all text-muted">
                   {r.email} · {r.phone ? formatPhone(r.phone) : 'sin celular'} · {whenLabel(r)}
