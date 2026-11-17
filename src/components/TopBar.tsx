@@ -4,6 +4,7 @@ import type { Club, PerspectiveRole, UserProfile } from '../types/padel';
 import { formatCategory } from '../lib/padelUtils';
 import { InstallGuideModal, PWAInstallButton } from './PWAInstallButton';
 import { BrandIcon, type BrandIconName } from './BrandIcon';
+import { marcaClub } from '../lib/marcaClub';
 import { PAGE_CONTAINER } from '../lib/layout';
 
 export type ActiveTab =
@@ -105,14 +106,26 @@ export const TopBar: React.FC<TopBarProps> = ({
   if (canAccessAdmin) managementItems.push({ id: 'admin', label: 'Admin del club', icon: <Shield className="h-4 w-4" /> });
   if (canAccessPlatform) managementItems.push({ id: 'platform', label: 'Plataforma', icon: <LayoutGrid className="h-4 w-4" /> });
 
+  const marca = marcaClub();
   return (
     <>
       <InstallGuideModal open={installGuideOpen} onClose={() => setInstallGuideOpen(false)} />
       <header className="sticky top-0 z-30 bg-brand pt-safe text-white shadow-[0_2px_10px_rgba(23,33,35,.18)]">
         <div className={`${PAGE_CONTAINER} flex h-16 items-center justify-between gap-6`}>
           <button type="button" onClick={() => go('home')} className="min-w-0 cursor-pointer text-left" aria-label="Ir al inicio">
-            <img src="/brand/logo-horizontal-sobre-oscuro.svg" alt="Armá Partido" className="h-7 w-auto" />
-            {activeClub && (
+            {marca?.logo ? (
+              // Marca completa: logo y nombre del club; "con Armá Partido" chico abajo.
+              <span className="flex items-center gap-2.5">
+                <img src={marca.logo} alt="" className="h-11 w-11 shrink-0 object-contain" />
+                <span className="min-w-0">
+                  <span className="block truncate font-display text-[17px] font-bold leading-tight text-white">{marca.nombre}</span>
+                  <span className="block truncate text-[11px] leading-tight text-white/60">con Armá Partido</span>
+                </span>
+              </span>
+            ) : (
+              <img src="/brand/logo-horizontal-sobre-oscuro.svg" alt="Armá Partido" className="h-7 w-auto" />
+            )}
+            {activeClub && !marca?.logo && (
               <span className="mt-0.5 flex items-center gap-1 truncate text-[13px] text-white/75">
                 {activeClub.name}
                 <BrandIcon name="ubicacion" size={13} />

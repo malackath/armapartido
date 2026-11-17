@@ -1,0 +1,16 @@
+{
+  "slug": "padelclub",
+  "nombre": "Padel Club",
+  "nombreCorto": "Padel Club",
+  "logo": "/clubes/padelclub/logo.png",
+  "colores": {
+    "principal": "#0D162A",
+    "acento": "#C8F400",
+    "secundario": "#1EA5E6"
+  },
+  "reemplazos": {
+    "Los Jacarandás Pádel": "Padel Club",
+    "Jacarandás": "Padel Club"
+  },
+  "prospecto": true
+}

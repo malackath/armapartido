@@ -291,7 +291,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 const search = it.match ? searchForMatch(fillSearches, it.match.id) : undefined;
                 const badge = fillBadge(search);
                 // El más cercano en el verde de la marca, los siguientes cada vez más claros (pedido de Ber).
-                const tone = ['bg-brand text-white', 'bg-[#3d7f87] text-white', 'bg-[#a9cfd3] text-ink'][i];
+                const tone = ['bg-brand text-white', 'bg-brand-2 text-white', 'bg-brand-3 text-ink'][i];
                 return (
                   <button
                     key={it.key}

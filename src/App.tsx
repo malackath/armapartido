@@ -63,6 +63,7 @@ import { TopBar, type ActiveTab } from './components/TopBar';
 import { TournamentsView } from './components/TournamentsView';
 import { PAGE_CONTAINER } from './lib/layout';
 import { clubAppKey, currentClubSlug, shortClubName } from './lib/appDelClub';
+import { clubConMarca, conTextosDeMarca, marcaClub } from './lib/marcaClub';
 
 const PLATFORM_OWNER_EMAILS = (import.meta.env.VITE_PLATFORM_OWNER_EMAILS || '')
   .split(',')
@@ -197,7 +198,8 @@ export default function App() {
   // Subscribe to active clubs once authenticated
   useEffect(() => {
     if (!authUser || !userProfile) return;
-    const unsub = subscribeClubs((nextClubs) => {
+    const unsub = subscribeClubs((rawClubs) => {
+      const nextClubs = clubConMarca(rawClubs); // marca completa del club (nombre y dirección), si la hay
       setClubs(nextClubs);
       setActiveClubId((prev) => {
         if (prev && nextClubs.some((c) => c.id === prev)) return prev;
@@ -279,6 +281,7 @@ export default function App() {
 
   // Nombre del club en la pestaña y debajo del ícono en el iPhone (el Android lo toma del manifiesto).
   useEffect(() => {
+    if (marcaClub()) return; // con marca completa el título y el ícono ya los puso marcaClub.ts
     if (!appClubSlug || !activeClub || clubAppKey(activeClub) !== appClubSlug) return;
     let alive = true;
     const apply = (short: string) => {
@@ -353,7 +356,7 @@ export default function App() {
         onProposedMatches: setProposedMatches,
         onFillSearches: setFillSearches,
         onMyFillInvites: setMyFillInvites,
-        onTournaments: setTournaments,
+        onTournaments: (list) => setTournaments(marcaClub() ? list.map((t) => ({ ...t, name: conTextosDeMarca(t.name) })) : list),
         onPayments: setPayments,
         onNotifications: (list) => {
           if (!notifInitializedRef.current) {

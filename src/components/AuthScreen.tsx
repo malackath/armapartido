@@ -3,6 +3,7 @@ import { DEMO_MODE, db, signInWithEmail, signInWithGoogle, signUpWithEmail } fro
 import { refreshDemoIfStale } from '../demo/resetDemo';
 import { DEMO_ACCOUNTS } from '../demo/demoWorld';
 import { BrandIcon } from './BrandIcon';
+import { marcaClub } from '../lib/marcaClub';
 
 /** Clave de sessionStorage con la pantalla a la que entra la cuenta de demo elegida. */
 export const DEMO_LANDING_KEY = 'demoLanding';
@@ -36,6 +37,7 @@ function friendlyError(err: unknown): string {
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
+  const marca = marcaClub();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -121,7 +123,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
       >
         <div className="absolute inset-0 bg-gradient-to-b from-ink/50 via-ink/20 to-ink" />
         <div className="relative px-5 pt-safe">
-          <img src="/brand/logo-horizontal-sobre-oscuro.svg" alt="Armá Partido" className="mt-6 h-10 w-auto" />
+          {marca?.logo ? (
+            <div className="mt-6 flex items-center gap-3">
+              <img src={marca.logo} alt="" className="h-16 w-16 object-contain" />
+              <div>
+                <div className="font-display text-2xl font-bold leading-tight">{marca.nombre}</div>
+                <div className="text-[13px] text-white/70">con Armá Partido</div>
+              </div>
+            </div>
+          ) : (
+            <img src="/brand/logo-horizontal-sobre-oscuro.svg" alt="Armá Partido" className="mt-6 h-10 w-auto" />
+          )}
         </div>
         <div className="relative mt-auto px-5 pb-6 md:pb-16">
           <h1 className="max-w-[14ch] font-display text-[34px] font-bold leading-[1.05] tracking-tight md:text-5xl">
@@ -159,7 +171,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
               <p className="mt-1 text-sm text-muted">
                 {mode === 'crear'
                   ? DEMO_MODE
-                    ? 'Es una cuenta de prueba en el club ficticio Los Jacarandás. Usá cualquier mail tuyo.'
+                    ? `Es una cuenta de prueba en ${marca ? `la app de ${marca.nombre}, con datos de ejemplo` : 'el club ficticio Los Jacarandás'}. Usá cualquier mail tuyo.`
                     : 'Es una sola cuenta. Te sirve en cualquier club que use Armá Partido.'
                   : 'Usá el mail y la contraseña con los que creaste tu cuenta.'}
               </p>
@@ -214,7 +226,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onError }) => {
               <h2 className="text-2xl font-bold">{DEMO_MODE ? 'Probá la demo' : 'Entrá a tu club'}</h2>
               <p className="mt-1 text-sm text-muted">
                 {DEMO_MODE
-                  ? 'Elegí con quién entrar. Es el club ficticio Los Jacarandás, podés tocar todo.'
+                  ? marca ? `Elegí con quién entrar. Es la app de ${marca.nombre} con datos de ejemplo: podés tocar todo.` : 'Elegí con quién entrar. Es el club ficticio Los Jacarandás, podés tocar todo.'
                   : 'Reservar y armar partidos es gratis. Pagás la cancha en el club.'}
               </p>
 
