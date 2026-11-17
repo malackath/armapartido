@@ -1,0 +1,200 @@
+{
+  "slug": "padelclub",
+  "nombre": "Padel Club",
+  "dominio": "padelclub-web.armapartido.com",
+  "app": "https://padelclub.armapartido.com",
+  "demo": true,
+  "colores": {
+    "oscuro": "#0B132B",
+    "oscuro2": "#111C3D",
+    "oscuro3": "#1C2A54",
+    "acento": "#D4FF00",
+    "secundario": "#0284C7",
+    "secundarioClaro": "#38BDF8",
+    "claro": "#F8FAFC",
+    "claro2": "#EAF0F7",
+    "tenue": "#94A3B8"
+  },
+  "fuentes": {
+    "titulos": "Outfit",
+    "texto": "Space Grotesk"
+  },
+  "fotos": {
+    "hero": "smash",
+    "canchas": "cancha",
+    "canchas2": "club",
+    "jugadores": "amigos",
+    "torneos": "partido",
+    "cantina": "cantina"
+  },
+  "hero": {
+    "titulo": "Reservá tu cancha en segundos.",
+    "texto": "Seis canchas techadas en Carrasco. Turnos de 90 minutos, reservás desde el celular y pagás en el club.",
+    "boton": "Reservar cancha",
+    "boton2": "Ver precios",
+    "libresTitulo": "Libres hoy",
+    "libres": [
+      "17:00",
+      "18:30",
+      "20:00",
+      "21:30",
+      "23:00"
+    ]
+  },
+  "pasos": {
+    "titulo": "Reservar te lleva tres toques",
+    "texto": "Sin llamadas ni grupos de WhatsApp. La app del club funciona en el navegador del celular, no hay nada que instalar.",
+    "lista": [
+      {
+        "titulo": "Entrá a la app",
+        "texto": "Abrí padelclub.armapartido.com y creá tu cuenta con tu categoría."
+      },
+      {
+        "titulo": "Elegí cancha y horario",
+        "texto": "Ves los turnos libres de las seis canchas al momento. Cada turno dura 90 minutos."
+      },
+      {
+        "titulo": "Vení a jugar",
+        "texto": "Te llega la confirmación al celular. Pagás en el mostrador: efectivo, transferencia o tarjeta."
+      }
+    ]
+  },
+  "canchas": {
+    "titulo": "Las canchas",
+    "texto": "Todas techadas, con luz pareja para jugar de noche sin reflejos.",
+    "lista": [
+      {
+        "nombre": "Canchas 1 a 4",
+        "tipo": "Vidrio panorámico",
+        "texto": "Paredes de vidrio de punta a punta y césped azul nuevo. La 1 tiene gradas para torneos."
+      },
+      {
+        "nombre": "Canchas 5 y 6",
+        "tipo": "Hormigón",
+        "texto": "Más rápidas, ideales para entrenar y para clases."
+      }
+    ],
+    "datos": [
+      {
+        "valor": "6",
+        "texto": "canchas techadas"
+      },
+      {
+        "valor": "90",
+        "texto": "minutos cada turno"
+      },
+      {
+        "valor": "7 días",
+        "texto": "abierto toda la semana"
+      }
+    ]
+  },
+  "partido": {
+    "titulo": "¿Te falta uno? Armá el partido en la app",
+    "texto": "Publicás el partido con tu categoría y la app avisa a los jugadores de tu nivel que están libres. Cuando se completan los cuatro, la cancha queda reservada.",
+    "categoriasTitulo": "Jugás con gente de tu categoría",
+    "categorias": [
+      "1ra",
+      "2da",
+      "3ra",
+      "4ta",
+      "5ta",
+      "6ta",
+      "7ma"
+    ],
+    "boton": "Armar partido"
+  },
+  "torneos": {
+    "titulo": "Próximos torneos",
+    "texto": "Inscripción en pareja desde la app. Cada torneo tiene sus categorías.",
+    "lista": [
+      {
+        "nombre": "Torneo de Primavera",
+        "fecha": "28 al 30 de noviembre",
+        "categorias": "5ta y 6ta",
+        "precio": "$ 1.500 por pareja",
+        "estado": "Inscripción abierta",
+        "cupos": "18 de 24 parejas"
+      },
+      {
+        "nombre": "Americano nocturno",
+        "fecha": "Viernes 5 de diciembre, 20:00",
+        "categorias": "3ra y 4ta",
+        "precio": "$ 900 por pareja",
+        "estado": "Inscripción abierta",
+        "cupos": "9 de 16 parejas"
+      },
+      {
+        "nombre": "Copa de fin de año",
+        "fecha": "12 al 14 de diciembre",
+        "categorias": "Todas, de 1ra a 7ma",
+        "precio": "$ 1.800 por pareja",
+        "estado": "Abre el 1 de diciembre",
+        "cupos": "48 parejas"
+      }
+    ],
+    "boton": "Inscribir mi pareja"
+  },
+  "precios": {
+    "titulo": "Precios",
+    "texto": "Precio por cancha, por turno de 90 minutos. Se paga en el club.",
+    "lista": [
+      {
+        "nombre": "Mañana y tarde",
+        "detalle": "Lunes a viernes, 7:00 a 17:00",
+        "precio": "$ 1.600"
+      },
+      {
+        "nombre": "Noche",
+        "detalle": "Lunes a viernes, 17:00 a 24:00",
+        "precio": "$ 2.200"
+      },
+      {
+        "nombre": "Fin de semana",
+        "detalle": "Sábados, domingos y feriados",
+        "precio": "$ 2.000"
+      }
+    ],
+    "extras": [
+      {
+        "nombre": "Clase individual",
+        "precio": "$ 1.200"
+      },
+      {
+        "nombre": "Clase grupal, hasta 4",
+        "precio": "$ 500 por persona"
+      },
+      {
+        "nombre": "Alquiler de paleta",
+        "precio": "$ 200"
+      }
+    ]
+  },
+  "cantina": {
+    "titulo": "Cantina y terraza",
+    "texto": "Después del partido, algo frío mirando las canchas. Cerveza, bebidas, café y algo para picar. Lo de la cantina se puede sumar a la cuenta del turno."
+  },
+  "contacto": {
+    "titulo": "Horarios y cómo llegar",
+    "direccion": "Camino de la Demo 1234, Carrasco, Montevideo",
+    "mapa": "https://www.google.com/maps/search/?api=1&query=Carrasco+Montevideo",
+    "horarios": [
+      {
+        "dias": "Lunes a viernes",
+        "horas": "7:00 a 24:00"
+      },
+      {
+        "dias": "Sábados",
+        "horas": "8:00 a 23:00"
+      },
+      {
+        "dias": "Domingos y feriados",
+        "horas": "8:00 a 22:00"
+      }
+    ],
+    "mail": "hola@padelclub.demo",
+    "instagram": "@padelclub.demo",
+    "cierreTitulo": "Tu próximo partido empieza acá",
+    "cierreTexto": "Mirá los turnos libres de hoy y reservá en un minuto."
+  }
+}

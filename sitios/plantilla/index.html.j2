@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="es-UY">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ c.nombre }}: reservá tu cancha</title>
+<meta name="description" content="{{ c.hero.texto }}">
+{% if c.demo %}<meta name="robots" content="noindex">{% endif %}
+<meta property="og:title" content="{{ c.nombre }}">
+<meta property="og:description" content="{{ c.hero.texto }}">
+<meta property="og:image" content="img/{{ c.fotos.hero }}-1600.jpg">
+<meta name="theme-color" content="{{ col.oscuro }}">
+<link rel="icon" href="img/logo-64.png">
+<link rel="apple-touch-icon" href="img/logo-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family={{ c.fuentes.titulos|replace(' ','+') }}:wght@600;700;800&family={{ c.fuentes.texto|replace(' ','+') }}:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="preload" as="image" href="img/{{ c.fotos.hero }}-1600.webp" imagesrcset="img/{{ c.fotos.hero }}-800.webp 800w, img/{{ c.fotos.hero }}-1600.webp {{ ancho(c.fotos.hero) }}w" imagesizes="100vw">
+<style>
+:root{
+  --oscuro:{{ col.oscuro }};--oscuro2:{{ col.oscuro2 }};--oscuro3:{{ col.oscuro3 }};
+  --acento:{{ col.acento }};--sec:{{ col.secundario }};--sec-claro:{{ col.secundarioClaro }};
+  --claro:{{ col.claro }};--claro2:{{ col.claro2 }};--tenue:{{ col.tenue }};
+  --f-tit:"{{ c.fuentes.titulos }}",system-ui,sans-serif;--f-txt:"{{ c.fuentes.texto }}",system-ui,sans-serif;
+  --ancho:1200px;--margen:clamp(20px,5vw,48px);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+body{margin:0;font:400 16px/1.6 var(--f-txt);color:var(--oscuro);background:var(--claro);-webkit-font-smoothing:antialiased}
+img{display:block;max-width:100%;height:auto}
+a{color:inherit}
+h1,h2,h3{font-family:var(--f-tit);margin:0;letter-spacing:-.02em;text-wrap:balance}
+h2{font-size:clamp(32px,4.4vw,48px);line-height:1.12;font-weight:700}
+h3{font-size:20px;line-height:1.3;font-weight:600}
+p{margin:0}
+.envoltura{max-width:var(--ancho);margin:0 auto;padding:0 var(--margen)}
+.sec{padding:clamp(64px,9vw,112px) 0}
+.sec--oscuro{background:var(--oscuro);color:var(--claro)}
+.sec--claro{background:var(--claro)}
+.sec--claro2{background:var(--claro2)}
+.intro{max-width:620px}
+.intro p{margin-top:16px;font-size:18px;line-height:1.55;color:#334155}
+.sec--oscuro .intro p{color:var(--tenue)}
+:focus-visible{outline:3px solid var(--sec-claro);outline-offset:3px;border-radius:6px}
+
+/* Botones */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:50px;padding:0 24px;border-radius:8px;font:700 16px/1 var(--f-txt);text-decoration:none;border:1px solid transparent;transition:box-shadow .2s,transform .2s,background .2s,color .2s;cursor:pointer;white-space:nowrap}
+.btn--acento{background:var(--acento);color:var(--oscuro)}
+.btn--acento:hover{box-shadow:0 0 22px color-mix(in srgb,var(--acento) 45%,transparent);transform:translateY(-1px)}
+.btn--borde{border-color:var(--sec);color:var(--claro);background:color-mix(in srgb,var(--oscuro) 55%,transparent)}
+.btn--borde:hover{background:var(--sec)}
+.btn--oscuro{background:var(--oscuro);color:var(--claro)}
+.btn--oscuro:hover{background:var(--oscuro3)}
+.btn svg{width:18px;height:18px;flex:none}
+
+/* Barra */
+.barra{position:fixed;inset:0 0 auto;z-index:20;background:color-mix(in srgb,var(--oscuro) 82%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid color-mix(in srgb,var(--sec-claro) 20%,transparent);color:var(--claro)}
+.barra .envoltura{display:flex;align-items:center;gap:28px;height:68px}
+.marca{display:flex;align-items:center;gap:10px;text-decoration:none;font:800 19px/1 var(--f-tit);letter-spacing:-.01em}
+.marca img{width:42px;height:42px}
+.barra nav{display:flex;gap:24px;margin-left:auto}
+.barra nav a{text-decoration:none;font-size:15px;color:#CBD5E1;padding:6px 0;border-bottom:2px solid transparent}
+.barra nav a:hover{color:var(--claro);border-bottom-color:var(--acento)}
+.barra .btn{min-height:42px;padding:0 18px;font-size:15px}
+@media (max-width:860px){.barra nav{display:none}.barra .btn{margin-left:auto}}
+
+/* Hero */
+.hero{position:relative;min-height:min(100svh,880px);display:flex;flex-direction:column;justify-content:flex-end;color:var(--claro);background:var(--oscuro);overflow:hidden}
+.hero picture,.hero picture img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:30% 30%}
+.hero::after{content:"";position:absolute;inset:0;background:
+  linear-gradient(90deg,color-mix(in srgb,var(--oscuro) 92%,transparent) 0%,color-mix(in srgb,var(--oscuro) 55%,transparent) 48%,transparent 75%),
+  linear-gradient(0deg,var(--oscuro) 0%,color-mix(in srgb,var(--oscuro) 40%,transparent) 30%,transparent 55%)}
+.hero .envoltura{position:relative;z-index:1;width:100%;padding-top:140px;padding-bottom:40px}
+.hero h1{font-size:clamp(44px,7.4vw,92px);line-height:.98;font-weight:800;max-width:11ch;letter-spacing:-.035em}
+.hero p{margin-top:22px;max-width:46ch;font-size:clamp(17px,1.6vw,20px);line-height:1.5;color:#DCE3EE}
+.acciones{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}
+
+/* Turnos libres: el elemento propio del sitio */
+.libres{position:relative;z-index:1;border-top:1px solid color-mix(in srgb,var(--claro) 14%,transparent);background:color-mix(in srgb,var(--oscuro) 70%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.libres .envoltura{display:flex;align-items:center;gap:20px;padding-top:18px;padding-bottom:18px}
+.libres__tit{display:flex;align-items:center;gap:10px;font:600 15px/1.2 var(--f-txt);color:var(--claro);flex:none}
+.punto{width:9px;height:9px;border-radius:50%;background:var(--acento);box-shadow:0 0 0 0 color-mix(in srgb,var(--acento) 60%,transparent);animation:late 2.4s infinite}
+@keyframes late{70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.libres ul{display:flex;gap:8px;list-style:none;margin:0;padding:0;overflow-x:auto;scrollbar-width:none}
+.libres ul::-webkit-scrollbar{display:none}
+.libres a{display:block;padding:10px 16px;border-radius:8px;border:1px solid color-mix(in srgb,var(--claro) 18%,transparent);font:700 17px/1 var(--f-txt);font-variant-numeric:tabular-nums;text-decoration:none;color:var(--claro);transition:background .15s,color .15s,border-color .15s}
+.libres a:hover{background:var(--acento);border-color:var(--acento);color:var(--oscuro)}
+.libres small{margin-left:auto;color:var(--tenue);font-size:13px;flex:none}
+@media (max-width:700px){.libres .envoltura{flex-wrap:wrap;gap:12px}.libres small{display:none}.libres ul{width:100%}}
+
+/* Pasos */
+.pasos{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:56px;border-top:2px solid var(--oscuro)}
+.paso{padding:28px 28px 0 0}
+.paso+.paso{padding-left:28px;border-left:1px solid #CBD5E1}
+.paso__n{display:block;font:800 56px/1 var(--f-tit);color:var(--sec);letter-spacing:-.04em;margin-bottom:18px}
+.paso p{margin-top:8px;color:#475569}
+@media (max-width:760px){.pasos{grid-template-columns:1fr}.paso,.paso+.paso{padding:24px 0;border-left:0;border-bottom:1px solid #CBD5E1}.paso__n{font-size:44px;margin-bottom:10px}}
+
+/* Canchas */
+.canchas{display:grid;grid-template-columns:1.15fr 1fr;gap:clamp(32px,5vw,72px);align-items:center}
+.canchas__fotos{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.canchas__fotos img{border-radius:16px;width:100%;aspect-ratio:1/1;object-fit:cover}
+.canchas__fotos picture:first-child{grid-column:1/-1}
+.canchas__fotos picture:first-child img{aspect-ratio:16/10}
+.tipos{margin-top:32px;display:grid;gap:12px}
+.tipo{padding:20px;border-radius:16px;background:var(--oscuro2);border:1px solid rgba(248,250,252,.08)}
+.tipo__cab{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.chip{display:inline-block;padding:4px 10px;border-radius:24px;font:700 12px/1.3 var(--f-txt);letter-spacing:.04em}
+.chip--sec{background:color-mix(in srgb,var(--sec) 22%,transparent);color:var(--sec-claro)}
+.chip--acento{background:color-mix(in srgb,var(--acento) 15%,transparent);color:var(--acento);border:1px solid color-mix(in srgb,var(--acento) 50%,transparent)}
+.chip--tenue{background:rgba(148,163,184,.15);color:#CBD5E1}
+.tipo p{margin-top:8px;color:var(--tenue);font-size:15px}
+.datos{display:flex;gap:clamp(20px,4vw,48px);margin-top:36px;padding-top:28px;border-top:1px solid rgba(248,250,252,.12)}
+.dato b{display:block;font:800 clamp(30px,3.6vw,40px)/1 var(--f-tit);color:var(--acento);letter-spacing:-.02em}
+.dato span{display:block;margin-top:6px;font-size:14px;color:var(--tenue)}
+@media (max-width:900px){.canchas{grid-template-columns:1fr}}
+
+/* Partido */
+.partido{display:grid;grid-template-columns:1fr 1fr;gap:clamp(32px,5vw,72px);align-items:center}
+.partido__foto{position:relative}
+.partido__foto img{border-radius:16px;width:100%;aspect-ratio:4/3.4;object-fit:cover}
+.aviso{position:absolute;left:-20px;bottom:24px;max-width:290px;padding:16px 18px;border-radius:12px;background:var(--oscuro);color:var(--claro);box-shadow:0 18px 40px rgba(11,19,43,.28)}
+.aviso b{display:block;font:600 15px/1.35 var(--f-txt)}
+.aviso span{display:block;margin-top:4px;font-size:13px;color:var(--tenue)}
+.aviso .chip{margin-top:10px}
+.cats{margin-top:32px}
+.cats h3{font-size:16px;font-family:var(--f-txt);font-weight:700;letter-spacing:0}
+.cats ul{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:14px 0 0}
+.cats li{min-width:56px;padding:10px 0;text-align:center;border-radius:8px;border:1px solid #CBD5E1;font:700 16px/1 var(--f-txt);background:#fff}
+.cats li:nth-child(5){background:var(--oscuro);border-color:var(--oscuro);color:var(--acento)}
+.partido .btn{margin-top:32px}
+@media (max-width:900px){.partido{grid-template-columns:1fr}.partido__foto{order:-1}.aviso{left:12px;right:12px;bottom:12px;max-width:none}}
+
+/* Torneos */
+.torneos{position:relative;overflow:hidden}
+.torneos__fondo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.22}
+.torneos::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,var(--oscuro) 0%,color-mix(in srgb,var(--oscuro) 70%,transparent) 50%,var(--oscuro) 100%);z-index:1}
+.torneos .envoltura{position:relative;z-index:2}
+.lista-torneos{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:48px}
+.torneo{display:flex;flex-direction:column;padding:24px;border-radius:16px;background:color-mix(in srgb,var(--oscuro2) 92%,transparent);border:1px solid rgba(248,250,252,.1)}
+.torneo:first-child{border-color:color-mix(in srgb,var(--acento) 55%,transparent)}
+.torneo h3{margin-top:16px;font-size:22px}
+.torneo dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:18px 0 22px;font-size:15px}
+.torneo dt{color:var(--tenue)}
+.torneo dd{margin:0}
+.torneo .btn{margin-top:auto;width:100%}
+.torneo .btn--borde{color:var(--claro)}
+@media (max-width:900px){.lista-torneos{grid-template-columns:1fr}}
+
+/* Precios */
+.precios{display:grid;grid-template-columns:1fr 1.25fr;gap:clamp(32px,5vw,72px);align-items:start}
+.tabla{border-top:2px solid var(--oscuro)}
+.fila{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:20px 0;border-bottom:1px solid #CBD5E1}
+.fila b{display:block;font:600 19px/1.3 var(--f-tit)}
+.fila span{display:block;margin-top:2px;font-size:14px;color:#475569}
+.fila .monto{font:800 30px/1 var(--f-tit);letter-spacing:-.02em;white-space:nowrap;font-variant-numeric:tabular-nums}
+.extras{margin-top:28px;display:grid;gap:10px;font-size:15px}
+.extras div{display:flex;justify-content:space-between;gap:12px;color:#334155}
+.extras b{font-weight:700;color:var(--oscuro);white-space:nowrap}
+.nota-pago{margin-top:28px;padding:16px 18px;border-radius:12px;background:var(--oscuro);color:var(--claro);font-size:15px;display:flex;gap:12px;align-items:center}
+.nota-pago svg{flex:none;width:22px;height:22px;color:var(--acento)}
+@media (max-width:900px){.precios{grid-template-columns:1fr}}
+
+/* Cantina */
+.cantina{display:grid;grid-template-columns:1.3fr 1fr;min-height:520px;background:var(--oscuro);color:var(--claro)}
+.cantina picture{display:block;height:100%;min-height:320px}
+.cantina img{width:100%;height:100%;object-fit:cover}
+.cantina__txt{display:flex;flex-direction:column;justify-content:center;padding:clamp(40px,6vw,88px) var(--margen)}
+.cantina__txt p{margin-top:16px;font-size:18px;color:var(--tenue);max-width:42ch}
+@media (max-width:900px){.cantina{grid-template-columns:1fr}.cantina img{aspect-ratio:4/3;height:auto}}
+
+/* Contacto */
+.contacto{display:grid;grid-template-columns:1fr 1fr;gap:clamp(32px,5vw,72px)}
+.horarios{margin-top:28px;border-top:2px solid var(--oscuro)}
+.horarios div{display:flex;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid #CBD5E1}
+.horarios b{font-variant-numeric:tabular-nums}
+.datos-contacto{margin-top:24px;display:grid;gap:10px}
+.datos-contacto a,.datos-contacto span{display:flex;gap:10px;align-items:center;text-decoration:none}
+.datos-contacto a:hover{color:var(--sec)}
+.datos-contacto svg{width:20px;height:20px;color:var(--sec);flex:none}
+.cierre{border-radius:16px;background:var(--oscuro);color:var(--claro);padding:clamp(28px,4vw,48px);display:flex;flex-direction:column;justify-content:space-between;gap:28px;position:relative;overflow:hidden}
+.cierre h2{font-size:clamp(30px,3.6vw,42px);position:relative}
+.cierre p{margin-top:14px;color:var(--tenue);position:relative}
+.cierre .btn{position:relative;align-self:flex-start}
+@media (max-width:900px){.contacto{grid-template-columns:1fr}}
+
+/* Pie */
+.pie{background:#070D1F;color:var(--tenue);font-size:14px;padding:40px 0 calc(40px + env(safe-area-inset-bottom))}
+.pie .envoltura{display:flex;flex-wrap:wrap;gap:16px 32px;align-items:center;justify-content:space-between}
+.pie .marca{color:var(--claro)}
+.pie .marca img{width:36px;height:36px}
+.pie a{color:#CBD5E1}
+.demo{display:inline-block;padding:6px 14px;border-radius:24px;border:1px solid rgba(148,163,184,.3)}
+
+/* Botón fijo en celular */
+.fijo{display:none}
+@media (max-width:700px){
+  .fijo{display:block;position:fixed;inset:auto 0 0;z-index:19;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:color-mix(in srgb,var(--oscuro) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid rgba(248,250,252,.1);transform:translateY(110%);transition:transform .25s}
+  .fijo.ver{transform:none}
+  .fijo .btn{width:100%}
+  .pie{padding-bottom:110px}
+}
+</style>
+</head>
+<body>
+{% set flecha %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>{% endset %}
+
+<header class="barra">
+  <div class="envoltura">
+    <a class="marca" href="#inicio"><img src="img/logo-128.png" alt="" width="42" height="42">{{ c.nombre }}</a>
+    <nav aria-label="Secciones">
+      <a href="#canchas">Canchas</a>
+      <a href="#partido">Armar partido</a>
+      <a href="#torneos">Torneos</a>
+      <a href="#precios">Precios</a>
+      <a href="#contacto">Cómo llegar</a>
+    </nav>
+    <a class="btn btn--acento" href="{{ c.app }}">{{ c.hero.boton }}</a>
+  </div>
+</header>
+
+<main>
+<section class="hero" id="inicio">
+  <picture>
+    <source type="image/webp" srcset="img/{{ c.fotos.hero }}-800.webp 800w, img/{{ c.fotos.hero }}-1600.webp {{ ancho(c.fotos.hero) }}w" sizes="100vw">
+    <img src="img/{{ c.fotos.hero }}-1600.jpg" alt="" fetchpriority="high">
+  </picture>
+  <div class="envoltura">
+    <h1>{{ c.hero.titulo }}</h1>
+    <p>{{ c.hero.texto }}</p>
+    <div class="acciones">
+      <a class="btn btn--acento" href="{{ c.app }}">{{ c.hero.boton }} {{ flecha }}</a>
+      <a class="btn btn--borde" href="#precios">{{ c.hero.boton2 }}</a>
+    </div>
+  </div>
+  <div class="libres">
+    <div class="envoltura">
+      <span class="libres__tit"><span class="punto" aria-hidden="true"></span>{{ c.hero.libresTitulo }}</span>
+      <ul aria-label="{{ c.hero.libresTitulo }}">
+        {% for h in c.hero.libres %}<li><a href="{{ c.app }}" aria-label="Reservar a las {{ h }}">{{ h }}</a></li>{% endfor %}
+      </ul>
+      <small>Turnos de 90 minutos</small>
+    </div>
+  </div>
+</section>
+
+<section class="sec sec--claro" id="como">
+  <div class="envoltura">
+    <div class="intro">
+      <h2>{{ c.pasos.titulo }}</h2>
+      <p>{{ c.pasos.texto }}</p>
+    </div>
+    <ol class="pasos" role="list" style="list-style:none;padding:0">
+      {% for p in c.pasos.lista %}
+      <li class="paso"><span class="paso__n" aria-hidden="true">{{ loop.index }}</span><h3>{{ p.titulo }}</h3><p>{{ p.texto }}</p></li>
+      {% endfor %}
+    </ol>
+  </div>
+</section>
+
+<section class="sec sec--oscuro" id="canchas">
+  <div class="envoltura canchas">
+    <div class="canchas__fotos">
+      {{ foto(c.fotos.canchas, "Cancha techada con paredes de vidrio y césped azul", "(max-width: 900px) 100vw, 640px") }}
+      {{ foto(c.fotos.canchas2, "Vista de varias canchas del club", "(max-width: 900px) 50vw, 320px") }}
+      {{ foto(c.fotos.torneos, "Partido en la cancha central", "(max-width: 900px) 50vw, 320px") }}
+    </div>
+    <div>
+      <div class="intro">
+        <h2>{{ c.canchas.titulo }}</h2>
+        <p>{{ c.canchas.texto }}</p>
+      </div>
+      <div class="tipos">
+        {% for t in c.canchas.lista %}
+        <div class="tipo">
+          <div class="tipo__cab"><h3>{{ t.nombre }}</h3><span class="chip chip--sec">{{ t.tipo }}</span></div>
+          <p>{{ t.texto }}</p>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="datos">
+        {% for d in c.canchas.datos %}<div class="dato"><b>{{ d.valor }}</b><span>{{ d.texto }}</span></div>{% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec sec--claro2" id="partido">
+  <div class="envoltura partido">
+    <div>
+      <div class="intro">
+        <h2>{{ c.partido.titulo }}</h2>
+        <p>{{ c.partido.texto }}</p>
+      </div>
+      <div class="cats">
+        <h3>{{ c.partido.categoriasTitulo }}</h3>
+        <ul>{% for k in c.partido.categorias %}<li>{{ k }}</li>{% endfor %}</ul>
+      </div>
+      <a class="btn btn--oscuro" href="{{ c.app }}">{{ c.partido.boton }} {{ flecha }}</a>
+    </div>
+    <div class="partido__foto">
+      {{ foto(c.fotos.jugadores, "Cuatro jugadores sonriendo en la cancha", "(max-width: 900px) 100vw, 560px") }}
+      <div class="aviso" aria-hidden="true">
+        <b>Falta uno para hoy 20:00</b>
+        <span>Cancha 3, partido de 5ta</span>
+        <span class="chip chip--acento">Sumarme</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec sec--oscuro torneos" id="torneos">
+  <img class="torneos__fondo" src="img/{{ c.fotos.torneos }}-800.webp" alt="" loading="lazy">
+  <div class="envoltura">
+    <div class="intro">
+      <h2>{{ c.torneos.titulo }}</h2>
+      <p>{{ c.torneos.texto }}</p>
+    </div>
+    <div class="lista-torneos">
+      {% for t in c.torneos.lista %}
+      <article class="torneo">
+        <span class="chip {{ 'chip--acento' if 'abierta' in t.estado else 'chip--tenue' }}" style="align-self:flex-start">{{ t.estado }}</span>
+        <h3>{{ t.nombre }}</h3>
+        <dl>
+          <dt>Fecha</dt><dd>{{ t.fecha }}</dd>
+          <dt>Categorías</dt><dd>{{ t.categorias }}</dd>
+          <dt>Inscripción</dt><dd>{{ t.precio }}</dd>
+          <dt>Cupos</dt><dd>{{ t.cupos }}</dd>
+        </dl>
+        {% if 'abierta' in t.estado %}
+        <a class="btn {{ 'btn--acento' if loop.first else 'btn--borde' }}" href="{{ c.app }}">{{ c.torneos.boton }}</a>
+        {% else %}
+        <a class="btn btn--borde" href="{{ c.app }}">Ver en la app</a>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="sec sec--claro" id="precios">
+  <div class="envoltura precios">
+    <div class="intro">
+      <h2>{{ c.precios.titulo }}</h2>
+      <p>{{ c.precios.texto }}</p>
+      <div class="nota-pago">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+        Reservar es gratis. Pagás en el club, como siempre.
+      </div>
+    </div>
+    <div>
+      <div class="tabla">
+        {% for p in c.precios.lista %}
+        <div class="fila"><div><b>{{ p.nombre }}</b><span>{{ p.detalle }}</span></div><div class="monto">{{ p.precio }}</div></div>
+        {% endfor %}
+      </div>
+      <div class="extras">
+        {% for e in c.precios.extras %}<div><span>{{ e.nombre }}</span><b>{{ e.precio }}</b></div>{% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cantina" id="cantina">
+  {{ foto(c.fotos.cantina, "Cantina y terraza del club con vista a las canchas", "(max-width: 900px) 100vw, 60vw") }}
+  <div class="cantina__txt">
+    <h2>{{ c.cantina.titulo }}</h2>
+    <p>{{ c.cantina.texto }}</p>
+  </div>
+</section>
+
+<section class="sec sec--claro" id="contacto">
+  <div class="envoltura contacto">
+    <div>
+      <h2>{{ c.contacto.titulo }}</h2>
+      <div class="horarios">
+        {% for h in c.contacto.horarios %}<div><span>{{ h.dias }}</span><b>{{ h.horas }}</b></div>{% endfor %}
+      </div>
+      <div class="datos-contacto">
+        <a href="{{ c.contacto.mapa }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>{{ c.contacto.direccion }}</a>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>{{ c.contacto.mail }}</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".8" fill="currentColor"/></svg>{{ c.contacto.instagram }}</span>
+      </div>
+    </div>
+    <div class="cierre">
+      <div>
+        <h2>{{ c.contacto.cierreTitulo }}</h2>
+        <p>{{ c.contacto.cierreTexto }}</p>
+      </div>
+      <a class="btn btn--acento" href="{{ c.app }}">{{ c.hero.boton }} {{ flecha }}</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="pie">
+  <div class="envoltura">
+    <span class="marca"><img src="img/logo-128.png" alt="" width="36" height="36" loading="lazy">{{ c.nombre }}</span>
+    {% if c.demo %}<span class="demo">Demo creada con <a href="https://armapartido.com">Armá Partido</a>. Precios, horarios y torneos son de ejemplo.</span>
+    {% else %}<span>Reservas con <a href="https://armapartido.com">Armá Partido</a></span>{% endif %}
+  </div>
+</footer>
+
+<div class="fijo" id="fijo"><a class="btn btn--acento" href="{{ c.app }}">{{ c.hero.boton }} {{ flecha }}</a></div>
+<script>
+(function(){var f=document.getElementById('fijo'),h=document.querySelector('.hero');if(!('IntersectionObserver' in window))return;
+new IntersectionObserver(function(e){f.classList.toggle('ver',!e[0].isIntersecting)},{threshold:0}).observe(h);})();
+</script>
+</body>
+</html>
