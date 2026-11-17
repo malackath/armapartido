@@ -45,6 +45,7 @@ import { BADGE_CLASSES, searchForMatch } from './FaltaUno';
 import { accountOf, participantsOf } from '../lib/caja';
 import { FullscreenButton } from './ui/FullscreenButton';
 import { CourtCard, type CourtCardProps, type CourtSeat } from './mostrador/CourtCard';
+import { LlenarHueco } from './mostrador/LlenarHueco';
 import { AgendaList, DayTabs, DayTimeline, type AgendaItem } from './mostrador/AgendaList';
 
 interface StaffCounterViewProps {
@@ -161,6 +162,8 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
   const [newTarget, setNewTarget] = useState<{ courtId: string; startMinute: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [minuteNow, setMinuteNow] = useState(nowMinute());
+  /** Hora elegida con el deslizador de la agenda (null = ahora, en vivo). */
+  const [viewMinute, setViewMinute] = useState<number | null>(null);
   const ops = useClubOps(club.id);
   const clientes = useClientesData(club.id);
   const [cashOpen, setCashOpen] = useState<null | 'caja' | 'deben' | 'venta' | 'clientes'>(null);
@@ -408,9 +411,12 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
   };
   const toneLabel: Record<AgendaItem['tone'], string> = { paid: 'Pagado', due: 'Debe', tbd: 'A cobrar', unconf: 'Armando partido', fu: 'Falta uno', tour: 'Torneo', busy: 'Ausencia' };
 
+  const liveMinute = minuteNow;
   const courtCards = useMemo(() => {
+    const minuteNow = viewMinute ?? liveMinute;
+    const source = viewMinute != null ? dayBookings.filter((b) => b.status !== 'cancelled') : todayBookings;
     return activeCourts.map((ct) => {
-      const list = todayBookings.filter((b) => b.courtId === ct.id).sort((a, b) => a.startMinute - b.startMinute);
+      const list = source.filter((b) => b.courtId === ct.id).sort((a, b) => a.startMinute - b.startMinute);
       const live = list.find((b) => b.startMinute <= minuteNow && b.endMinute > minuteNow && b.status !== 'no_show');
       const upcoming = list.filter((b) => b.startMinute > minuteNow);
       const nextB = upcoming[0];
@@ -438,10 +444,10 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
       } else {
         props = { court: ct, state: 'free', seats: [], freeUntil: nextB ? nextB.startMinute : null, next: nextOf(minuteNow), bookingId: null };
       }
-      return props;
+      return viewMinute != null ? { ...props, atMinute: viewMinute } : props;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCourts, todayBookings, minuteNow, ops.consumptions, proposedMatches, fillSearches, memberships, tournaments]);
+  }, [activeCourts, todayBookings, dayBookings, viewMinute, liveMinute, ops.consumptions, proposedMatches, fillSearches, memberships, tournaments]);
 
   const agendaItems: (AgendaItem & { courtId: string; short: string })[] = useMemo(
     () =>
@@ -510,12 +516,20 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Mostrador</p>
-          <h1 className="mt-1 flex items-baseline gap-3 font-display text-2xl font-bold text-ink sm:text-3xl">
+          <h1 className="mt-1 flex items-baseline gap-3 whitespace-nowrap font-display text-2xl font-bold text-ink sm:text-3xl">
             {selectedDate === today ? 'Canchas de hoy' : `Agenda del ${DAY_LONG[getDayOfWeekFromISO(selectedDate)].toLowerCase()} ${Number(selectedDate.slice(8))}`}
-            {canchasView && <span className="hidden font-display text-3xl font-bold text-brand tabular-nums md:inline">{formatMinutes(minuteNow)}</span>}
+            {canchasView && viewMinute == null && <span className="hidden font-display text-3xl font-bold text-brand tabular-nums md:inline">{formatMinutes(minuteNow)}</span>}
+            {canchasView && viewMinute != null && <span className="hidden font-display text-3xl font-bold text-wait tabular-nums md:inline">{formatMinutes(viewMinute)}</span>}
           </h1>
           <p className="mt-1 text-sm text-muted first-letter:uppercase">
-            {canchasView ? (selectedDate === today ? dateLabel : `${dateLabel} · arriba siguen las canchas de hoy en vivo`) : `${dateLabel} · turnos de ${club.slotDurationMinutes || 90} minutos · abierto de ${club.openHour}:00 a ${formatMinutes(club.closeHour * 60)}`}
+            {canchasView && viewMinute != null ? (
+              <>
+                Mirando las canchas a las {formatMinutes(viewMinute)} ·{' '}
+                <button type="button" onClick={() => setViewMinute(null)} className="font-semibold text-brand underline underline-offset-2 cursor-pointer">
+                  volver a ahora ({formatMinutes(minuteNow)})
+                </button>
+              </>
+            ) : canchasView ? (selectedDate === today ? dateLabel : `${dateLabel} · arriba siguen las canchas de hoy en vivo`) : `${dateLabel} · turnos de ${club.slotDurationMinutes || 90} minutos · abierto de ${club.openHour}:00 a ${formatMinutes(club.closeHour * 60)}`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -649,8 +663,10 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
               ))}
             </div>
             <div className="flex flex-col overflow-hidden rounded-xl bg-white" style={{ height: 'max(420px, calc(100vh - 640px))' }}>
-              <DayTabs days={weekTabs} value={weekTabs.some((d) => d.iso === selectedDate) ? selectedDate : today} onChange={(iso) => setSelectedDate(iso)} />
+              <DayTabs days={weekTabs} value={weekTabs.some((d) => d.iso === selectedDate) ? selectedDate : today} onChange={(iso) => { setSelectedDate(iso); setViewMinute(null); }} />
               <DayTimeline
+                onViewMinute={setViewMinute}
+                viewMinute={viewMinute}
                 courts={activeCourts.map((c) => ({ id: c.id, name: c.name, roofed: c.roof === 'techada' }))}
                 items={agendaItems}
                 openMinute={slots[0]?.startMinute ?? club.openHour * 60}
@@ -687,7 +703,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
         </>
       )}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className={`min-w-0 space-y-3 ${canchasView ? 'md:hidden' : ''}`}>
           {/* Días y filtro */}
           <div className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-3 xl:flex-row xl:items-center xl:justify-between">
@@ -993,6 +1009,8 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
           setBusy={setBusy}
           onToast={onToast}
           onClose={() => setNewTarget(null)}
+          fillSearches={fillSearches}
+          proposedMatches={proposedMatches}
         />
       )}
     </div>
@@ -1412,9 +1430,14 @@ const NewBookingModal: React.FC<{
   onToast: (msg: string) => void;
   onClose: () => void;
   memberships: ClubMembership[];
-}> = ({ club, courts, slots, date, dateLabel, initial, isTaken, userProfile, busy, setBusy, onToast, onClose, memberships }) => {
+  fillSearches: FillSearch[];
+  proposedMatches: ProposedMatch[];
+}> = ({ club, courts, slots, date, dateLabel, initial, isTaken, userProfile, busy, setBusy, onToast, onClose, memberships, fillSearches, proposedMatches }) => {
   const [courtId, setCourtId] = useState(initial.courtId);
   const [startMinute, setStartMinute] = useState(initial.startMinute);
+  // Turno con tiempo para avisar (más de 1 h): primero se ofrece llenarlo con la app.
+  const leadMin = (new Date(`${date}T00:00:00`).getTime() + initial.startMinute * 60000 - Date.now()) / 60000;
+  const [mode, setMode] = useState<'app' | 'mano'>(leadMin >= 60 ? 'app' : 'mano');
   const [client, setClient] = useState<ClubClient | null>(null);
   const [byPhone, setByPhone] = useState(true);
   const [paidNow, setPaidNow] = useState(false);
@@ -1455,14 +1478,45 @@ const NewBookingModal: React.FC<{
       <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-t-3xl border border-line bg-white p-6 shadow-2xl sm:rounded-2xl">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Nueva reserva</p>
-            <h3 className="mt-1 font-display text-lg font-bold text-ink">Por teléfono o en el mostrador</h3>
+            <p className="text-xs font-semibold tracking-wide text-emerald-700 uppercase">Turno libre</p>
+            <h3 className="mt-1 font-display text-lg font-bold text-ink">{mode === 'app' ? 'Llenalo con la app' : 'Por teléfono o en el mostrador'}</h3>
             <p className="mt-0.5 text-[13px] text-muted first-letter:uppercase">{dateLabel}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Cerrar" className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-mist cursor-pointer">
             <X className="h-4 w-4" />
           </button>
         </div>
+        <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-mist p-1" role="tablist">
+          {(['app', 'mano'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => setMode(m)}
+              className={`h-9 cursor-pointer rounded-lg text-sm font-semibold ${mode === m ? 'bg-white text-ink shadow-sm' : 'text-muted'}`}
+            >
+              {m === 'app' ? 'Llenar con la app' : 'Reservar a mano'}
+            </button>
+          ))}
+        </div>
+        {mode === 'app' && court && slot ? (
+          <div className="mt-4">
+            <LlenarHueco
+              club={club}
+              court={court}
+              date={date}
+              startMinute={slot.startMinute}
+              endMinute={slot.endMinute}
+              fillSearches={fillSearches}
+              proposedMatches={proposedMatches}
+              memberships={memberships}
+              onToast={onToast}
+              onClose={onClose}
+            />
+          </div>
+        ) : (
+        <>
 
         <div className="mt-4 grid grid-cols-2 gap-3">
           <label className="block text-xs font-semibold text-ink">
@@ -1538,6 +1592,8 @@ const NewBookingModal: React.FC<{
             {busy ? 'Guardando…' : 'Confirmar reserva'}
           </button>
         </div>
+        </>
+        )}
       </form>
     </div>
   );

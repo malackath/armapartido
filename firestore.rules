@@ -115,7 +115,10 @@ service cloud.firestore {
 
     function isValidUserProfile(data, uid) {
       return data.keys().hasAll(['uid', 'displayName', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'activeClubIds', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['uid', 'displayName', 'photoUrl', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'activeClubIds', 'alertPrefs', 'fillCounter', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'photoUrl', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'activeClubIds', 'alertPrefs', 'fillCounter', 'courtSide', 'hand', 'signupDone', 'createdAt', 'updatedAt'])
+        && (!('courtSide' in data) || data.courtSide in ['drive', 'reves', 'indistinto'])
+        && (!('hand' in data) || data.hand in ['derecha', 'izquierda'])
+        && (!('signupDone' in data) || data.signupDone is bool)
         && (!('alertPrefs' in data) || isValidAlertPrefs(data.alertPrefs))
         && data.uid == uid
         && isValidId(data.uid)
@@ -225,8 +228,11 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'uid', 'clubId', 'displayName', 'photoUrl', 'role', 'category', 'gender',
           'preferredModality', 'weeklyAvailability', 'noShowCount', 'blocked',
-          'isDiscoverable', 'createdAt', 'updatedAt'
+          'isDiscoverable', 'courtSide', 'hand', 'categoryReview', 'createdAt', 'updatedAt'
         ])
+        && (!('courtSide' in data) || data.courtSide in ['drive', 'reves', 'indistinto'])
+        && (!('hand' in data) || data.hand in ['derecha', 'izquierda'])
+        && (!('categoryReview' in data) || data.categoryReview in ['pendiente', 'ok'])
         && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 600))
         && data.uid == memberUid && isValidId(data.uid)
         && data.clubId == clubId && isValidId(data.clubId)
@@ -429,7 +435,7 @@ service cloud.firestore {
           'booking_confirmed', 'booking_cancelled', 'reminder_2h',
           'match_proposed', 'match_confirmed', 'match_unfilled_1h',
           'tournament_new', 'pair_invite', 'tournament_next_match',
-          'waitlist_slot_open'
+          'waitlist_slot_open', 'category_changed'
         ]
         && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
         && data.body is string && data.body.size() >= 1 && data.body.size() <= 320
@@ -514,11 +520,13 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow get: if isSignedIn() && isValidId(uid) && (isOwner(uid) || isPlatformAdmin());
-      allow create: if isEmailVerified() && isOwner(uid) && isValidId(uid)
+      // Registro (16/11/2026): el jugador arma su perfil antes de confirmar el mail.
+      // Sumarse a un club (membresía) sigue pidiendo el mail confirmado.
+      allow create: if isOwner(uid) && isValidId(uid)
         && isValidUserProfile(incoming(), uid)
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
-      allow update: if isEmailVerified() && isValidId(uid)
+      allow update: if isSignedIn() && isValidId(uid)
         && isValidUserProfile(incoming(), uid)
         && incoming().uid == existing().uid
         && incoming().createdAt == existing().createdAt
@@ -527,14 +535,14 @@ service cloud.firestore {
           isPlatformAdmin() ||
           (isOwner(uid) && incoming().diff(existing()).affectedKeys().hasOnly([
             'displayName', 'photoUrl', 'category', 'gender', 'preferredModality',
-            'weeklyAvailability', 'activeClubIds', 'alertPrefs', 'updatedAt'
+            'weeklyAvailability', 'activeClubIds', 'alertPrefs', 'courtSide', 'hand', 'signupDone', 'updatedAt'
           ]))
         );
 
       match /private/{docId} {
         allow get: if isValidId(uid) && isValidId(docId) && (isOwner(uid) || isPlatformAdmin());
         allow list: if isOwner(uid) || isPlatformAdminEmail();
-        allow create, update: if isEmailVerified() && isValidId(uid) && isValidId(docId)
+        allow create, update: if isSignedIn() && isValidId(uid) && isValidId(docId)
           && (isOwner(uid) || isPlatformAdmin())
           && isValidUserPrivateInfo(incoming(), uid)
           && incoming().updatedAt == request.time;
@@ -651,7 +659,8 @@ service cloud.firestore {
           && (
             isPlatformAdmin() ||
             isClubOwner(clubId) ||
-            (isOwner(memberUid) && incoming().role == 'player' && incoming().noShowCount == 0 && incoming().blocked == false)
+            (isOwner(memberUid) && incoming().role == 'player' && incoming().noShowCount == 0 && incoming().blocked == false
+              && (!('categoryReview' in incoming()) || incoming().categoryReview == 'pendiente'))
           );
         allow update: if isEmailVerified() && isValidId(clubId) && isValidId(memberUid)
           && isValidClubMembership(incoming(), clubId, memberUid)
@@ -662,11 +671,12 @@ service cloud.firestore {
           && (
             isPlatformAdmin() ||
             isClubAdmin(clubId) ||
-            (isClubStaffOrAdmin(clubId) && incoming().diff(existing()).affectedKeys().hasOnly(['noShowCount', 'blocked', 'updatedAt'])) ||
+            (isClubStaffOrAdmin(clubId) && incoming().diff(existing()).affectedKeys().hasOnly(['noShowCount', 'blocked', 'category', 'categoryReview', 'updatedAt'])) ||
             (isOwner(memberUid) && incoming().role == existing().role && incoming().noShowCount == existing().noShowCount && incoming().blocked == existing().blocked
               && incoming().diff(existing()).affectedKeys().hasOnly([
-                'displayName', 'photoUrl', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'isDiscoverable', 'updatedAt'
-              ]))
+                'displayName', 'photoUrl', 'category', 'gender', 'preferredModality', 'weeklyAvailability', 'isDiscoverable', 'courtSide', 'hand', 'categoryReview', 'updatedAt'
+              ])
+              && (!('categoryReview' in incoming()) || incoming().categoryReview == 'pendiente' || incoming().categoryReview == existing().get('categoryReview', '')))
           );
       }
 

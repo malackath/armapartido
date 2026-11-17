@@ -226,5 +226,91 @@ await step('E6. Al terminar el turno, el recuperado cuenta (y se anula si se can
   assert.equal((await club.collection('recoveries').doc(bad).get()).get('voidReason'), 'cancelado');
 });
 
+// ---------- link para compartir (16/11) ----------
+const anon = (() => {
+  const app = initializeApp({ apiKey: 'demo', projectId: 'demo-armapartido' }, 'fu-anon');
+  const fns = getFunctions(app, 'southamerica-east1');
+  connectFunctionsEmulator(fns, '127.0.0.1', 5001);
+  return (fn, data) => httpsCallable(fns, fn)(data).then((r) => r.data);
+})();
+let linkSearch = null;
+await step('E7. Link público: se abre sin cuenta y no trae nombres de los jugadores', async () => {
+  await reset();
+  // Plataforma no puede ese día según su disponibilidad: no le llega aviso, entra solo por el link.
+  await club.collection('memberships').doc(plataforma.uid).update({ weeklyAvailability: [] });
+  const { id } = await confirmedMatch([[jugador.uid, 'Martín Silva', 5], ['demo-p08', 'Florencia', 5], ['demo-p09', 'Rodrigo', 5], ['demo-p10', 'Mateo', 5]]);
+  await jugador.call('faltaUnoBajarme', { clubId: CLUB, matchId: id });
+  linkSearch = await searchOf(id);
+  const info = await anon('faltaUnoLink', { clubId: CLUB, searchId: linkSearch.id });
+  assert.equal(info.status, 'open'); assert.equal(info.seatsLeft, 1);
+  assert.equal(info.minCategory, 4); assert.equal(info.maxCategory, 6); assert.equal(info.pricePerPlayer, 550);
+  const txt = JSON.stringify(info);
+  for (const n of ['Florencia', 'Rodrigo', 'Mateo', 'demo-p0', jugador.uid]) assert.ok(!txt.includes(n), `filtra ${n}`);
+  await assert.rejects(anon('faltaUnoLink', { clubId: CLUB, searchId: 'no_existe' }));
+});
+await step('E8. Por el link: categoría que no entra, el que se bajó y sin cuenta no pasan', async () => {
+  await club.collection('memberships').doc(mostrador.uid).update({ category: 7 });
+  try {
+    assert.equal((await mostrador.call('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: linkSearch.id })).result, 'category');
+  } finally {
+    await club.collection('memberships').doc(mostrador.uid).update({ category: 6 });
+  }
+  assert.equal((await jugador.call('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: linkSearch.id })).result, 'left');
+  await assert.rejects(anon('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: linkSearch.id }));
+});
+await step('E9. Por el link entra el primero que confirma, sin gastar su tope de avisos, y el recuperado dice "link"', async () => {
+  const r = await plataforma.call('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: linkSearch.id });
+  assert.equal(r.result, 'won');
+  const s = await searchOf(linkSearch.matchId);
+  assert.equal(s.status, 'filled');
+  const inv = (await club.collection('fillInvites').doc(`${linkSearch.id}_${plataforma.uid}`).get()).data();
+  assert.equal(inv.status, 'won'); assert.equal(inv.countsForCap, false);
+  const rec = (await club.collection('recoveries').where('searchId', '==', linkSearch.id).get()).docs.map((d) => d.data());
+  assert.equal(rec.length, 1); assert.equal(rec[0].via, 'link');
+  assert.equal((await anon('faltaUnoLink', { clubId: CLUB, searchId: linkSearch.id })).status, 'filled');
+  assert.equal((await mostrador.call('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: linkSearch.id })).result, 'late');
+});
+
+// ---------- llenar un turno libre con un toque (16/11) ----------
+let hueco = null;
+await step('H1. Vista previa del hueco: está libre, cuenta por modalidad y sugiere una', async () => {
+  await reset();
+  const mem = await club.collection('memberships').get();
+  for (const d of mem.docs) await d.ref.update({ weeklyAvailability: av });
+  const pv = await mostrador.call('huecoVistaPrevia', { clubId: CLUB, courtId: 'cancha_1', date: D, startMinute: T });
+  assert.equal(pv.free, true); assert.equal(pv.options.length, 3);
+  assert.ok(pv.options.every((o) => o.maxCategory - o.minCategory <= 1), JSON.stringify(pv.options));
+  assert.ok(pv.options.find((o) => o.modality === 'mixto').count >= pv.options.find((o) => o.modality === 'masculino').count);
+  await assert.rejects(jugador.call('huecoVistaPrevia', { clubId: CLUB, courtId: 'cancha_1', date: D, startMinute: T }));
+});
+await step('H2. "Llenar con la app": retiene la cancha, abre el partido vacío y avisa solo a los de la ventana de categorías', async () => {
+  hueco = await mostrador.call('huecoLlenar', { clubId: CLUB, courtId: 'cancha_1', date: D, startMinute: T, modality: 'mixto', discountPct: 20 });
+  assert.ok(hueco.invited > 0, 'no avisó a nadie');
+  const s = (await club.collection('fillSearches').doc(hueco.searchId).get()).data();
+  assert.equal(s.kind, 'free_slot'); assert.equal(s.seatsNeeded, 4); assert.equal(s.discountPct, 20);
+  const bk = (await club.collection('bookings').doc(s.bookingId).get()).data();
+  assert.equal(bk.status, 'held'); assert.equal(bk.type, 'matched');
+  const mem = new Map((await club.collection('memberships').get()).docs.map((d) => [d.id, d.data()]));
+  for (const u of s.invitedUids) { const c = mem.get(u).category; assert.ok(c >= s.minCategory && c <= s.maxCategory, `${u} es ${c}`); }
+  await assert.rejects(mostrador.call('huecoLlenar', { clubId: CLUB, courtId: 'cancha_1', date: D, startMinute: T, modality: 'mixto', discountPct: 0 }));
+});
+await step('H3. Contestan 4: el partido y la reserva quedan confirmados y el informe lo cuenta como turno libre que se llenó', async () => {
+  const s0 = (await club.collection('fillSearches').doc(hueco.searchId).get()).data();
+  const fakes = s0.invitedUids.filter((u) => u.startsWith('demo-'));
+  if (fakes.length < 4) { results.push(`     (H3 con ${fakes.length} jugadores de la demo invitados: simulo los que hay)`); }
+  const r = await mostrador.call('huecoSimular', { clubId: CLUB, searchId: hueco.searchId, n: 4 });
+  assert.equal(r.won, Math.min(4, fakes.length));
+  if (fakes.length < 4) return;
+  const s = (await club.collection('fillSearches').doc(hueco.searchId).get()).data();
+  assert.equal(s.status, 'filled');
+  const m = (await club.collection('proposedMatches').doc(hueco.matchId).get()).data();
+  assert.equal(m.status, 'confirmed'); assert.equal(m.slots.length, 4);
+  const bk = (await club.collection('bookings').doc(s.bookingId).get()).data();
+  assert.equal(bk.status, 'confirmed'); assert.equal(bk.playerUids.length, 4);
+  const rec = (await club.collection('recoveries').where('searchId', '==', hueco.searchId).get()).docs.map((d) => d.data());
+  assert.equal(rec.length, 4); assert.ok(rec.every((x) => x.kind === 'slot_filled'));
+  assert.equal(rec.reduce((a, x) => a + x.amountRecovered, 0), s.pricePerPlayer * 4);
+});
+
 console.log('\n' + results.join('\n'));
 process.exit(results.some((r) => r.startsWith('FALLA')) ? 1 : 0);

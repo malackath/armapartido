@@ -79,6 +79,8 @@ export async function linkOrCreateClient(clubId: string, uid: string): Promise<L
         }
       });
       packs.docs.forEach((d) => batch.update(d.ref, { uid, updatedAt: now() }));
+      // Turno fijo que vino de la planilla: pasa a ser suyo (lo ve en la app).
+      (await club.collection('fixedBookings').where('clientId', '==', c.id).get()).docs.forEach((d) => batch.update(d.ref, { holderUid: uid, updatedAt: now() }));
       await batch.commit();
       return { action: 'unida_por_mail', clientId: c.id };
     }

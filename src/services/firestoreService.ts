@@ -89,6 +89,7 @@ const NOTIFICATION_CHANNELS: Record<NotificationEventType, { push: boolean; emai
   pair_invite: { push: true, email: true },
   tournament_next_match: { push: true, email: true },
   waitlist_slot_open: { push: true, email: false },
+  category_changed: { push: true, email: false },
 };
 
 function getDefaultTabForEvent(eventType: NotificationEventType): string {
@@ -109,6 +110,8 @@ function getDefaultTabForEvent(eventType: NotificationEventType): string {
     case 'tournament_new':
     case 'tournament_next_match':
       return 'tournaments';
+    case 'category_changed':
+      return 'profile';
     default:
       return 'notifications';
   }
@@ -1662,7 +1665,7 @@ export async function removeClubCourt(club: Club, courtId: string, currentCourts
 export async function updateMembershipByAdmin(
   clubId: string,
   memberUid: string,
-  updates: Partial<Pick<ClubMembership, 'role' | 'category' | 'blocked' | 'noShowCount'>>
+  updates: Partial<Pick<ClubMembership, 'role' | 'category' | 'blocked' | 'noShowCount' | 'categoryReview'>>
 ) {
   const path = `clubs/${clubId}/memberships/${memberUid}`;
   try {
@@ -2213,6 +2216,67 @@ export async function claimFillSeat(club: Club, searchId: string) {
     'faltaUnoMeSumo', { clubId: club.id, searchId }, `clubs/${club.id}/fillSearches/${searchId}`
   );
   return res.result;
+}
+
+/** Lo que muestra la página pública del link (sin cuenta). */
+export interface PublicFillLink {
+  status: 'open' | 'filled' | 'closed';
+  clubName: string;
+  clubAddress: string;
+  clubCity: string;
+  mapsQuery: string;
+  date: string;
+  startMinute: number;
+  endMinute: number;
+  courtName: string;
+  modality: string;
+  seatsLeft: number;
+  minCategory: number;
+  maxCategory: number;
+  pricePerPlayer: number;
+}
+
+export async function getPublicFillLink(clubId: string, searchId: string): Promise<PublicFillLink | null> {
+  try {
+    const res = await httpsCallable<Record<string, unknown>, PublicFillLink>(functions, 'faltaUnoLink')({ clubId, searchId });
+    return res.data;
+  } catch (err) {
+    if ((err as { code?: string }).code === 'functions/not-found' || (err as { code?: string }).code === 'functions/invalid-argument') return null;
+    throw err;
+  }
+}
+
+export type LinkClaimResult = 'won' | 'late' | 'closed' | 'busy' | 'category' | 'gender' | 'blocked' | 'already_in' | 'left' | 'not_member';
+
+export async function claimFillSeatByLink(clubId: string, searchId: string): Promise<LinkClaimResult> {
+  try {
+    const res = await httpsCallable<Record<string, unknown>, { result: LinkClaimResult }>(functions, 'faltaUnoSumarmePorLink')({ clubId, searchId });
+    return res.data.result;
+  } catch (err) {
+    if ((err as { code?: string }).code === 'functions/permission-denied') return 'not_member';
+    throw err;
+  }
+}
+
+/** Llenar un turno libre con un toque (Mostrador, 16/11). */
+export interface FreeSlotPreview {
+  free: boolean;
+  reason: '' | 'taken' | 'too_late' | 'quiet';
+  price: number;
+  options: { modality: Modality; count: number; minCategory: number; maxCategory: number }[];
+  suggested: Modality;
+}
+
+export async function freeSlotPreview(p: { clubId: string; courtId: string; date: string; startMinute: number }) {
+  return (await httpsCallable<Record<string, unknown>, FreeSlotPreview>(functions, 'huecoVistaPrevia')(p)).data;
+}
+
+export async function openFreeSlot(p: { clubId: string; courtId: string; date: string; startMinute: number; modality: Modality; discountPct: number }) {
+  return (await httpsCallable<Record<string, unknown>, { searchId: string; matchId: string; invited: number }>(functions, 'huecoLlenar')(p)).data;
+}
+
+export async function simulateFreeSlotAnswers(p: { clubId: string; searchId: string; n: number }) {
+  return (await httpsCallable<Record<string, unknown>, { won: number }>(functions, 'huecoSimular')(p)).data;
 }
 
 export async function declineFillInvite(club: Club, searchId: string) {

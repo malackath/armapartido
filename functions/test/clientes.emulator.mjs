@@ -88,6 +88,61 @@ await step('C5. Un encargado nuevo (no jugador) no genera ficha', async () => {
   assert.equal((await fichasDe(uid)).length, 0);
 });
 
+// ---------- Importar la planilla desde Admin → Clientes (16/11) ----------
+const { initializeApp: initClient } = await import('firebase/app');
+const { getAuth: getClientAuth, connectAuthEmulator, signInWithEmailAndPassword } = await import('firebase/auth');
+const { getFunctions, connectFunctionsEmulator, httpsCallable } = await import('firebase/functions');
+async function login(name, email) {
+  const app = initClient({ apiKey: 'demo', projectId: 'demo-armapartido' }, 'cli-' + name);
+  const a = getClientAuth(app);
+  connectAuthEmulator(a, 'http://127.0.0.1:9099', { disableWarnings: true });
+  const fns = getFunctions(app, 'southamerica-east1');
+  connectFunctionsEmulator(fns, '127.0.0.1', 5001);
+  await signInWithEmailAndPassword(a, email, process.env.DEMO_PASSWORD || 'prueba-local-123');
+  return { call: (fn, data) => httpsCallable(fns, fn)(data).then((r) => r.data) };
+}
+const dueno = await login('d', 'dueno@demo.armapartido.com');
+const mostr = await login('m', 'mostrador@demo.armapartido.com');
+const ana = (await club.collection('clients').doc('demo_cli_ana').get()).data();
+const PERMISO = 'Tengo permiso de mis jugadores para pasar sus datos (Ley 18.331). Prueba.';
+const filas = [
+  { row: 2, name: 'Importada Uno', email: 'importada.uno@ejemplo.uy', phone: '+59891111111', category: 5, fixed: { dayOfWeek: 2, startMinute: 7 * 60, court: 'Cancha 1' } },
+  { row: 3, name: 'Ana repetida', email: '', phone: ana.phone, category: 4, fixed: null },
+  { row: 4, name: 'Sin Cancha', email: '', phone: '+59892222222', category: null, fixed: { dayOfWeek: 6, startMinute: 7 * 60, court: 'Cancha 9' } },
+];
+let imp = null;
+await step('I1. Importar: el mostrador no puede y sin el permiso de los jugadores tampoco', async () => {
+  await assert.rejects(mostr.call('clientesImportar', { clubId: CLUB, rows: filas, permission: PERMISO }));
+  await assert.rejects(dueno.call('clientesImportar', { clubId: CLUB, rows: filas, permission: '' }));
+});
+await step('I2. El dueño importa: fichas nuevas, no duplica a la que ya estaba, turno fijo por 12 semanas y queda el permiso', async () => {
+  const antes = (await club.collection('clients').get()).size;
+  imp = await dueno.call('clientesImportar', { clubId: CLUB, rows: filas, permission: PERMISO, sourceFile: 'prueba.csv', fileRows: 3 });
+  assert.equal(imp.created, 2); assert.equal(imp.already, 1); assert.equal(imp.fixed, 1);
+  assert.deepEqual(imp.noCourt, ['Sin Cancha']);
+  assert.equal((await club.collection('clients').get()).size, antes + 2);
+  const uno = (await club.collection('clients').where('email', '==', 'importada.uno@ejemplo.uy').get()).docs[0].data();
+  assert.equal(uno.origin, 'migracion'); assert.equal(uno.noticeGiven, true); assert.equal(uno.uid, '');
+  const fx = (await club.collection('fixedBookings').where('clientId', '==', uno.id).get()).docs.map((d) => d.data());
+  assert.equal(fx.length, 1);
+  assert.equal(fx[0].bookingIds.length + imp.weeksSkipped, 12);
+  const bk = (await club.collection('bookings').doc(fx[0].bookingIds[0]).get()).data();
+  assert.equal(bk.clientId, uno.id); assert.equal(bk.status, 'confirmed'); assert.ok(bk.totalPrice > 0);
+  const anaDespues = (await club.collection('clients').doc('demo_cli_ana').get()).data();
+  assert.equal(anaDespues.uid, ana.uid, 'no toca la cuenta');
+  const mig = (await club.collection('migrations').doc(imp.migrationId).get()).data();
+  assert.equal(mig.permission, PERMISO); assert.equal(mig.emailsSent, false); assert.equal(mig.via, 'admin');
+});
+await step('I3. Cuando el importado se registra con ese mail verificado, la ficha y su turno fijo pasan a ser suyos', async () => {
+  const uid = await sumarse('importada.uno@ejemplo.uy', true, '');
+  const uno = (await club.collection('clients').where('email', '==', 'importada.uno@ejemplo.uy').get()).docs[0].data();
+  assert.equal(uno.uid, uid);
+  const fx = (await club.collection('fixedBookings').where('clientId', '==', uno.id).get()).docs[0].data();
+  assert.equal(fx.holderUid, uid);
+  const bk = (await club.collection('bookings').doc(fx.bookingIds[0]).get()).data();
+  assert.deepEqual(bk.playerUids, [uid]);
+});
+
 console.log('\nClientes (ficha al sumarse desde la app):');
 results.forEach((r) => console.log(r));
 const bad = results.filter((r) => r.startsWith('FALLA')).length;

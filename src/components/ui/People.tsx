@@ -12,7 +12,6 @@ export const CATEGORY_COLORS: Record<number, { bg: string; fg: string }> = {
   5: { bg: '#3f9142', fg: '#ffffff' },
   6: { bg: '#05b8c4', fg: '#172123' },
   7: { bg: '#2f62b8', fg: '#ffffff' },
-  8: { bg: '#6b4fa6', fg: '#ffffff' },
 };
 
 export const CategoryBadge: React.FC<{ category: number; size?: number; showSuffix?: boolean; className?: string }> = ({

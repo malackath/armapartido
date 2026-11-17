@@ -26,6 +26,8 @@ import {
   isQuietHour,
   minutesUntil,
   prefsOf,
+  categoryFits,
+  genderFits,
   rankCandidates,
   searchTiming,
   slotStart,
@@ -313,7 +315,9 @@ export async function runWave(clubId: string, searchId: string, nowDate = new Da
     category: sl.category,
     gap: prefsByUid.get(sl.uid)?.maxCategoryGap ?? 1,
   }));
-  const target = Math.round(current.reduce((a, c) => a + c.category, 0) / Math.max(1, current.length));
+  const target = current.length
+    ? Math.round(current.reduce((a, c) => a + c.category, 0) / current.length)
+    : Math.round(((s.minCategory ?? 5) + (s.maxCategory ?? s.minCategory ?? 5)) / 2);
   const ranked = rankCandidates({
     search: s,
     clubGap: club.fillMaxGap ?? 1,
@@ -370,8 +374,12 @@ export async function runWave(clubId: string, searchId: string, nowDate = new Da
       clubId,
       recipientUid: c.uid,
       eventType: 'fill_invite',
-      title: `Falta ${seatsLeft === 1 ? 'uno' : seatsLeft} · ${when(s.date, s.startMinute)}`,
-      body: `Partido de ${catLabel} en ${name}, ${s.courtName}. ¿Te sumás? Tu parte: $${s.pricePerPlayer}.`,
+      title: s.kind === 'free_slot' && seatsLeft >= 3
+        ? `Cancha libre · ${when(s.date, s.startMinute)}`
+        : `Falta ${seatsLeft === 1 ? 'uno' : seatsLeft} · ${when(s.date, s.startMinute)}`,
+      body: s.kind === 'free_slot'
+        ? `Partido de ${catLabel} en ${name}, ${s.courtName}. Faltan ${seatsLeft}. ¿Te sumás? Tu parte: $${s.pricePerPlayer}${s.discountPct ? ` (${s.discountPct} % menos)` : ''}.`
+        : `Partido de ${catLabel} en ${name}, ${s.courtName}. ¿Te sumás? Tu parte: $${s.pricePerPlayer}.`,
     });
   }
   return wave.length;
@@ -462,13 +470,14 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
       startMinute: s.startMinute,
       endMinute: s.endMinute,
       sport: 'padel',
-      kind: s.kind === 'player_dropped' ? 'player_replaced' : 'match_completed',
+      kind: s.kind === 'player_dropped' ? 'player_replaced' : s.kind === 'free_slot' ? 'slot_filled' : 'match_completed',
       freeSince: s.openedAt,
       searchId: p.searchId,
       alertSentAt: inv.sentAt,
       filledByUid: p.uid,
       filledAt: nowDate.toISOString(),
       seatsFilled: 1,
+      via: inv.via ?? 'aviso',
       amountRecovered: s.pricePerPlayer,
       status: 'pending',
       voidReason: '',
@@ -694,3 +703,123 @@ export async function settleRecoveries(clubId: string, nowDate = new Date()) {
   return n;
 }
 
+
+// -----------------------------------------------------------------------------
+// Link para compartir un "Falta uno" (16/11/2026, propuesta de mejoras de diferenciación)
+// -----------------------------------------------------------------------------
+
+/** Lo que ve cualquiera que abre el link, sin cuenta: nada de nombres ni fotos de los jugadores. */
+export interface PublicFillLink {
+  status: 'open' | 'filled' | 'closed';
+  clubName: string;
+  clubAddress: string;
+  clubCity: string;
+  mapsQuery: string;
+  date: string;
+  startMinute: number;
+  endMinute: number;
+  courtName: string;
+  modality: string;
+  seatsLeft: number;
+  minCategory: number;
+  maxCategory: number;
+  pricePerPlayer: number;
+}
+
+/** Categorías que entran en el partido: cualquiera que respete la diferencia máxima del club con los que ya están. */
+function categoryWindow(cats: number[], clubGap: number): { min: number; max: number } {
+  if (!cats.length) return { min: 1, max: 7 };
+  return { min: Math.max(1, Math.max(...cats) - clubGap), max: Math.min(7, Math.min(...cats) + clubGap) };
+}
+
+export async function publicFillLink(clubId: string, searchId: string, nowDate = new Date()): Promise<PublicFillLink | null> {
+  const cRef = clubRef(clubId);
+  const [clubSnap, sSnap] = await Promise.all([cRef.get(), searchRef(clubId, searchId).get()]);
+  if (!clubSnap.exists || !sSnap.exists) return null;
+  const club = clubSnap.data() as Club;
+  const s = sSnap.data() as FillSearch;
+  const mSnap = await cRef.collection('proposedMatches').doc(s.matchId).get();
+  const m = mSnap.data() as ProposedMatch | undefined;
+  const win = categoryWindow((m?.slots ?? []).map((x) => x.category), club.fillMaxGap ?? 1);
+  const open = s.status === 'searching' && s.seatsFilled < s.seatsNeeded && s.closesAt > nowDate.toISOString() && m?.status !== 'cancelled';
+  const address = [club.address, club.city].filter(Boolean).join(', ');
+  return {
+    status: open ? 'open' : s.status === 'filled' ? 'filled' : 'closed',
+    clubName: club.name,
+    clubAddress: club.address ?? '',
+    clubCity: club.city ?? '',
+    mapsQuery: club.lat && club.lng ? `${club.lat},${club.lng}` : `${club.name}, ${address}`,
+    date: s.date,
+    startMinute: s.startMinute,
+    endMinute: s.endMinute,
+    courtName: s.courtName,
+    modality: s.modality,
+    seatsLeft: Math.max(0, s.seatsNeeded - s.seatsFilled),
+    minCategory: win.min,
+    maxCategory: win.max,
+    pricePerPlayer: s.pricePerPlayer,
+  };
+}
+
+export type LinkClaimResult = ClaimResult | 'category' | 'gender' | 'blocked' | 'already_in' | 'left';
+
+/**
+ * "Quiero jugar" desde el link: mismas reglas de categoría, género y bloqueo que los avisos, pero sin
+ * mirar la disponibilidad semanal ni el tope de avisos (la persona lo pidió). Entra el primero que confirma.
+ */
+export async function claimFromLink(p: { clubId: string; searchId: string; uid: string; nowDate?: Date }): Promise<LinkClaimResult> {
+  const nowDate = p.nowDate ?? new Date();
+  const cRef = clubRef(p.clubId);
+  const [sSnap, memberSnap, clubSnap, userSnap] = await Promise.all([
+    searchRef(p.clubId, p.searchId).get(),
+    cRef.collection('memberships').doc(p.uid).get(),
+    cRef.get(),
+    db.doc(`users/${p.uid}`).get(),
+  ]);
+  if (!sSnap.exists) return 'closed';
+  const member = memberSnap.data() as ClubMembership | undefined;
+  if (!member) throw new HttpsError('permission-denied', 'No sos jugador de este club.');
+  if (member.blocked) return 'blocked';
+  const s = sSnap.data() as FillSearch;
+  if (s.status !== 'searching' || s.seatsFilled >= s.seatsNeeded) return s.status === 'filled' ? 'late' : 'closed';
+  if (s.closesAt <= nowDate.toISOString()) return 'closed';
+  const m = (await cRef.collection('proposedMatches').doc(s.matchId).get()).data() as ProposedMatch | undefined;
+  if (!m || m.status === 'cancelled') return 'closed';
+  if (m.playerUids.includes(p.uid)) return 'already_in';
+  // El que se bajó de este partido no vuelve a entrar por el link.
+  if (s.excludedUids.includes(p.uid)) return 'left';
+  if (!genderFits(s.modality, s.genderNeeded, member.gender)) return 'gender';
+  const club = clubSnap.data() as Club;
+  const users = await getAllChunked(m.slots.map((x) => db.doc(`users/${x.uid}`)));
+  const gapOf = new Map(users.map((u) => [u.id, prefsOf(u.get('alertPrefs')).maxCategoryGap]));
+  const current: CurrentPlayer[] = m.slots.map((x) => ({ uid: x.uid, category: x.category, gap: gapOf.get(x.uid) ?? 1 }));
+  const own = prefsOf(userSnap.get('alertPrefs')).maxCategoryGap;
+  // Si el jugador eligió "solo mi categoría" igual puede sumarse por link a ±1: lo pidió él.
+  if (!categoryFits(member.category, Math.max(own, 1), club.fillMaxGap ?? 1, current)) return 'category';
+
+  // Invitación propia del link (no cuenta para el tope) para usar la misma carrera que los avisos.
+  const iRef = inviteRef(p.clubId, p.searchId, p.uid);
+  await db.runTransaction(async (tx) => {
+    const is = await tx.get(iRef);
+    if (is.exists && (is.data() as FillInvite).status === 'sent') return;
+    if (is.exists && (is.data() as FillInvite).status === 'won') return;
+    const inv: FillInvite = {
+      id: `${p.searchId}_${p.uid}`,
+      clubId: p.clubId,
+      searchId: p.searchId,
+      uid: p.uid,
+      wave: 0,
+      date: s.date,
+      startMinute: s.startMinute,
+      endMinute: s.endMinute,
+      courtName: s.courtName,
+      pricePerPlayer: s.pricePerPlayer,
+      status: 'sent',
+      countsForCap: false,
+      sentAt: nowDate.toISOString(),
+      via: 'link',
+    };
+    tx.set(iRef, { ...inv, createdAt: now() });
+  });
+  return claimSeat({ clubId: p.clubId, searchId: p.searchId, uid: p.uid, nowDate });
+}

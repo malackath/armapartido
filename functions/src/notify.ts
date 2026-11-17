@@ -20,6 +20,7 @@ const CHANNELS: Record<NotificationEventType, { push: boolean; email: boolean }>
   pair_invite: { push: true, email: true },
   tournament_next_match: { push: true, email: true },
   waitlist_slot_open: { push: true, email: false },
+  category_changed: { push: true, email: false },
 };
 
 const TAB_FOR_EVENT: Partial<Record<NotificationEventType, string>> = {
@@ -36,6 +37,7 @@ const TAB_FOR_EVENT: Partial<Record<NotificationEventType, string>> = {
   pair_invite: 'matchmaking',
   tournament_new: 'tournaments',
   tournament_next_match: 'tournaments',
+  category_changed: 'profile',
 };
 
 export interface NotifyParams {

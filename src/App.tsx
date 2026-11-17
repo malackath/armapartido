@@ -7,6 +7,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, db, DEMO_MODE, logoutUser, testFirestoreConnection } from './lib/firebase';
 import { readDemoUids, resetDemoWorld } from './demo/resetDemo';
+import { RegistroFlow } from './components/registro/RegistroFlow';
+import { FaltaUnoLinkPage } from './components/FaltaUnoLinkPage';
+import { parseFillLink } from './lib/compartir';
+import { getUserProfileOrNull, joinClub } from './services/registroService';
 import {
   obtainFcmDeviceToken,
   showServiceWorkerNotification,
@@ -14,7 +18,6 @@ import {
 } from './lib/fcm';
 import { computePlayerLevelsMap, type PlayerLevelSummary } from './lib/padelUtils';
 import {
-  ensureUserProfile,
   fetchDiscoverablePlayersAcrossClubs,
   saveUserFcmToken,
   seedPilotDataIfNeeded,
@@ -59,6 +62,7 @@ import { CantinaView } from './components/cantina/CantinaView';
 import { TopBar, type ActiveTab } from './components/TopBar';
 import { TournamentsView } from './components/TournamentsView';
 import { PAGE_CONTAINER } from './lib/layout';
+import { clubAppKey, currentClubSlug, shortClubName } from './lib/appDelClub';
 
 const PLATFORM_OWNER_EMAILS = (import.meta.env.VITE_PLATFORM_OWNER_EMAILS || '')
   .split(',')
@@ -95,10 +99,16 @@ export default function App() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  // Cuenta nueva sin perfil: va al registro (16/11/2026).
+  const [needsSignup, setNeedsSignup] = useState(false);
+  const joinTriedRef = useRef(false);
   const [bootError, setBootError] = useState<string | null>(null);
 
   const [clubs, setClubs] = useState<Club[]>([]);
-  const [activeClubId, setActiveClubId] = useState<string>(initialDeepLink.clubId);
+  // Link compartido de "Falta uno" (/f/<club>/<búsqueda>): se ve sin cuenta.
+  const [fillLink, setFillLink] = useState(() => (typeof window === 'undefined' ? null : parseFillLink(window.location.pathname)));
+  const [linkWantsLogin, setLinkWantsLogin] = useState(false);
+  const [activeClubId, setActiveClubId] = useState<string>(initialDeepLink.clubId || fillLink?.clubId || '');
   const [perspectiveRole, setPerspectiveRole] = useState<PerspectiveRole>('player');
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialDeepLink.tab);
 
@@ -160,11 +170,18 @@ export default function App() {
       setAuthUser(fbUser);
       if (!fbUser) {
         setUserProfile(null);
+        setNeedsSignup(false);
         setAuthReady(true);
         return;
       }
       try {
-        const profile = await ensureUserProfile(fbUser);
+        const profile = await getUserProfileOrNull(fbUser.uid);
+        if (!profile) {
+          setNeedsSignup(true);
+          setUserProfile(null);
+          return;
+        }
+        setNeedsSignup(false);
         // En la demo publicada los datos los carga el script de demo; no se siembran los clubes del prototipo.
         if (!DEMO_MODE) await seedPilotDataIfNeeded(fbUser, profile);
         setUserProfile(profile);
@@ -253,10 +270,36 @@ export default function App() {
     };
   }, [authUser, userProfile]);
 
+  // App del club (parte 2.2): en <club>.armapartido.com (o ?club=) se abre directo en ese club.
+  const appClubSlug = useMemo(() => currentClubSlug(), []);
   const activeClub = useMemo(
-    () => clubs.find((c) => c.id === activeClubId) || clubs[0] || null,
-    [clubs, activeClubId]
+    () => clubs.find((c) => c.id === activeClubId) || (appClubSlug && clubs.find((c) => clubAppKey(c) === appClubSlug)) || clubs[0] || null,
+    [clubs, activeClubId, appClubSlug]
   );
+
+  // Nombre del club en la pestaña y debajo del ícono en el iPhone (el Android lo toma del manifiesto).
+  useEffect(() => {
+    if (!appClubSlug || !activeClub || clubAppKey(activeClub) !== appClubSlug) return;
+    let alive = true;
+    const apply = (short: string) => {
+      if (!alive) return;
+      document.title = activeClub.name;
+      let meta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.setAttribute('name', 'apple-mobile-web-app-title');
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute('content', short);
+    };
+    fetch(`/clubes/${appClubSlug}/manifest.webmanifest`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m) => apply((m && m.short_name) || shortClubName(activeClub.name)))
+      .catch(() => apply(shortClubName(activeClub.name)));
+    return () => {
+      alive = false;
+    };
+  }, [appClubSlug, activeClub]);
 
   // Load discoverable players across all active clubs for Amigos search & availability
   useEffect(() => {
@@ -350,6 +393,25 @@ export default function App() {
     [memberships, authUser]
   );
 
+  // Registro: si al terminar no pudo sumarse al club (mail sin confirmar), lo reintenta al volver a entrar.
+  useEffect(() => {
+    if (!authUser || !userProfile?.signupDone || !activeClub || joinTriedRef.current) return;
+    if (currentMembership || !userProfile.activeClubIds.includes(activeClub.id)) return;
+    const t = setTimeout(async () => {
+      if (joinTriedRef.current) return;
+      joinTriedRef.current = true;
+      try {
+        await authUser.reload();
+        if (!authUser.emailVerified) return;
+        await authUser.getIdToken(true);
+        if (await joinClub(userProfile, activeClub)) showToast(`Listo, ya sos parte de ${activeClub.name}.`);
+      } catch {
+        /* se reintenta la próxima vez que entre */
+      }
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [authUser, userProfile, activeClub, currentMembership]);
+
   const canAccessAdmin = useMemo(
     () =>
       isPlatformOwner ||
@@ -393,6 +455,45 @@ export default function App() {
           <p className="text-sm font-medium text-slate-600">Cargando Armá Partido...</p>
         </div>
       </div>
+    );
+  }
+
+  if (authUser && needsSignup) {
+    return (
+      <RegistroFlow
+        authUser={authUser}
+        preferredClubId={fillLink?.clubId}
+        onLogout={logoutUser}
+        onDone={async (profile, go) => {
+          if (!DEMO_MODE) await seedPilotDataIfNeeded(authUser, profile).catch(() => undefined);
+          setUserProfile(profile);
+          setNeedsSignup(false);
+          setActiveTab(go);
+        }}
+      />
+    );
+  }
+
+  if (fillLink && (authUser || !linkWantsLogin)) {
+    const exitLink = (tab: ActiveTab = 'home') => {
+      window.history.replaceState({}, '', '/');
+      setFillLink(null);
+      setLinkWantsLogin(false);
+      setActiveClubId(fillLink.clubId);
+      setActiveTab(tab);
+    };
+    return (
+      <>
+        <FaltaUnoLinkPage
+          clubId={fillLink.clubId}
+          searchId={fillLink.searchId}
+          authUser={authUser}
+          ready={!!userProfile}
+          onLogin={() => setLinkWantsLogin(true)}
+          onExit={() => exitLink(authUser ? 'matchmaking' : 'home')}
+        />
+        <OfflineIndicator />
+      </>
     );
   }
 
@@ -650,6 +751,7 @@ export default function App() {
                 onProfileUpdated={setUserProfile}
                 onLogout={logoutUser}
                 onToast={showToast}
+                onOpenTab={(t) => setActiveTab(t)}
               />
             )}
           </>

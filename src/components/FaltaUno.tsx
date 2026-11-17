@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { DEFAULT_ALERT_PREFS, type AlertPrefs, type Club, type FillInvite, type FillSearch, type ProposedMatch, type UserProfile, type WeeklyInvites } from '../types/padel';
-import { formatCategory, formatDateFriendly, formatMinutes, formatUYU, getTodayISO } from '../lib/padelUtils';
+import { formatCategory, formatDateFriendly, formatMinutes, formatUYU, getTodayISO, MAX_CATEGORY } from '../lib/padelUtils';
 import { chooseFillOutcome, claimFillSeat, declineFillInvite, dropFromMatch, updateAlertPrefs } from '../services/firestoreService';
+import { categoryRangeLabel, categoryWindow, fillLinkUrl, mapsUrl, shareMessage, whatsappUrl } from '../lib/compartir';
+import { BrandIcon } from './BrandIcon';
 
 // Pantallas de "Falta uno" (vista previa aprobada: Paddle.URU/docs/falta-uno-pantallas.png).
 
@@ -123,6 +125,10 @@ export const FillInviteCard: React.FC<{
             <span className="text-[13px] text-muted">Se paga en el club</span>
           </div>
         </div>
+        <a href={mapsUrl(club)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex h-10 items-center gap-1.5 text-sm font-semibold text-brand">
+          <BrandIcon name="ubicacion" size={16} />
+          Cómo llegar a {club.name}
+        </a>
       </div>
       <button
         type="button"
@@ -280,6 +286,7 @@ export const MatchFillStatus: React.FC<{
         <div className="mt-2 rounded-xl border border-[#cfe9ea] bg-[#eef9f9] px-3 py-2.5 text-[12.5px] text-[#2c4f52]">
           No tenés que hacer nada. Te avisamos cuando estén completos.
         </div>
+        {match.playerUids.includes(userUid) && <ShareFillLink club={club} match={match} search={search} onToast={onToast} />}
       </div>
     );
   }
@@ -341,6 +348,40 @@ export const MatchFillStatus: React.FC<{
   return null;
 };
 
+/** Mientras se busca reemplazo: compartir el link en el grupo de WhatsApp (sin integrar WhatsApp). */
+export const ShareFillLink: React.FC<{ club: Club; match: ProposedMatch; search: FillSearch; onToast: (msg: string) => void }> = ({ club, match, search, onToast }) => {
+  const missing = Math.max(0, search.seatsNeeded - search.seatsFilled);
+  const win = categoryWindow(match.slots.map((s) => s.category), club.fillMaxGap ?? 1);
+  const url = fillLinkUrl(club.id, search.id);
+  const text = shareMessage({ missing, date: search.date, startMinute: search.startMinute, clubName: club.name, min: win.min, max: win.max, url });
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      onToast('Link copiado. Pegalo en tu grupo.');
+    } catch {
+      onToast(url);
+    }
+  };
+  return (
+    <div className="mt-3 rounded-xl border-2 border-brand/25 bg-white p-3.5" data-testid="compartir-falta-uno">
+      <p className="text-[15px] font-semibold text-ink">¿Conocés a alguien de {categoryRangeLabel(win.min, win.max)}?</p>
+      <p className="mt-0.5 text-[13px] leading-snug text-muted">Mandale el link. El primero que confirma entra, sea de tu grupo o de los avisos.</p>
+      <a
+        href={whatsappUrl(text)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-3 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-action text-[15px] font-bold text-on-action"
+      >
+        <BrandIcon name="compartir" size={18} />
+        Compartir por WhatsApp
+      </a>
+      <button type="button" onClick={copy} className="mt-2 flex h-11 w-full cursor-pointer items-center justify-center rounded-2xl border border-line bg-white text-[15px] font-semibold text-brand">
+        Copiar link
+      </button>
+    </div>
+  );
+};
+
 /** Etiqueta corta para el estado de la búsqueda. */
 export function fillBadge(search?: FillSearch): { label: string; tone: 'amber' | 'green' | 'red' } | null {
   if (!search) return null;
@@ -377,7 +418,7 @@ export const AlertPrefsSection: React.FC<{
   const cat = userProfile.category;
   const range = (gap: number) => {
     const lo = Math.max(1, cat - gap);
-    const hi = Math.min(8, cat + gap);
+    const hi = Math.min(MAX_CATEGORY, cat + gap);
     const list = Array.from({ length: hi - lo + 1 }, (_, i) => formatCategory(lo + i));
     return list.length <= 3 ? list.join(', ').replace(/, ([^,]*)$/, ' y $1') : `${list[0]} a ${list[list.length - 1]}`;
   };

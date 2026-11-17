@@ -54,6 +54,7 @@ import {
 } from '../services/firestoreService';
 import { MercadoPagoModal } from './MercadoPagoModal';
 import { BrandIcon } from './BrandIcon';
+import { mapsUrl } from '../lib/compartir';
 import { uploadProfilePhoto } from '../services/photoService';
 import { CategoryBadge, PlayerAvatar, StatusChip, initialsOf } from './ui/People';
 
@@ -895,6 +896,10 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
                         {formatUYU(match.pricePerPlayer)}
                       </p>
                       <p className="text-[11px] text-slate-500">por jugador (1/4)</p>
+                      <a href={mapsUrl(club)} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-brand">
+                        <BrandIcon name="ubicacion" size={14} />
+                        Cómo llegar
+                      </a>
                     </div>
                   </div>
 

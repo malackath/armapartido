@@ -10,7 +10,9 @@ import { db, isFakePlayer, makeId, now } from './admin';
 import { respondToMatch, sweepClub } from './engine';
 import { runClock } from './clock';
 import { notify } from './notify';
-import { chooseUnfilled, claimSeat, declineInvite, dropFromMatch, stopSearch } from './fill';
+import { openFreeSlot, previewFreeSlot, simulateAnswers } from './hueco';
+import { cleanRows, importClients } from './importar';
+import { chooseUnfilled, claimFromLink, claimSeat, declineInvite, dropFromMatch, publicFillLink, stopSearch } from './fill';
 import type { FillChoice } from '../../src/types/padel';
 import { getAuth } from 'firebase-admin/auth';
 import { MAIL_SOLO_A, RESEND_API_KEY, sendMail } from './mail';
@@ -194,6 +196,96 @@ export const faltaUnoMeSumo = onCall(async (req) => {
   const clubId = str(d.clubId);
   await requireMember(clubId, uid);
   return { result: await claimSeat({ clubId, searchId: str(d.searchId), uid }) };
+});
+
+/** Página pública del link de "Falta uno": no pide cuenta y no devuelve datos de los jugadores. */
+export const faltaUnoLink = onCall(async (req) => {
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  const searchId = str(d.searchId);
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(clubId) || !/^[a-zA-Z0-9_-]{1,128}$/.test(searchId)) throw new HttpsError('invalid-argument', 'Link inválido.');
+  const info = await publicFillLink(clubId, searchId);
+  if (!info) throw new HttpsError('not-found', 'Este link no existe.');
+  return info;
+});
+
+/** "Quiero jugar" desde el link compartido. */
+export const faltaUnoSumarmePorLink = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  return { result: await claimFromLink({ clubId, searchId: str(d.searchId), uid }) };
+});
+
+// -----------------------------------------------------------------------------
+// Llenar un turno libre con un toque (Mostrador, 16/11)
+// -----------------------------------------------------------------------------
+
+async function requireStaff(clubId: string, uid: string) {
+  const member = await requireMember(clubId, uid);
+  const role = member.get('role');
+  if (role !== 'admin' && role !== 'staff') throw new HttpsError('permission-denied', 'Solo el mostrador o el administrador.');
+}
+
+function slotArgs(d: Record<string, unknown>) {
+  const date = str(d.date, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpsError('invalid-argument', 'Fecha inválida.');
+  const courtId = str(d.courtId);
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(courtId)) throw new HttpsError('invalid-argument', 'Cancha inválida.');
+  return { clubId: str(d.clubId), courtId, date, startMinute: int(d.startMinute, 0, 24 * 60 - 1, 'hora') };
+}
+
+/** Cuántos pueden a esa hora, por modalidad, para mostrar antes de tocar "Llenar con la app". */
+export const huecoVistaPrevia = onCall(async (req) => {
+  const uid = requireUid(req);
+  const a = slotArgs((req.data ?? {}) as Record<string, unknown>);
+  await requireStaff(a.clubId, uid);
+  return previewFreeSlot(a);
+});
+
+export const huecoLlenar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const a = slotArgs(d);
+  await requireStaff(a.clubId, uid);
+  const modality = str(d.modality) as Modality;
+  if (!MODALITIES.includes(modality)) throw new HttpsError('invalid-argument', 'Modalidad inválida.');
+  return openFreeSlot({ ...a, modality, discountPct: int(d.discountPct ?? 0, 0, 30, 'descuento'), staffUid: uid });
+});
+
+/** Solo para la demo de venta: los jugadores ficticios invitados contestan. */
+export const huecoSimular = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireStaff(clubId, uid);
+  return { won: await simulateAnswers({ clubId, searchId: str(d.searchId), n: int(d.n ?? 1, 1, 4, 'cantidad') }) };
+});
+
+// -----------------------------------------------------------------------------
+// Importar la planilla de jugadores (Admin → Clientes, 16/11)
+// -----------------------------------------------------------------------------
+
+export const clientesImportar = onCall({ timeoutSeconds: 300, memory: '512MiB' }, async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  const member = await requireMember(clubId, uid);
+  if (member.get('role') !== 'admin') throw new HttpsError('permission-denied', 'Solo el dueño o el administrador del club.');
+  const permission = str(d.permission, 300).trim();
+  if (permission.length < 10) throw new HttpsError('invalid-argument', 'Falta el permiso de los jugadores (Ley 18.331).');
+  return importClients({
+    clubId,
+    staffUid: uid,
+    staffName: String(member.get('displayName') ?? 'Administrador'),
+    rows: cleanRows(d.rows),
+    permission,
+    sourceFile: str(d.sourceFile, 120),
+    fileRows: int(d.fileRows ?? 0, 0, 100000, 'filas'),
+    merged: int(d.merged ?? 0, 0, 100000, 'repetidos'),
+    discarded: int(d.discarded ?? 0, 0, 100000, 'descartadas'),
+  });
 });
 
 /** "No puedo" en una invitación. */

@@ -80,3 +80,12 @@ h1, h2, h3, .font-display {
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* Deslizador de la agenda del Mostrador: siempre visible (macOS esconde las barras de desplazamiento). */
+.timeline-range { -webkit-appearance: none; appearance: none; background: transparent; }
+.timeline-range::-webkit-slider-runnable-track { height: 8px; border-radius: 999px; background: var(--color-mist, #e8f5f5); border: 1px solid #cfe3e4; }
+.timeline-range::-moz-range-track { height: 8px; border-radius: 999px; background: var(--color-mist, #e8f5f5); border: 1px solid #cfe3e4; }
+.timeline-range::-webkit-slider-thumb { -webkit-appearance: none; margin-top: -8px; height: 22px; width: 44px; border-radius: 999px; background: #0a5761; border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.timeline-range::-moz-range-thumb { height: 22px; width: 44px; border-radius: 999px; background: #0a5761; border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.timeline-range:disabled { opacity: .4; }
+.timeline-scroll { scrollbar-width: thin; scrollbar-color: #9fc9ca transparent; }
