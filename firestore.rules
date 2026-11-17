@@ -986,6 +986,17 @@ service cloud.firestore {
       }
 
       // Suplentes de guardia (etapa 4): solo los escribe el servidor; cada jugador lee las suyas, el club todas.
+      // Resultados (etapa 6a): los leen los 4 que jugaron y el club; los escribe solo el servidor.
+      match /matchResults/{resultId} {
+        allow get, list: if isSignedIn() && existing().clubId == clubId
+          && (request.auth.uid in existing().playerUids || isClubStaffOrAdmin(clubId) || isPlatformAdmin());
+        allow write: if false;
+      }
+      // Sugerencias de categoría: solo el club (el jugador nunca ve la sugerencia, solo el cambio).
+      match /categorySuggestions/{suggestionId} {
+        allow get, list: if isSignedIn() && isValidId(clubId) && (isClubStaffOrAdmin(clubId) || isPlatformAdmin());
+        allow write: if false;
+      }
       match /standbys/{standbyId} {
         allow get: if isSignedIn() && isValidId(clubId) && isValidId(standbyId)
           && (existing().uid == request.auth.uid || isClubStaffOrAdmin(clubId) || isPlatformAdmin());

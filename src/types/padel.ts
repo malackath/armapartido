@@ -401,6 +401,50 @@ export interface PlayerMatchResult {
   createdAt?: unknown;
 }
 
+/**
+ * Resultado de un partido de 4 (etapa 6a, decisión 4.2 de Ber, 17/11/2026).
+ * Uno de los 4 lo carga y uno de la otra pareja lo confirma en 48 h. Sin confirmar no cuenta.
+ * Id = id de la reserva. Lo escribe solo el servidor.
+ */
+export interface MatchResult {
+  id: string;
+  clubId: string;
+  bookingId: string;
+  date: string;
+  startMinute: number;
+  courtName: string;
+  teamA: string[];
+  teamB: string[];
+  /** Nombres de los 4 para mostrar sin leer otras fichas. */
+  names: Record<string, string>;
+  playerUids: string[];
+  winner: 'A' | 'B';
+  score: string;
+  reportedBy: string;
+  status: 'pending' | 'confirmed' | 'disputed' | 'expired';
+  expiresAt: string;
+  confirmedBy?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+/** Sugerencia de cambio de categoría para el club (decisión 4.1: la app sugiere, el club confirma). Id = uid. */
+export interface CategorySuggestion {
+  id: string;
+  clubId: string;
+  uid: string;
+  displayName: string;
+  from: number;
+  to: number;
+  reason: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  /** Resultados confirmados que tenía el jugador cuando el club decidió (para no volver a sugerir enseguida). */
+  resultsAtDecision?: number;
+  decidedBy?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
 export interface UserFriend {
   uid: string;
   ownerUid: string;

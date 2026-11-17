@@ -5,4 +5,5 @@ FIREBASE_EMULATORS=1 DEMO_PASSWORD=prueba-local-123 npx tsx scripts/seed-demo.ts
 node functions/test/armado.emulator.mjs; A=$?
 node functions/test/faltauno.emulator.mjs; B=$?
 node functions/test/clientes.emulator.mjs; C=$?
-exit $((A || B || C))
+node functions/test/resultados.emulator.mjs; D=$?
+exit $((A || B || C || D))

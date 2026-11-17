@@ -7,3 +7,4 @@ export { linkOrCreateClient } from '../src/clientes';
 export { runAutoFill, slotInBands, dueRunHour } from '../src/autofill';
 export { claimSeat, dropFromMatch } from '../src/fill';
 export { offerStandby, tryStandbys } from '../src/guardia';
+export { reportResult, confirmResult, expireResults, evaluateCategory, decideSuggestion, confirmedResultsOf } from '../src/resultados';

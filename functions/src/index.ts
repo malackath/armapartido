@@ -10,6 +10,7 @@ import { db, isFakePlayer, makeId, now } from './admin';
 import { respondToMatch, sweepClub } from './engine';
 import { runClock } from './clock';
 import { cancelStandby, offerStandby } from './guardia';
+import { confirmResult, decideSuggestion, reportResult } from './resultados';
 import { runAutoFillNow } from './autofill';
 import { notify } from './notify';
 import { openFreeSlot, previewFreeSlot, simulateAnswers } from './hueco';
@@ -384,4 +385,35 @@ export const faltaUnoDejarDeBuscar = onCall(async (req) => {
 export const clientesAlSumarse = process.env.SIN_DISPARADORES === '1' ? undefined : onDocumentCreated('clubs/{clubId}/memberships/{uid}', async (event) => {
   const res = await linkOrCreateClient(event.params.clubId, event.params.uid);
   logger.info('clientes', { clubId: event.params.clubId, uid: event.params.uid, ...res });
+});
+
+/** Resultados (etapa 6a): uno de los 4 carga, uno de la otra pareja confirma en 48 h. */
+export const resultadoCargar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  const bookingId = str(d.bookingId);
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(bookingId)) throw new HttpsError('invalid-argument', 'Partido inválido.');
+  if (d.winner !== 'A' && d.winner !== 'B') throw new HttpsError('invalid-argument', 'Elegí quién ganó.');
+  const partnerUid = str(d.partnerUid) || undefined;
+  return { result: await reportResult({ clubId, uid, bookingId, winner: d.winner, score: str(d.score, 40), partnerUid }) };
+});
+
+export const resultadoConfirmar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  return { status: await confirmResult({ clubId, uid, bookingId: str(d.bookingId), agree: d.agree === true }) };
+});
+
+/** El club (dueño o encargado) acepta o descarta una sugerencia de categoría. */
+export const categoriaDecidir = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireStaff(clubId, uid);
+  await decideSuggestion({ clubId, byUid: uid, uid: str(d.uid), accept: d.accept === true });
+  return { ok: true };
 });
