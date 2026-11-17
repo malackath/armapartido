@@ -164,7 +164,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const ficha = (layout: 'row' | 'column') => (
     <PlayerFicha
-      profile={userProfile}
+      profile={clubCategory ? { ...userProfile, category: clubCategory } : userProfile}
       clubName={activeClub?.name}
       layout={layout}
       action={
