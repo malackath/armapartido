@@ -288,5 +288,52 @@ await step('13. No se puede cargar un pedido que se pisa con otro propio (puntua
   results.push(`     (13: mensaje que ve el jugador: "${msg}")`);
 });
 
+// ---------- Etapa 3 (17/11): planificador ----------
+await step('14. Cinco para cuatro lugares: el servidor deja afuera al que jugó más recién y guarda los dos equipos', async () => {
+  await cleanAll();
+  const D8 = inDays(2); const T = 8 * 60;
+  const five = [['demo-p26', 'Leandro'], ['demo-p27', 'Victoria'], ['demo-p28', 'Franco'], ['demo-p29', 'Natalia'], ['demo-p08', 'Florencia']];
+  const yid = 'bk_test_jugo_ayer';
+  await club.collection('bookings').doc(yid).set({ id: yid, clubId: CLUB, courtId: 'cancha_4', courtName: 'Cancha 4', date: inDays(-1), startMinute: 600, endMinute: 690, type: 'matched', status: 'confirmed', createdByUid: 'x', playerUids: ['demo-p26', 'demo-p01', 'demo-p02', 'demo-p03'], guestName: '', totalPrice: 0, paidAmount: 0, paymentMethod: 'split', paymentStatus: 'pending', holdExpiresAt: '' });
+  for (const [u, n] of five) await req2(u, n, 5, D8, T, T + 90);
+  // Último partido de cada uno según las reservas (las de la demo más la de ayer).
+  const today = iso(new Date());
+  const past = (await club.collection('bookings').where('date', '>=', inDays(-28)).get()).docs.map((d) => d.data())
+    .filter((b) => b.status === 'confirmed' && b.date < today && (b.playerUids ?? []).filter(Boolean).length >= 2);
+  const last = Object.fromEntries(five.map(([u]) => [u, past.filter((b) => b.playerUids.includes(u)).map((b) => b.date).sort().pop() ?? '']));
+  const week = Object.fromEntries(five.map(([u]) => [u, past.filter((b) => b.playerUids.includes(u) && b.date >= inDays(-7)).length]));
+  await jugador.call('armadoBuscar', { clubId: CLUB });
+  const [m] = (await pendingMatches()).filter((x) => x.date === D8);
+  assert.ok(m, 'no armó');
+  const out = five.map(([u]) => u).find((u) => !m.playerUids.includes(u));
+  results.push(`     (14: último partido ${JSON.stringify(last)}; partidos en 7 días ${JSON.stringify(week)}; quedó afuera ${out}; equipos ${m.teamA?.join('+')} contra ${m.teamB?.join('+')})`);
+  // El que queda afuera es el que jugó más recién; si empatan, el que más jugó en la semana.
+  for (const u of m.playerUids) assert.ok(last[out] > last[u] || (last[out] === last[u] && week[out] >= week[u]), `quedó afuera ${out} y entró ${u}`);
+  assert.equal(out, 'demo-p26', 'tenía que quedar afuera Leandro (jugó ayer un partido de más)');
+  assert.equal(m.teamA?.length, 2); assert.equal(m.teamB?.length, 2);
+  assert.deepEqual([...m.teamA, ...m.teamB].sort(), [...m.playerUids].sort());
+  const bk = (await club.collection('bookings').doc(m.bookingId).get()).data();
+  assert.deepEqual(bk.teamA, m.teamA);
+  await club.collection('bookings').doc(yid).delete();
+});
+
+await step('15. Si uno rechaza, los equipos sugeridos se borran (ya no valen); vuelven cuando entra el reemplazo', async () => {
+  const D8 = inDays(2);
+  const [m] = (await pendingMatches()).filter((x) => x.date === D8);
+  await jugador.call('armadoResponder', { clubId: CLUB, matchId: m.id, slotUid: m.slots[0].uid, decision: 'declined' });
+  const after = (await club.collection('proposedMatches').doc(m.id).get()).data();
+  assert.equal(after.slots.length, 3);
+  assert.equal(after.teamA, undefined);
+  const fs = (await club.collection('fillSearches').where('matchId', '==', m.id).get()).docs[0];
+  assert.ok(fs, 'no abrió la búsqueda de reemplazo');
+  const r = await mostrador.call('huecoSimular', { clubId: CLUB, searchId: fs.id, n: 1 }).catch((e) => ({ err: e.message }));
+  const again = (await club.collection('proposedMatches').doc(m.id).get()).data();
+  if (again.slots.length === 4) {
+    assert.equal(again.teamA?.length, 2, 'no volvió a armar los equipos');
+  } else {
+    results.push(`     (15: no había reemplazo simulable: ${JSON.stringify(r)})`);
+  }
+});
+
 console.log('\n' + results.join('\n'));
 process.exit(results.some((r) => r.startsWith('FALLA')) ? 1 : 0);

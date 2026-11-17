@@ -16,6 +16,7 @@ import type {
   RecoveryRecord,
 } from '../../src/types/padel';
 import { formatCategory, formatDateFriendly, formatMinutes } from '../../src/lib/padelUtils';
+import { teamsForSlots } from '../../src/lib/planificador';
 import { db, isFakePlayer, makeId, now } from './admin';
 import { notify } from './notify';
 import {
@@ -137,9 +138,12 @@ function removeFromMatch(
     playerUids,
     minCategory: next.minCategory,
     maxCategory: next.maxCategory,
+    // Se fue alguien: los equipos sugeridos ya no valen (se vuelven a armar cuando son 4 otra vez).
+    teamA: FieldValue.delete(),
+    teamB: FieldValue.delete(),
     updatedAt: now(),
   });
-  if (booking) tx.update(ref.collection('bookings').doc(m.bookingId), { playerUids, updatedAt: now() });
+  if (booking) tx.update(ref.collection('bookings').doc(m.bookingId), { playerUids, teamA: FieldValue.delete(), teamB: FieldValue.delete(), updatedAt: now() });
   const leavingReqs = new Set(m.slots.filter((s) => leaving.includes(s.uid) && s.requestId).map((s) => s.requestId));
   for (const id of leavingReqs) tx.update(ref.collection('matchRequests').doc(id), { status: 'cancelled', updatedAt: now() });
   return next;
@@ -535,16 +539,18 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
     const cats = slots.map((x) => x.category);
     const full = s.seatsFilled + 1 >= s.seatsNeeded;
     const confirmNow = m.status === 'pending' && full && slots.length >= 4 && slots.every((x) => x.status === 'accepted');
+    const teams = teamsForSlots(slots) ?? {};
     tx.update(mRef, {
       slots,
       playerUids,
       minCategory: Math.min(...cats),
       maxCategory: Math.max(...cats),
+      ...teams,
       ...(confirmNow ? { status: 'confirmed' } : {}),
       updatedAt: now(),
     });
     if (!s.auto) {
-      tx.update(bRef, { playerUids, ...(confirmNow ? { status: 'confirmed', holdExpiresAt: '' } : {}), updatedAt: now() });
+      tx.update(bRef, { playerUids, ...teams, ...(confirmNow ? { status: 'confirmed', holdExpiresAt: '' } : {}), updatedAt: now() });
     } else if (confirmNow) {
       // Recién ahora se reserva la cancha (la transacción ya comprobó que sigue libre).
       const booking: Booking & Record<string, unknown> = {
@@ -559,6 +565,7 @@ export async function claimSeat(p: { clubId: string; searchId: string; uid: stri
         status: 'confirmed',
         createdByUid: AUTO_FILL_UID,
         playerUids,
+        ...teams,
         guestName: 'Armado por la app',
         totalPrice: s.pricePerPlayer * 4,
         paidAmount: 0,

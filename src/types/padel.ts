@@ -218,6 +218,9 @@ export interface Booking {
   holdExpiresAt: string;
   /** Ficha del cliente (reservas por teléfono o mostrador). */
   clientId?: string;
+  /** Equipos sugeridos (partidos armados por la app). */
+  teamA?: string[];
+  teamB?: string[];
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -273,6 +276,9 @@ export interface ProposedMatch {
   expiresAt: string;
   status: 'pending' | 'confirmed' | 'cancelled';
   createdByUid: string;
+  /** Equipos sugeridos por el planificador (uids). Es una sugerencia: en la cancha pueden cambiar. */
+  teamA?: string[];
+  teamB?: string[];
   createdAt?: unknown;
   updatedAt?: unknown;
 }

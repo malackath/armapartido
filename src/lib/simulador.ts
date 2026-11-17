@@ -5,6 +5,7 @@
 // No toca Firebase: es todo en memoria, para comparar "el armado de hoy" con el planificador nuevo.
 
 import type { Booking, Club, ClubMembership, Court, MatchRequest, ProposedMatch } from '../types/padel';
+import { planDay, type PlayedMatch } from './planificador';
 import { addDaysISO, busyUidsAt, findMatchForClub, generateDaySlots, getDayOfWeekFromISO, type MatchCandidateResult } from './padelUtils';
 
 // ---------- azar con semilla (para que cada corrida se pueda repetir) ----------
@@ -84,6 +85,20 @@ export const estrategiaActual: Strategy = {
       pendingMatches: i.pendingMatches,
       targetDate: i.date,
     }),
+};
+
+/** El planificador nuevo (etapa 3): mejor puntaje con justicia por espera y anti-repetición. */
+export const estrategiaPlanificador: Strategy = {
+  id: 'planificador',
+  name: 'Planificador nuevo (el mejor posible)',
+  armar: (i) => {
+    const history: PlayedMatch[] = i.history.map((m) => ({ date: m.date, uids: m.uids }));
+    const plan = planDay({
+      club: i.club, courts: i.courts, bookings: i.bookings, requests: i.requests, memberships: i.memberships,
+      pendingMatches: i.pendingMatches, history, date: i.date, todayISO: i.date,
+    });
+    return plan[0] ?? null;
+  },
 };
 
 export interface SimMatch {
@@ -257,7 +272,13 @@ export function simulate(s: Scenario, strategy: Strategy, opts: { weeks: number;
         const here = new Set(
           requests.filter((q) => q.startMinute <= slot.startMinute && q.endMinute >= slot.endMinute).flatMap((q) => [q.creatorUid, q.partnerUid].filter(Boolean))
         );
-        if (here.size >= 4) here.forEach((u) => playable.add(u));
+        // Cuenta como "podía jugar" si en ese turno había 4 (con él) dentro de 1 categoría de diferencia.
+        const list = [...here];
+        for (const u of list) {
+          const c = byUid.get(u)!.category;
+          const ok = [c - 1, c].some((lo) => list.filter((x) => { const k = byUid.get(x)!.category; return k >= lo && k <= lo + 1; }).length >= 4);
+          if (ok) playable.add(u);
+        }
       }
       playable.forEach((u) => everPlayable.add(u));
       const out = new Set([...dayAvail].filter((u) => !playedToday.has(u) && playable.has(u)));

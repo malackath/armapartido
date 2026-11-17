@@ -2,14 +2,14 @@
 // Uso: npx tsx scripts/simulador-partidos.ts [carpeta-salida] [corridas=30] [semanas=4]
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { escenarioClubMediano, escenarioEjemploBer, estrategiaActual, simulate, type Scenario, type SimResult, type Strategy } from '../src/lib/simulador';
+import { escenarioClubMediano, escenarioEjemploBer, estrategiaActual, estrategiaPlanificador, simulate, type Scenario, type SimResult, type Strategy } from '../src/lib/simulador';
 
 const out = process.argv[2] || 'sim-salida';
 const runs = Number(process.argv[3] || 30);
 const weeks = Number(process.argv[4] || 4);
 mkdirSync(out, { recursive: true });
 
-const strategies: Strategy[] = [estrategiaActual];
+const strategies: Strategy[] = [estrategiaActual, estrategiaPlanificador];
 const scenarios: ((seed: number) => Scenario)[] = [escenarioEjemploBer, escenarioClubMediano];
 
 interface Agg {
