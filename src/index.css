@@ -92,3 +92,14 @@ h1, h2, h3, .font-display {
 .timeline-range::-moz-range-thumb { height: 22px; width: 44px; border-radius: 999px; background: var(--color-brand, #0a5761); border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
 .timeline-range:disabled { opacity: .4; }
 .timeline-scroll { scrollbar-width: thin; scrollbar-color: #9fc9ca transparent; }
+
+/* Cuponera estilo billetera (19/11): cada cupón es un talón con muescas; los usados, tachados. */
+.cupon { --c: var(--color-brand, #0a5761); position: relative; height: 50px; border-radius: 7px; background: #fff; border: 1.5px solid var(--c); color: var(--c); display: flex; flex-direction: column; align-items: center; justify-content: center;
+  -webkit-mask: radial-gradient(circle 5px at 0 50%, #0000 98%, #000) left / 51% 100% no-repeat, radial-gradient(circle 5px at 100% 50%, #0000 98%, #000) right / 51% 100% no-repeat;
+  mask: radial-gradient(circle 5px at 0 50%, #0000 98%, #000) left / 51% 100% no-repeat, radial-gradient(circle 5px at 100% 50%, #0000 98%, #000) right / 51% 100% no-repeat; }
+.cupon b { font-size: 16px; line-height: 1; }
+.cupon em { font-style: normal; font-size: 9px; opacity: .75; margin-top: 2px; }
+.cupon-usado { --c: #9aa9ab; background: #eef2f2; border-style: dashed; }
+.cupon-usado b { text-decoration: line-through; text-decoration-thickness: 2px; }
+.cupon-usado::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top right, transparent calc(50% - 1px), #c2410c calc(50% - 1px), #c2410c calc(50% + 1px), transparent calc(50% + 1px)); }
+.cupon-sigue { background: #ecfcfc; border-width: 2px; }

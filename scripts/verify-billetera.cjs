@@ -54,6 +54,7 @@ async function irAMisCuponeras(p) {
   let s = await irAMisCuponeras(p);
   let t = await s.innerText();
   check('Compu: Mis cuponeras con la de 10 partes', t.includes('10 partes de cancha') && /7\s*de 10/.test(t), t.slice(0, 80).replace(/\n/g, ' | '));
+  check('Compu: los 10 cupones, 3 tachados y 7 libres', (await p.locator('[data-testid="cupon-usado"]').count()) === 3 && (await p.locator('[data-testid="cupon-libre"]').count()) === 7);
   check('Compu: "Guardala en tu celular" con QR', t.includes('Guardala en tu celular') && (await p.locator('[data-testid="pasala-al-celular"] img').count()) === 1);
   await s.screenshot({ path: `${OUT}/1-compu-mis-cuponeras.png` });
   await p.locator('[data-testid="ver-codigo"]').first().click();
@@ -83,6 +84,9 @@ async function irAMisCuponeras(p) {
   s = await irAMisCuponeras(p);
   t = await s.innerText();
   check('iPhone: "Apple Wallet llega muy pronto"', t.includes('Apple Wallet llega muy pronto'));
+  await p.getByRole('button', { name: 'Historial' }).first().click();
+  await p.waitForTimeout(500);
+  check('iPhone: Historial con 3 usos', (await p.locator('[data-testid="historial"] b').count()) === 3);
   await shot(p, '5-iphone-pronto');
   await c.close();
 

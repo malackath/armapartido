@@ -9,6 +9,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import type { Club } from '../../../src/types/padel';
+import { nombreTira, type ColoresTira } from './tira';
 
 /** Lo mínimo de la cuponera del cliente que usa el pase (clubs/{id}/clientPacks/{id}). */
 export interface PackParaPase {
@@ -46,6 +47,11 @@ export interface Pase {
   colores: { fondo: string; texto: string; acento: string; etiqueta: string };
   logo: string;
   portada?: string;
+  /** Cupones usados y colores de la tira (imagen con los cupones tachados). */
+  usados: number;
+  coloresTira: ColoresTira;
+  /** URL pública del PNG con la tira de cupones (hasta 30 cupones). */
+  tira?: string;
   linkApp: string;
 }
 
@@ -104,7 +110,8 @@ function textoSobre(hex: string): string {
 }
 
 /** Arma el pase con los datos de la cuponera y la marca del club. appUrl = https://demo.armapartido.com o el dominio del club. */
-export function armarPase(club: Club, pack: PackParaPase, hoy: string, appUrl: string): Pase {
+/** tiraBase = dirección de la función walletCupones; sin ella el pase va sin la tira (como antes). */
+export function armarPase(club: Club, pack: PackParaPase, hoy: string, appUrl: string, tiraBase?: string): Pase {
   const marca = club.paquete === 'completo' && club.marca ? club.marca : null;
   let colores = GENERICO;
   let logo = `${appUrl}/wallet/logo-armapartido.png`;
@@ -118,6 +125,9 @@ export function armarPase(club: Club, pack: PackParaPase, hoy: string, appUrl: s
     portada = pngPublica(marca.fotos?.portada);
   }
   const unidad = pack.unit === 'turno' ? 'turnos' : 'partes de cancha';
+  const usados = Math.max(0, Math.min(pack.usesTotal, pack.usesTotal - Math.max(0, pack.usesLeft)));
+  const coloresTira: ColoresTira = { fondo: colores.fondo, linea: marca ? colores.texto : colores.etiqueta, acento: colores.acento };
+  const tira = tiraBase && pack.usesTotal >= 1 && pack.usesTotal <= 30 ? `${tiraBase.replace(/\/$/, '')}/${nombreTira(usados, pack.usesTotal, coloresTira)}` : undefined;
   const sirve = pack.validity === 'valle' ? 'Horario valle' : pack.validity === 'semana' ? 'Lunes a viernes' : 'Todo horario';
   return {
     serial: `${pack.clubId}.${pack.id}`,
@@ -137,6 +147,9 @@ export function armarPase(club: Club, pack: PackParaPase, hoy: string, appUrl: s
     colores,
     logo,
     portada,
+    usados,
+    coloresTira,
+    tira,
     linkApp: `${appUrl}/?tab=profile&clubId=${encodeURIComponent(club.id)}&cuponera=${encodeURIComponent(pack.id)}`,
   };
 }

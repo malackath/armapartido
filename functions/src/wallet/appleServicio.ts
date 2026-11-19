@@ -10,6 +10,7 @@ import { getTodayISO } from '../../../src/lib/padelUtils';
 import { db } from '../admin';
 import { armarPase, type PackParaPase } from './pase';
 import { appleActiva, armarPkpass, avisarIphone, tokenValido, type ConfigApple } from './apple';
+import { tiraPng } from './tira';
 
 const SERIAL = /^([a-zA-Z0-9_-]{1,128})\.([a-zA-Z0-9_-]{1,128})$/;
 const regId = (dev: string, serial: string) => `${dev}_${serial}`.replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 400);
@@ -38,8 +39,14 @@ async function pkpassDe(cfg: ConfigApple, serial: string, appUrl: string) {
   if (icono) img['icon.png'] = icono;
   const logo = await bajar(pase.logo);
   if (logo) img['logo.png'] = logo;
-  const strip = await bajar(pase.portada);
-  if (strip) img['strip.png'] = strip;
+  // Strip: la tira de cupones hecha acá mismo (sin bajarla); si son más de 30, la portada.
+  if (pack.usesTotal >= 1 && pack.usesTotal <= 30) {
+    img['strip.png'] = tiraPng(pase.usados, pase.total, pase.coloresTira, 375, 123);
+    img['strip@2x.png'] = tiraPng(pase.usados, pase.total, pase.coloresTira, 750, 246);
+  } else {
+    const strip = await bajar(pase.portada);
+    if (strip) img['strip.png'] = strip;
+  }
   return { buf: armarPkpass(cfg, pase, img), actualizado: pack.wallet?.apple?.actualizado || 0 };
 }
 

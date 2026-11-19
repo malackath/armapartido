@@ -165,6 +165,34 @@ await step('W11 Apple (apagada): el .pkpass se arma, se abre y la firma verifica
   execFileSync('openssl', ['smime', '-verify', '-binary', '-inform', 'DER', '-in', join(dir, 'x', 'signature'), '-content', join(dir, 'x', 'manifest.json'), '-noverify', '-out', '/dev/null'], { stdio: 'pipe' });
 });
 
+await step('W12 Tira de cupones: PNG válido con los usados tachados, URL con el estado y heroImage en Google', async () => {
+  const c = (await club.get()).data();
+  const p = { ...(await packRef.get()).data(), usesTotal: 10, usesLeft: 7 };
+  const pase = H.armarPase(c, p, '2026-11-19', 'https://demo.armapartido.com', 'https://img.ejemplo/walletCupones');
+  assert.equal(pase.usados, 3);
+  assert.match(pase.tira, /^https:\/\/img\.ejemplo\/walletCupones\/3-10-[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{6}\.png$/);
+  const nombre = pase.tira.split('/').pop();
+  const t = H.leerNombreTira(nombre);
+  assert.equal(t.usados, 3);
+  assert.equal(t.total, 10);
+  assert.deepEqual(H.estadosCupones(3, 10), ['usado', 'usado', 'usado', 'sigue', 'libre', 'libre', 'libre', 'libre', 'libre', 'libre']);
+  const png = H.tiraPng(t.usados, t.total, t.colores);
+  assert.equal(png.subarray(1, 4).toString(), 'PNG');
+  assert.equal(png.readUInt32BE(16), 1032);
+  assert.equal(png.readUInt32BE(20), 336);
+  const o = H.objetoGoogle('1', pase, 'y');
+  assert.equal(o.heroImage.sourceUri.uri, pase.tira);
+  // Otro uso = otra URL (la billetera baja la imagen nueva).
+  const pase2 = H.armarPase(c, { ...p, usesLeft: 6 }, '2026-11-19', 'https://demo.armapartido.com', 'https://img.ejemplo/walletCupones');
+  assert.notEqual(pase2.tira, pase.tira);
+  // Nombres raros no se aceptan.
+  assert.equal(H.leerNombreTira('11-10-000000-000000-000000.png'), null);
+  assert.equal(H.leerNombreTira('../x.png'), null);
+  // Más de 30 cupones: sin tira, vuelve la portada.
+  const grande = H.armarPase(c, { ...p, usesTotal: 40, usesLeft: 20 }, '2026-11-19', 'https://demo.armapartido.com', 'https://img.ejemplo/walletCupones');
+  assert.equal(grande.tira, undefined);
+});
+
 // Dejar la cuponera de Lucía como la carga la demo
 await packRef.set(pack0);
 console.log('\nBilletera:\n' + results.join('\n'));

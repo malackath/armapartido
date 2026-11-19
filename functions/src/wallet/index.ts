@@ -31,6 +31,9 @@ export function asegurarApple() {
 }
 
 /** Dominio público de la app (links del pase e imágenes genéricas). */
+/** Dirección pública de la función walletCupones (la tira de cupones que baja la billetera). */
+export const tiraBase = () =>
+  (process.env.WALLET_TIRA_URL || `https://southamerica-east1-${process.env.GCLOUD_PROJECT || 'armapartido-demo'}.cloudfunctions.net/walletCupones`).replace(/\/$/, '');
 export const appUrl = () => (process.env.APP_URL || 'https://demo.armapartido.com').replace(/\/$/, '');
 
 function google(): GoogleWallet | null {
@@ -83,7 +86,7 @@ export async function cuponeraPase(req: CallableRequest): Promise<RespuestaPase>
   }
 
   asegurarApple();
-  const pase = armarPase(club, pack, getTodayISO(), appUrl());
+  const pase = armarPase(club, pack, getTodayISO(), appUrl(), tiraBase());
   const g = google();
   const res: RespuestaPase = {
     qr: pack.qr!,
@@ -113,7 +116,7 @@ export async function alCambiarCuponera(clubId: string, antes: ConWallet, despue
   const club = (await db.doc(`clubs/${clubId}`).get()).data() as Club | undefined;
   if (!club) return { hecho: 'nada' as const };
   const hoy = getTodayISO();
-  const pase = armarPase(club, despues, hoy, appUrl());
+  const pase = armarPase(club, despues, hoy, appUrl(), tiraBase());
   const texto = avisoCambio(antes, despues);
   const out: { google?: string; apple?: string } = {};
 

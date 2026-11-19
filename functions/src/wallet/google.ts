@@ -89,7 +89,9 @@ export function objetoGoogle(issuerId: string, pase: Pase, packId: string) {
     linksModuleData: { uris: [{ uri: pase.linkApp, description: 'Ver en la app', id: 'app' }] },
   };
   if (pase.qr) o.barcode = { type: 'QR_CODE', value: pase.qr, alternateText: 'Mostralo en el mostrador' };
-  if (pase.portada) o.heroImage = { sourceUri: { uri: pase.portada }, contentDescription: txt(pase.clubNombre) };
+  // Imagen ancha: la tira con los cupones (usados tachados); si no hay, la portada.
+  if (pase.tira) o.heroImage = { sourceUri: { uri: pase.tira }, contentDescription: txt(`Quedan ${pase.quedan} de ${pase.total} cupones`) };
+  else if (pase.portada) o.heroImage = { sourceUri: { uri: pase.portada }, contentDescription: txt(pase.clubNombre) };
   if (pase.venceISO) o.validTimeInterval = { end: { date: `${pase.venceISO}T23:59:59-03:00` } };
   return o;
 }

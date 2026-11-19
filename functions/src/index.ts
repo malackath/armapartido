@@ -21,8 +21,9 @@ import { requestJoin, resolveJoin } from './sumarse';
 import { cambiarPaquete, guardarMarca, revisarMarca, subirImagen } from './marca';
 import { chooseUnfilled, claimFromLink, claimSeat, declineInvite, dropFromMatch, publicFillLink, stopSearch } from './fill';
 import type { FillChoice } from '../../src/types/padel';
-import { alCambiarCuponera, APPLE_ON, appUrl, asegurarApple, cuponeraPase, SECRETOS_BILLETERA } from './wallet';
+import { alCambiarCuponera, GOOGLE_ON, APPLE_ON, appUrl, asegurarApple, cuponeraPase, SECRETOS_BILLETERA } from './wallet';
 import { servicioApple } from './wallet/appleServicio';
+import { leerNombreTira, tiraPng } from './wallet/tira';
 
 // São Paulo: misma región que Firestore de la demo. Tope de instancias para que un error no dispare costos.
 setGlobalOptions({ region: 'southamerica-east1', maxInstances: 3, memory: '256MiB' });
@@ -506,5 +507,16 @@ export const walletApple = APPLE_ON
   ? onRequest({ secrets: SECRETOS_BILLETERA }, (req, res) => {
       asegurarApple();
       return servicioApple(appUrl())(req, res);
+    })
+  : undefined;
+
+/** Tira de cupones (PNG) que baja la Billetera de Google: /walletCupones/<usados>-<total>-<colores>.png.
+ *  No lleva datos personales; la URL cambia en cada uso, así que se puede guardar en caché para siempre. */
+export const walletCupones = GOOGLE_ON
+  ? onRequest({ memory: '256MiB', maxInstances: 5 }, (req, res) => {
+      const t = leerNombreTira(req.path.split('/').filter(Boolean).pop() || '');
+      if (!t) return void res.status(404).send('No existe.');
+      res.set('Content-Type', 'image/png').set('Cache-Control', 'public, max-age=31536000, immutable');
+      res.send(tiraPng(t.usados, t.total, t.colores));
     })
   : undefined;
