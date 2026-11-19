@@ -19,15 +19,17 @@ import { getTodayISO } from '../../../src/lib/padelUtils';
 
 export const GOOGLE_ON = process.env.GOOGLE_WALLET === '1';
 export const APPLE_ON = process.env.APPLE_WALLET === '1';
-export const GOOGLE_WALLET_SA_KEY = defineSecret('GOOGLE_WALLET_SA_KEY');
-export const GOOGLE_WALLET_ISSUER_ID = defineSecret('GOOGLE_WALLET_ISSUER_ID');
-export const APPLE_PASS_CERT = defineSecret('APPLE_PASS_CERT');
-export const APPLE_WWDR = defineSecret('APPLE_WWDR');
-export const SECRETOS_BILLETERA = [...(GOOGLE_ON ? [GOOGLE_WALLET_SA_KEY, GOOGLE_WALLET_ISSUER_ID] : []), ...(APPLE_ON ? [APPLE_PASS_CERT, APPLE_WWDR] : [])];
+// Las claves se declaran SOLO con la billetera prendida: Firebase exige que todo secreto declarado exista en
+// Secret Manager para publicar, y con las billeteras apagadas no hay claves (publicación del 18/11 frenada por eso).
+const GOOGLE_WALLET_SA_KEY = GOOGLE_ON ? defineSecret('GOOGLE_WALLET_SA_KEY') : null;
+const GOOGLE_WALLET_ISSUER_ID = GOOGLE_ON ? defineSecret('GOOGLE_WALLET_ISSUER_ID') : null;
+const APPLE_PASS_CERT = APPLE_ON ? defineSecret('APPLE_PASS_CERT') : null;
+const APPLE_WWDR = APPLE_ON ? defineSecret('APPLE_WWDR') : null;
+export const SECRETOS_BILLETERA = [GOOGLE_WALLET_SA_KEY, GOOGLE_WALLET_ISSUER_ID, APPLE_PASS_CERT, APPLE_WWDR].filter((s): s is NonNullable<typeof s> => !!s);
 
 /** Apple se arma con los secretos la primera vez que hace falta. */
 export function asegurarApple() {
-  if (APPLE_ON && !appleActiva()) prenderApple(configApple(process.env, APPLE_PASS_CERT.value(), APPLE_WWDR.value()));
+  if (APPLE_ON && !appleActiva()) prenderApple(configApple(process.env, APPLE_PASS_CERT!.value(), APPLE_WWDR!.value()));
 }
 
 /** Dominio público de la app (links del pase e imágenes genéricas). */
@@ -38,7 +40,7 @@ export const appUrl = () => (process.env.APP_URL || 'https://demo.armapartido.co
 
 function google(): GoogleWallet | null {
   if (!GOOGLE_ON) return null;
-  const cfg = configGoogle(GOOGLE_WALLET_SA_KEY.value(), GOOGLE_WALLET_ISSUER_ID.value(), [appUrl(), 'https://armapartido.com']);
+  const cfg = configGoogle(GOOGLE_WALLET_SA_KEY!.value(), GOOGLE_WALLET_ISSUER_ID!.value(), [appUrl(), 'https://armapartido.com']);
   return cfg ? new GoogleWallet(cfg) : null;
 }
 
