@@ -308,8 +308,8 @@ const FillSection: React.FC<{
   club: Club;
   enabled: boolean;
   setEnabled: (v: boolean) => void;
-  maxGap: 1 | 2;
-  setMaxGap: (v: 1 | 2) => void;
+  maxGap: 0 | 1 | 2;
+  setMaxGap: (v: 0 | 1 | 2) => void;
   autoFill: AutoFillConfig;
   setAutoFill: (v: AutoFillConfig) => void;
   autoFillDirty: boolean;
@@ -336,26 +336,30 @@ const FillSection: React.FC<{
       <div className="space-y-5">
         <Card title="Buscar reemplazo solo" action={<Toggle on={enabled} onChange={setEnabled} label="Buscar reemplazo solo" />}>
           <p className="text-[13px] text-muted">
-            Cuando alguien se baja de un partido armado o no contesta a tiempo, avisamos a jugadores del club de la misma categoría. El primero que confirma entra. Nadie del mostrador tiene que llamar.
+            Cuando alguien se baja de un partido armado o no contesta a tiempo, avisamos a jugadores del club con la categoría que elijas abajo. El primero que confirma entra. Nadie del mostrador tiene que llamar.
           </p>
           {!enabled && <Hint>Apagado: si alguien se baja, solo les avisamos a los demás jugadores del partido.</Hint>}
         </Card>
 
         <Card title="Diferencia de categoría permitida">
-          <div className={`grid grid-cols-2 gap-2 ${enabled ? '' : 'pointer-events-none opacity-50'}`}>
-            {([1, 2] as const).map((g) => (
+          <div className={`grid grid-cols-3 gap-2 ${enabled ? '' : 'pointer-events-none opacity-50'}`}>
+            {([0, 1, 2] as const).map((g) => (
               <button
                 key={g}
                 type="button"
                 aria-pressed={maxGap === g}
                 onClick={() => setMaxGap(g)}
-                className={`h-11 rounded-xl border text-sm font-semibold cursor-pointer ${maxGap === g ? 'border-brand bg-brand text-white' : 'border-line bg-white text-ink hover:bg-mist'}`}
+                className={`min-h-11 rounded-xl border px-2 py-2 text-sm leading-tight font-semibold cursor-pointer ${maxGap === g ? 'border-brand bg-brand text-white' : 'border-line bg-white text-ink hover:bg-mist'}`}
               >
-                {g} {g === 1 ? 'categoría' : 'categorías'}
+                {g === 0 ? 'Misma categoría' : g === 1 ? '1 categoría' : '2 categorías'}
               </button>
             ))}
           </div>
-          <Hint>Entre el más alto y el más bajo de los 4. Si un jugador pidió menos en su perfil, vale lo que pidió él.</Hint>
+          <Hint>
+            {maxGap === 0
+              ? 'Los 4 tienen que ser de la misma categoría: el reemplazo es de la categoría exacta de los que quedan. Es más parejo, pero cuesta más llenar el lugar.'
+              : `Hasta ${maxGap === 1 ? 'una categoría' : 'dos categorías'} entre el más alto y el más bajo de los 4. Si un jugador pidió menos en su perfil, vale lo que pidió él.`}
+          </Hint>
         </Card>
 
         <AutoFillCard club={club} value={autoFill} onChange={setAutoFill} dirty={autoFillDirty} />
@@ -420,7 +424,7 @@ export const ClubAdminView: React.FC<ClubAdminViewProps> = ({ club, courts, memb
   const [mpMode, setMpMode] = useState<'full' | 'deposit'>(club.mpMode);
   const [mpDeposit, setMpDeposit] = useState(club.mpDepositPercent);
   const [fillEnabled, setFillEnabled] = useState(club.fillEnabled !== false);
-  const [fillMaxGap, setFillMaxGap] = useState<1 | 2>(club.fillMaxGap ?? 1);
+  const [fillMaxGap, setFillMaxGap] = useState<0 | 1 | 2>(club.fillMaxGap ?? 1);
   const savedAutoFill: AutoFillConfig = club.autoFill ?? { enabled: false, bands: [] };
   const [autoFill, setAutoFill] = useState<AutoFillConfig>(savedAutoFill);
   const autoFillDirty = JSON.stringify(autoFill) !== JSON.stringify(savedAutoFill);

@@ -43,6 +43,22 @@ await step('R1. Categoría: club 1, partido de 5ta: entra 4ta y 6ta, no 7ma', as
   assert.equal(H.categoryFits(6, 1, 1, cur), true);
   assert.equal(H.categoryFits(7, 2, 1, cur), false);
 });
+await step('R1b. Club "Misma categoría" (0): partido de 5ta solo acepta 5ta, aunque el jugador acepte 2', async () => {
+  const cur = [{ uid: 'a', category: 5, gap: 2 }, { uid: 'b', category: 5, gap: 2 }, { uid: 'c', category: 5, gap: 2 }];
+  assert.equal(H.categoryFits(5, 2, 0, cur), true);
+  assert.equal(H.categoryFits(4, 2, 0, cur), false);
+  assert.equal(H.categoryFits(6, 2, 0, cur), false);
+  // Partido ya mezclado (4ta y 5ta): con 0 no entra nadie, ni de 4ta ni de 5ta.
+  const mix = [{ uid: 'a', category: 4, gap: 2 }, { uid: 'b', category: 5, gap: 2 }, { uid: 'c', category: 5, gap: 2 }];
+  assert.equal(H.categoryFits(5, 2, 0, mix), false);
+  assert.equal(H.categoryFits(4, 2, 0, mix), false);
+});
+await step('R1c. Turno libre con "Misma categoría": la ventana es de una sola categoría (la que más jugadores tiene)', async () => {
+  const w = H.bestCategoryWindow([4, 5, 5, 5, 6, 6], 0);
+  assert.deepEqual(w, { min: 5, max: 5, count: 3 });
+  const w1 = H.bestCategoryWindow([4, 5, 5, 5, 6, 6], 1);
+  assert.equal(w1.count, 5);
+});
 await step('R2. Categoría: club 2, pero un jugador pidió "solo mi categoría" → manda lo más estricto', async () => {
   const cur = [{ uid: 'a', category: 5, gap: 0 }, { uid: 'b', category: 5, gap: 2 }, { uid: 'c', category: 6, gap: 2 }];
   assert.equal(H.categoryFits(6, 2, 2, cur), false); // el de 5ta con gap 0 no acepta 6ta
@@ -79,6 +95,17 @@ await step('R6. Orden: pedido puntual primero, después categoría exacta, despu
   const requests = [{ status: 'waiting', requestType: 'priority', date: '2026-11-18', startMinute: 1140, endMinute: 1320, creatorUid: 'req4', partnerUid: '' }];
   const r = H.rankCandidates({ search, clubGap: 1, current: [{ uid: 'a', category: 5, gap: 1 }, { uid: 'b', category: 5, gap: 1 }, { uid: 'c', category: 5, gap: 1 }], targetCategory: 5, members, prefsByUid, counters, bookings: [], requests, now, random: () => 0.5 });
   assert.deepEqual(r.map((c) => c.uid), ['req4', 'x5', 'y5', 'x6']);
+});
+
+await step('R7. Avisos con club en "Misma categoría": solo los de 5ta, el de 4ta y el de 6ta quedan afuera', async () => {
+  const search = { date: '2026-11-18', startMinute: 1200, endMinute: 1290, modality: 'masculino', genderNeeded: '', excludedUids: [], invitedUids: [], filledUids: [] };
+  const av = [{ dayOfWeek: 3, startMinute: 1080, endMinute: 1380 }];
+  const mk = (uid, category) => ({ uid, displayName: uid, category, gender: 'masculino', role: 'player', blocked: false, noShowCount: 0, weeklyAvailability: av });
+  const members = [mk('x6', 6), mk('x5', 5), mk('y5', 5), mk('x4', 4)];
+  const now = new Date(2026, 10, 16, 10, 0);
+  const prefsByUid = new Map(members.map((m) => [m.uid, { weeklyInvites: -1, maxCategoryGap: 2 }]));
+  const r = H.rankCandidates({ search, clubGap: 0, current: [{ uid: 'a', category: 5, gap: 2 }, { uid: 'b', category: 5, gap: 2 }, { uid: 'c', category: 5, gap: 2 }], targetCategory: 5, members, prefsByUid, counters: new Map(), bookings: [], requests: [], now, random: () => 0.5 });
+  assert.deepEqual(r.map((c) => c.uid).sort(), ['x5', 'y5']);
 });
 
 // ---------- de punta a punta ----------
@@ -270,6 +297,30 @@ await step('E9. Por el link entra el primero que confirma, sin gastar su tope de
   assert.equal(rec.length, 1); assert.equal(rec[0].via, 'link');
   assert.equal((await anon('faltaUnoLink', { clubId: CLUB, searchId: linkSearch.id })).status, 'filled');
   assert.equal((await mostrador.call('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: linkSearch.id })).result, 'late');
+});
+
+await step('E10. Club en "Misma categoría": el link muestra solo 5ta, el de 4ta no entra y el de 5ta sí', async () => {
+  await reset();
+  await club.update({ fillMaxGap: 0 });
+  try {
+    await club.collection('memberships').doc(plataforma.uid).update({ weeklyAvailability: [] });
+    const { id } = await confirmedMatch([[jugador.uid, 'Martín Silva', 5], ['demo-p08', 'Florencia', 5], ['demo-p09', 'Rodrigo', 5], ['demo-p10', 'Mateo', 5]]);
+    await jugador.call('faltaUnoBajarme', { clubId: CLUB, matchId: id });
+    const s = await searchOf(id);
+    const info = await anon('faltaUnoLink', { clubId: CLUB, searchId: s.id });
+    assert.equal(info.minCategory, 5); assert.equal(info.maxCategory, 5);
+    const catPlat = (await club.collection('memberships').doc(plataforma.uid).get()).get('category');
+    assert.notEqual(catPlat, 5);
+    assert.equal((await plataforma.call('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: s.id })).result, 'category');
+    await club.collection('memberships').doc(mostrador.uid).update({ category: 5 });
+    try {
+      assert.equal((await mostrador.call('faltaUnoSumarmePorLink', { clubId: CLUB, searchId: s.id })).result, 'won');
+    } finally {
+      await club.collection('memberships').doc(mostrador.uid).update({ category: 6 });
+    }
+  } finally {
+    await club.update({ fillMaxGap: 1 });
+  }
 });
 
 // ---------- llenar un turno libre con un toque (16/11) ----------

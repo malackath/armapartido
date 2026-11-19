@@ -136,9 +136,9 @@ export interface Club {
   subscriptionStatus: 'trial' | 'active' | 'past_due';
   trialEndsAt?: string;
   monthlyPricePerCourt: number;
-  /** "Falta uno" automático (por defecto encendido) y diferencia de categoría permitida (1 o 2). */
+  /** "Falta uno" automático (por defecto encendido) y diferencia de categoría permitida (0 = misma categoría, 1 o 2; sin dato = 1). */
   fillEnabled?: boolean;
-  fillMaxGap?: 1 | 2;
+  fillMaxGap?: 0 | 1 | 2;
   /** Modo invitados (etapa 6b). Sin esto, el club está en modo interno. */
   guests?: ClubGuestsConfig;
   /** "Llenar turnos libres" automático (D12): apagado si falta. Cada club elige las franjas. */

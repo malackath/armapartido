@@ -180,7 +180,7 @@ service cloud.firestore {
         && (!('deposit' in data) || isValidDepositRule(data.deposit))
         && (!('reportEmails' in data) || (data.reportEmails is list && data.reportEmails.size() <= 5))
         && (!('fillEnabled' in data) || data.fillEnabled is bool)
-        && (!('fillMaxGap' in data) || data.fillMaxGap in [1, 2])
+        && (!('fillMaxGap' in data) || data.fillMaxGap in [0, 1, 2])
         && (!('guests' in data) || (data.guests is map && data.guests.keys().hasOnly(['enabled', 'surcharge', 'shareMyPlayers'])
           && data.guests.enabled is bool && data.guests.surcharge is int && data.guests.surcharge >= 0 && data.guests.surcharge <= 1000))
         && (!('autoFill' in data) || (data.autoFill is map && data.autoFill.keys().hasOnly(['enabled', 'bands'])
