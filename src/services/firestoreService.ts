@@ -2450,3 +2450,16 @@ export async function saveClubGuests(clubId: string, guests: ClubGuestsConfig) {
     handleFirestoreError(err, OperationType.UPDATE, path);
   }
 }
+
+// ---------- Cuponera en la billetera del celular (19/11/2026) ----------
+export interface CuponeraPase {
+  qr: string;
+  conMarca: boolean;
+  google: { disponible: boolean; url?: string };
+  apple: { disponible: boolean; url?: string };
+}
+
+/** QR de la cuponera y, si se pide, el link para guardarla en Google Wallet o Apple Wallet. */
+export async function cuponeraBilletera(clubId: string, packId: string, billetera?: 'google' | 'apple'): Promise<CuponeraPase> {
+  return callArmado<CuponeraPase>('cuponeraBilletera', { clubId, packId, ...(billetera ? { billetera } : {}) }, `clubs/${clubId}/clientPacks/${packId}`);
+}

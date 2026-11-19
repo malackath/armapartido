@@ -190,6 +190,7 @@ export function addClientesDemo(
       saleId: s.id,
       status: 'active',
       uses,
+      qr: demoQr(C, packId),
     };
     put(`${base}/clientPacks/${pack.id}`, pack);
   };
@@ -201,6 +202,8 @@ export function addClientesDemo(
   ], 'efectivo', { invoiceStatus: 'emitida', invoiceNumber: 'A-1037' });
   // Martín (tiene la app) compró una y le quedan 6
   sellPack('martin', martin, packTypes[0], -30, [-26, -19, -12, -5].map((n) => ({ bookingId: '', date: day(n), value: part(n, 20) })), 'transferencia', { invoiceStatus: 'emitida', invoiceNumber: 'A-1031' });
+  // Lucía (tiene la app) compró una hace 10 días y usó 3: la que se ve en la billetera
+  sellPack('lucia', clients.find((c) => c.uid === uids.jugadora)!, packTypes[0], -10, [-8, -5, -2].map((n) => ({ bookingId: '', date: day(n), value: part(n, 19) })), 'efectivo');
   // Rosana compró la de valle hace 70 días: se le vence en pocos días y no volvió
   sellPack('rosana', cli('rosana'), packTypes[1], -55, [
     { bookingId: 'demo_bk_cli_rosana1', date: day(-45), value: price(day(-45), T(9, 30)) },
@@ -237,4 +240,16 @@ export function addClientesDemo(
       const when = p.day ?? '';
       if (when && when < day(-10)) Object.assign(d.data, { invoiceStatus: 'emitida', invoiceNumber: `A-${900 + (pi++ % 99)}` });
     });
+}
+
+/** Código de QR fijo para las cuponeras de la demo (mismo formato que el servidor: AP1.<club>.<24 letras>). */
+export function demoQr(clubId: string, id: string): string {
+  const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let h = 2166136261;
+  let s = '';
+  for (let i = 0; i < 24; i++) {
+    for (const ch of `${id}:${i}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+    s += abc[h % abc.length];
+  }
+  return `AP1.${clubId}.${s}`;
 }

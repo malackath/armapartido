@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, CircleX, Plus, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CircleX, Plus, QrCode, Trash2, X } from 'lucide-react';
 import type {
   Booking,
   Club,
@@ -46,6 +46,7 @@ import { JoinRequestsCard } from './registro/Sumarse';
 import { useJoinRequests } from '../services/sumarseService';
 import { accountOf, participantsOf } from '../lib/caja';
 import { FullscreenButton } from './ui/FullscreenButton';
+import { LeerCuponera } from './mostrador/LeerCuponera';
 import { CourtCard, type CourtCardProps, type CourtSeat } from './mostrador/CourtCard';
 import { LlenarHueco } from './mostrador/LlenarHueco';
 import { AgendaList, DayTabs, DayTimeline, type AgendaItem } from './mostrador/AgendaList';
@@ -171,6 +172,7 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
   const ops = useClubOps(club.id);
   const clientes = useClientesData(club.id);
   const [cashOpen, setCashOpen] = useState<null | 'caja' | 'deben' | 'venta' | 'clientes'>(null);
+  const [leerOpen, setLeerOpen] = useState(false);
 
   useEffect(() => {
     const t = window.setInterval(() => setMinuteNow(nowMinute()), 60_000);
@@ -568,6 +570,23 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
     <ClubOpsContext.Provider value={ops}>
     <ClientesContext.Provider value={clientes}>
     <div className="space-y-5">
+      {leerOpen && (
+        <LeerCuponera
+          clubId={club.id}
+          today={today}
+          minuteNow={minuteNow}
+          bookings={todayBookings}
+          proposedMatches={proposedMatches}
+          nameOf={nameOfUid}
+          onClose={() => setLeerOpen(false)}
+          onOpenTurn={(id) => {
+            setLeerOpen(false);
+            setCashOpen(null);
+            if (selectedDate !== today) setSelectedDate(today);
+            setSelectedId(id);
+          }}
+        />
+      )}
       {joinRequests.length > 0 && (
         <div className="rounded-xl border border-line bg-white" data-testid="mostrador-pedidos">
           <button
@@ -660,6 +679,14 @@ export const StaffCounterView: React.FC<StaffCounterViewProps> = ({
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink hover:bg-mist cursor-pointer"
           >
             <BrandIcon name="pareja" size={18} /> Clientes
+          </button>
+          <button
+            type="button"
+            onClick={() => setLeerOpen(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink hover:bg-mist cursor-pointer"
+            data-testid="boton-leer-cuponera"
+          >
+            <QrCode className="h-[18px] w-[18px]" /> Leer cuponera
           </button>
           <button
             type="button"

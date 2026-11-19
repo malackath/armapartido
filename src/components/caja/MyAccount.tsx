@@ -6,9 +6,13 @@ import { formatDateFriendly, formatMinutes, formatUYU, getTodayISO } from '../..
 import { accountOf, participantsOf } from '../../lib/caja';
 import { subscribeMyConsumptions } from '../../services/cajaService';
 import { subscribeMyClientData } from '../../services/clientesService';
-import { dmy, pendingValue, VALIDITY_LABEL } from '../../lib/clientes';
+import { dmy, pendingValue } from '../../lib/clientes';
 import type { ClientPack, ClubClient } from '../../types/clientes';
 import { BrandIcon } from '../BrandIcon';
+import { CuponeraBilletera } from '../clientes/CuponeraBilletera';
+
+/** ?cuponera=<id>: llega desde el pase de la billetera o del QR de la compu y abre su código. */
+const cuponeraPedida = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('cuponera') || '';
 
 export const MyAccount: React.FC<{ club: Club; userProfile: UserProfile; bookings: Booking[]; proposedMatches: ProposedMatch[] }> = ({ club, userProfile, bookings, proposedMatches }) => {
   const [mine, setMine] = useState<Consumption[]>([]);
@@ -99,24 +103,19 @@ export const MyAccount: React.FC<{ club: Club; userProfile: UserProfile; booking
         </div>
       )}
 
-      {(livePacks.length > 0 || balance > 0) && (
-        <div className="mt-4 grid gap-2 sm:grid-cols-2" data-testid="mis-cuponeras">
+      {livePacks.length > 0 && (
+        <div className="mt-4 flex flex-col gap-2" data-testid="mis-cuponeras">
+          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Mis cuponeras</p>
           {livePacks.map((p) => (
-            <div key={p.id} className="rounded-xl bg-[#e6f3f3] px-4 py-3">
-              <p className="text-sm font-bold text-slate-900">{p.name}</p>
-              <p className="text-[13px] text-slate-600">
-                Te quedan <b>{p.usesLeft}</b> de {p.usesTotal} · vence {dmy(p.expiresOn)}
-              </p>
-              <p className="text-[12px] text-slate-500">Vale {VALIDITY_LABEL[p.validity]}. Avisá en el mostrador que la querés usar.</p>
-            </div>
+            <CuponeraBilletera key={p.id} club={club} pack={p} abierta={cuponeraPedida === p.id} />
           ))}
-          {balance > 0 && (
-            <div className="rounded-xl bg-emerald-50 px-4 py-3">
-              <p className="text-sm font-bold text-slate-900">Saldo a favor</p>
-              <p className="font-display text-xl font-bold tabular-nums text-emerald-700">{formatUYU(balance)}</p>
-              <p className="text-[12px] text-slate-500">Paga cancha, cantina o cuponeras en el club.</p>
-            </div>
-          )}
+        </div>
+      )}
+      {balance > 0 && (
+        <div className="mt-2 rounded-xl bg-emerald-50 px-4 py-3">
+          <p className="text-sm font-bold text-slate-900">Saldo a favor</p>
+          <p className="font-display text-xl font-bold tabular-nums text-emerald-700">{formatUYU(balance)}</p>
+          <p className="text-[12px] text-slate-500">Paga cancha, cantina o cuponeras en el club.</p>
         </div>
       )}
 

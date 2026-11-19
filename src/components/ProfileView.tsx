@@ -73,7 +73,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onToast,
   onOpenTab,
 }) => {
-  const [tab, setTab] = useState<Tab>('juego');
+  // ?cuponera=<id> (desde el pase de la billetera o el QR de la compu) abre "Mi cuenta" con esa cuponera.
+  const [tab, setTab] = useState<Tab>(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('cuponera') ? 'cuenta' : 'juego'));
   const [privateInfo, setPrivateInfo] = useState<UserPrivateInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);

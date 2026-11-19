@@ -2,7 +2,8 @@ import './tz';
 import { setGlobalOptions, logger } from 'firebase-functions';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { onRequest } from 'firebase-functions/v2/https';
 import { linkOrCreateClient } from './clientes';
 import type { MatchRequest, Modality } from '../../src/types/padel';
 import { formatCategory, formatDateFriendly, formatMinutes, getDayName, getDayOfWeekFromISO, getTodayISO, requestsOverlap } from '../../src/lib/padelUtils';
@@ -20,6 +21,8 @@ import { requestJoin, resolveJoin } from './sumarse';
 import { cambiarPaquete, guardarMarca, revisarMarca, subirImagen } from './marca';
 import { chooseUnfilled, claimFromLink, claimSeat, declineInvite, dropFromMatch, publicFillLink, stopSearch } from './fill';
 import type { FillChoice } from '../../src/types/padel';
+import { alCambiarCuponera, APPLE_ON, appUrl, asegurarApple, cuponeraPase, SECRETOS_BILLETERA } from './wallet';
+import { servicioApple } from './wallet/appleServicio';
 
 // São Paulo: misma región que Firestore de la demo. Tope de instancias para que un error no dispare costos.
 setGlobalOptions({ region: 'southamerica-east1', maxInstances: 3, memory: '256MiB' });
@@ -486,3 +489,22 @@ export const marcaGuardar = onCall((req) => guardarMarca(req));
 export const marcaRevisar = onCall((req) => revisarMarca(req));
 export const marcaPaquete = onCall((req) => cambiarPaquete(req));
 export const marcaSubirImagen = onCall({ memory: '512MiB' }, (req) => subirImagen(req));
+
+// ---------- Cuponera en la billetera del celular (19/11/2026) ----------
+// Google Wallet y Apple Wallet se prenden con GOOGLE_WALLET=1 / APPLE_WALLET=1 en functions/.env y sus secretos.
+export const cuponeraBilletera = onCall({ secrets: SECRETOS_BILLETERA }, (req) => cuponeraPase(req));
+export const cuponeraBilleteraAlCambiar =
+  process.env.SIN_DISPARADORES === '1' || !SECRETOS_BILLETERA.length
+    ? undefined
+    : onDocumentUpdated({ document: 'clubs/{clubId}/clientPacks/{packId}', secrets: SECRETOS_BILLETERA }, async (event) => {
+        const antes = event.data?.before.data();
+        const despues = event.data?.after.data();
+        if (!antes || !despues) return;
+        await alCambiarCuponera(event.params.clubId, antes as any, despues as any);
+      });
+export const walletApple = APPLE_ON
+  ? onRequest({ secrets: SECRETOS_BILLETERA }, (req, res) => {
+      asegurarApple();
+      return servicioApple(appUrl())(req, res);
+    })
+  : undefined;

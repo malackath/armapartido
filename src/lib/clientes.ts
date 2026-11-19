@@ -222,6 +222,21 @@ export const pendingValue = (p: ClientPack, today: string) =>
 
 export const expiredUnusedValue = (p: ClientPack) => (p.status === 'active' && p.usesLeft > 0 ? Math.round((p.price * p.usesLeft) / Math.max(1, p.usesTotal)) : 0);
 
+/** Código del QR de una cuponera nueva: AP1.<club>.<24 letras al azar> (el mismo formato que arma el servidor). */
+export function newPackQr(clubId: string): string {
+  const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const b = new Uint8Array(24);
+  crypto.getRandomValues(b);
+  return `AP1.${clubId}.${Array.from(b, (x) => abc[x % abc.length]).join('')}`;
+}
+
+/** Lee el texto de un QR de cuponera. null si no es de Armá Partido. */
+export function readPackQr(v: string): { clubId: string; code: string } | null {
+  const s = String(v || '').trim();
+  const m = /^AP1\.([a-zA-Z0-9_-]{1,128})\.([A-Z2-9]{24})$/.exec(s);
+  return m ? { clubId: m[1], code: s } : null;
+}
+
 export const packExpiresOn = (pt: PackType, soldOn: string) => addDaysISO(soldOn, Math.max(1, pt.days));
 
 export const dmy = (iso: string) => (iso ? iso.split('-').reverse().slice(0, 2).join('/') : '');

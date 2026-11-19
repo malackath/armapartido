@@ -129,6 +129,10 @@ export interface ClientPack {
   saleId: string;
   status: 'active' | 'voided';
   uses: PackUse[];
+  /** Código del QR de la cuponera (AP1.<club>.<24 letras>): lo lee el Mostrador y va en la billetera. */
+  qr?: string;
+  /** Pases guardados en las billeteras (lo escribe solo el servidor). */
+  wallet?: { google?: { objectId?: string }; apple?: { actualizado?: number } };
   createdAt?: unknown;
   updatedAt?: unknown;
 }

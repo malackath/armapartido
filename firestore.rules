@@ -1105,7 +1105,9 @@ service cloud.firestore {
           && isValidId(incoming().clientId)
           && incoming().usesLeft is int && incoming().usesLeft >= 0 && incoming().usesLeft <= incoming().usesTotal
           && incoming().status in ['active', 'voided']
-          && incoming().uses is list && incoming().uses.size() <= 100;
+          && incoming().uses is list && incoming().uses.size() <= 100
+          // Los pases de las billeteras los anota solo el servidor.
+          && (request.method == 'create' ? !('wallet' in incoming()) : incoming().get('wallet', null) == existing().get('wallet', null));
         allow delete: if false;
       }
 

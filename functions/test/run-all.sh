@@ -7,4 +7,5 @@ node functions/test/faltauno.emulator.mjs; B=$?
 node functions/test/clientes.emulator.mjs; C=$?
 node functions/test/resultados.emulator.mjs; D=$?
 node functions/test/invitados.emulator.mjs; E=$?
-exit $((A || B || C || D || E))
+node functions/test/billetera.emulator.mjs; F=$?
+exit $((A || B || C || D || E || F))

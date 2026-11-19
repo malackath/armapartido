@@ -22,7 +22,7 @@ import type { Booking, Club, ClubMembership, PaymentRecord, ProposedMatch } from
 import type { Consumption, Product } from '../types/caja';
 import type { ClientOrigin, ClientPack, ClubClient, ExportLog, InvoiceStatus, PackType, Rubro, Sale, SaleMethod } from '../types/clientes';
 import { consumptionDue } from '../lib/caja';
-import { formatPhone, keyResolver, normalizeEmail, normalizePhone, packExpiresOn } from '../lib/clientes';
+import { formatPhone, keyResolver, newPackQr, normalizeEmail, normalizePhone, packExpiresOn } from '../lib/clientes';
 import type { CounterPaymentMethod } from './firestoreService';
 import { payDebt, type Staff } from './cajaService';
 
@@ -325,6 +325,7 @@ export async function sellPack(params: { club: Club; client: ClubClient; packTyp
     saleId: sale.id,
     status: 'active',
     uses: [],
+    qr: newPackQr(club.id),
   };
   batch.set(ref(club.id, 'clientPacks', packId), { ...pack, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   await batch.commit();
