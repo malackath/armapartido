@@ -316,6 +316,36 @@ export interface MatchRequest {
   isSameDay: boolean;
   status: 'waiting' | 'proposed' | 'confirmed' | 'expired' | 'cancelled';
   unfilledAlertSent: boolean;
+  /** Pedido semanal que mantiene sola una pareja fija (ver src/lib/parejaFija.ts). */
+  fixedPairId?: string;
+  /** Ventana de la pareja: `${dow}-${desde}-${hasta}`. */
+  windowKey?: string;
+  /** 'pareja' = lo cerró el servidor porque la pareja cambió sus horarios, se apagó o llegó al tope de la semana. */
+  closedReason?: 'pareja';
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+/** Pareja fija sin torneo (20/11/2026). Vive en clubs/{clubId}/fixedPairs; solo la escribe el servidor. */
+export interface FixedPair {
+  id: string;
+  clubId: string;
+  /** [quien invita, invitado]. */
+  uids: [string, string];
+  names: Record<string, string>;
+  creatorUid: string;
+  /** pending = esperando que el invitado acepte. */
+  status: 'pending' | 'active' | 'ended';
+  /** Celdas de la grilla `${dow}-${franja}` en que pueden jugar juntos. */
+  cells: string[];
+  modality: Modality;
+  /** true = la app les busca rivales todas las semanas. */
+  searching: boolean;
+  /** Partidos por semana: 1, 2 o 0 = uno por cada horario marcado. */
+  perWeek: 0 | 1 | 2;
+  /** Horarios que no se buscan porque uno de los dos ya tiene otro pedido a esa hora (lo completa el servidor). */
+  clashes?: string[];
+  endedReason?: 'rechazada' | 'terminada';
   createdAt?: unknown;
   updatedAt?: unknown;
 }

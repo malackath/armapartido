@@ -29,6 +29,7 @@ import { obtainFcmDeviceToken } from '../lib/fcm';
 import { MyAccount } from './caja/MyAccount';
 import { AlertPrefsSection } from './FaltaUno';
 import { PrefieroNo } from './PrefieroNo';
+import { ParejaFija } from './ParejaFija';
 import { MisPartidos } from './Resultados';
 import { InstallGuideModal, PWAInstallButton } from './PWAInstallButton';
 import { AvailabilityGrid, CategoryLadder, MiniLadder, OptionGroup, PlayerFicha } from './registro/parts';
@@ -185,6 +186,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               busy={busy}
               onSave={(w) => save({ weeklyAvailability: w }, 'Listo, guardamos tus horarios.')}
             />
+            <ParejaFija clubId={membership ? activeClub?.id : undefined} userProfile={userProfile} memberships={memberships} onToast={onToast} />
             <div className={`${card} lg:col-span-2`}>
               <MisPartidos club={activeClub} userProfile={userProfile} bookings={bookings} tournaments={tournaments} />
             </div>
@@ -197,6 +199,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <ChevronRight className="h-5 w-5 text-muted" />
               </button>
             )}
+            <button type="button" onClick={() => setTab('ajustes')} className={`${card} flex cursor-pointer items-center justify-between text-left hover:bg-mist lg:col-span-2`} data-testid="ir-prefiero-no">
+              <span>
+                <b className="block font-semibold text-ink">Prefiero no jugar con</b>
+                <small className="text-[13px] text-muted">
+                  {(userProfile.avoidUids?.length ?? 0) > 0
+                    ? `${userProfile.avoidUids!.length} ${userProfile.avoidUids!.length === 1 ? 'jugador' : 'jugadores'} · privado, nadie se entera`
+                    : 'Privado: la app nunca te pone en el mismo partido'}
+                </small>
+              </span>
+              <ChevronRight className="h-5 w-5 text-muted" />
+            </button>
           </div>
         )}
 

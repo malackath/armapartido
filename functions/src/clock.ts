@@ -8,6 +8,7 @@ import { expireResults } from './resultados';
 import type { Club } from '../../src/types/padel';
 import { AUTO_FILL_UID, activeSearchFor, autoFinalize, closeUnfilled, courtBusy, endAutoSearch, replaceInPendingMatch, runWave, settleRecoveries } from './fill';
 import { maybeRunAutoFill } from './autofill';
+import { syncClubPairs } from './parejaFija';
 import { CHOICE_DEADLINE_MINUTES, isoDate, slotStart } from './fillRules';
 import { notify } from './notify';
 
@@ -22,6 +23,7 @@ export interface ClockReport {
   recoveriesSettled: number;
   autoFillOpened: number;
   autoFillCourtTaken: number;
+  pairRequestsCreated: number;
 }
 
 
@@ -36,7 +38,7 @@ export async function runClock(nowDate = new Date()): Promise<ClockReport> {
   const nowISO = nowDate.toISOString();
   const today = isoDate(nowDate);
   const nowMin = nowDate.getHours() * 60 + nowDate.getMinutes();
-  const report: ClockReport = { clubs: 0, expiredMatches: 0, releasedHolds: 0, unfilledAlerts: 0, expiredRequests: 0, searchesClosed: 0, invitesSent: 0, recoveriesSettled: 0, autoFillOpened: 0, autoFillCourtTaken: 0 };
+  const report: ClockReport = { clubs: 0, expiredMatches: 0, releasedHolds: 0, unfilledAlerts: 0, expiredRequests: 0, searchesClosed: 0, invitesSent: 0, recoveriesSettled: 0, autoFillOpened: 0, autoFillCourtTaken: 0, pairRequestsCreated: 0 };
 
   const clubs = await db.collection('clubs').get();
   for (const clubDoc of clubs.docs) {
@@ -133,6 +135,9 @@ export async function runClock(nowDate = new Date()): Promise<ClockReport> {
       // 6. "Llenar turnos libres": revisión de las 9:00 y las 14:00 (solo clubes que lo encendieron)
       const auto = await maybeRunAutoFill(clubId, { ...(clubDoc.data() as Club), id: clubId }, nowDate);
       if (auto) report.autoFillOpened += auto.opened.length;
+
+      // 7. Parejas fijas: cada 10 minutos se renuevan sus pedidos semanales (semana nueva, horarios cambiados, tope).
+      if (nowDate.getMinutes() % 10 === 0) report.pairRequestsCreated += await syncClubPairs(clubId);
 
       // 3 y 4. Pedidos en espera
       for (const d of waiting.docs) {

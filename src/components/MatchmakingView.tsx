@@ -726,9 +726,10 @@ export const MatchmakingView: React.FC<MatchmakingViewProps> = ({
             <label className="block text-xs font-semibold text-slate-700">
               <span className="inline-flex items-center gap-1.5">
                 <UserPlus className="h-3.5 w-3.5 text-emerald-600" />
-                Jugar en pareja fija (opcional — la app busca otra dupla o dos rivales)
+                Jugar con un compañero en este pedido (opcional — la app busca otra dupla o dos rivales)
               </span>
             </label>
+            <p className="text-[11px] text-slate-500">Si juegan siempre juntos, anótense como pareja fija en Perfil → Mi juego y la app les busca rivales todas las semanas.</p>
 
             {friendPlayers.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5">

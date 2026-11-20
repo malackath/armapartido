@@ -1026,6 +1026,14 @@ service cloud.firestore {
         allow get, list: if isSignedIn() && isValidId(clubId) && (isClubStaffOrAdmin(clubId) || isPlatformAdmin());
         allow write: if false;
       }
+      // Pareja fija sin torneo (20/11/2026): la leen solo los dos de la pareja; la escribe solo el servidor.
+      match /fixedPairs/{pairId} {
+        allow get: if isSignedIn() && isValidId(clubId) && isValidId(pairId)
+          && request.auth.uid in existing().uids;
+        allow list: if isSignedIn() && request.auth.uid in existing().uids;
+        allow write: if false;
+      }
+
       match /standbys/{standbyId} {
         allow get: if isSignedIn() && isValidId(clubId) && isValidId(standbyId)
           && (existing().uid == request.auth.uid || isClubStaffOrAdmin(clubId) || isPlatformAdmin());

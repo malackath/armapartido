@@ -24,6 +24,7 @@ import type { FillChoice } from '../../src/types/padel';
 import { alCambiarCuponera, GOOGLE_ON, APPLE_ON, appUrl, asegurarApple, cuponeraPase, SECRETOS_BILLETERA } from './wallet';
 import { servicioApple } from './wallet/appleServicio';
 import { leerNombreTira, tiraPng } from './wallet/tira';
+import { answerPair, endPair, invitePair, savePair } from './parejaFija';
 
 // São Paulo: misma región que Firestore de la demo. Tope de instancias para que un error no dispare costos.
 setGlobalOptions({ region: 'southamerica-east1', maxInstances: 3, memory: '256MiB' });
@@ -197,6 +198,43 @@ export const armadoReloj = onSchedule({ schedule: 'every 1 minutes', timeZone: '
   if (report.expiredMatches || report.releasedHolds || report.unfilledAlerts || report.expiredRequests) {
     logger.info('reloj', report);
   }
+});
+
+// -----------------------------------------------------------------------------
+// Pareja fija sin torneo (20/11/2026): src/lib/parejaFija.ts y functions/src/parejaFija.ts
+// -----------------------------------------------------------------------------
+
+export const parejaInvitar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  return { pair: await invitePair(clubId, uid, str(d.partnerUid)) };
+});
+
+export const parejaResponder = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  return { pair: await answerPair(clubId, str(d.pairId), uid, d.accept === true) };
+});
+
+export const parejaGuardar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  return { pair: await savePair(clubId, str(d.pairId), uid, { cells: d.cells, searching: d.searching, perWeek: d.perWeek, modality: d.modality }) };
+});
+
+export const parejaTerminar = onCall(async (req) => {
+  const uid = requireUid(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const clubId = str(d.clubId);
+  await requireMember(clubId, uid);
+  await endPair(clubId, str(d.pairId), uid);
+  return { ok: true };
 });
 
 // -----------------------------------------------------------------------------

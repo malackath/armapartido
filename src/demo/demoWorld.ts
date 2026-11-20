@@ -1,5 +1,5 @@
 import { teamsForSlots } from '../lib/planificador';
-import type { ProposedSlot } from '../types/padel';
+import type { FixedPair, ProposedSlot } from '../types/padel';
 /**
  * Mundo de demo de Armá Partido: un club ficticio de Montevideo con canchas, jugadores de 1ra a 7ma,
  * reservas pasadas y futuras, partidos armados y abiertos, y torneos.
@@ -99,6 +99,7 @@ export const DEMO_CLUB_SUBCOLLECTIONS = [
   'bookings',
   'matchRequests',
   'proposedMatches',
+  'fixedPairs',
   'tournaments',
   'payments',
   'notifications',
@@ -623,6 +624,14 @@ export function buildDemoWorld(uids: DemoUids, today = getTodayISO(), nowMinute 
     req('demo_req_004', 'demo-p02', 'demo-p03', day(1), T(21, 30), 'priority'),
     req('demo_req_005', 'demo-p15', null, day(3), T(17), 'weekly'),
   ].forEach((r) => put(`${base}/matchRequests/${r.id}`, r));
+  // Pareja fija sin torneo (20/11): Martín ya es pareja de Rodrigo (martes y jueves de noche, sábado de mañana)
+  // y Mateo lo invita a ser su pareja de los domingos. El reloj del servidor crea los pedidos semanales solo.
+  const fixedPair = (id: string, a: string, b: string, status: FixedPair['status'], cells: string[]): FixedPair => ({
+    id, clubId: C, uids: [a, b], names: { [a]: nameOf(a), [b]: nameOf(b) }, creatorUid: a, status, cells,
+    modality: 'masculino', searching: true, perWeek: 1,
+  });
+  put(`${base}/fixedPairs/pair_demo_martin_rodrigo`, fixedPair('pair_demo_martin_rodrigo', uids.jugador, 'demo-p09', 'active', ['2-3', '4-3', '6-0']));
+  put(`${base}/fixedPairs/pair_demo_mateo_martin`, fixedPair('pair_demo_mateo_martin', 'demo-p10', uids.jugador, 'pending', ['0-0', '0-1']));
   // Pedidos de los partidos ya armados (el servidor los pasa a "confirmado" cuando aceptan los 4;
   // si no existen, la confirmación del cuarto falla). QA 17/11.
   for (const [m, status] of [[confirmed, 'confirmed'], [pending, 'proposed']] as const) {

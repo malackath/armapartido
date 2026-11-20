@@ -15,3 +15,4 @@ export { armarPase, avisoCambio, nombreCorto, leerCodigoQr } from '../src/wallet
 export { GoogleWallet, linkGuardar, objetoGoogle, idObjeto } from '../src/wallet/google';
 export { armarPkpass, passJson, zip, tokenPase, tokenValido } from '../src/wallet/apple';
 export { tiraPng, leerNombreTira, estadosCupones } from '../src/wallet/tira';
+export { syncClubPairs, syncPair } from '../src/parejaFija';
